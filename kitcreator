@@ -170,7 +170,7 @@ fi
 if [ -f "tclkit.exe.manifest" ]; then
 	KITCREATOR_MANIFEST="$(pwd)/tclkit.exe.manifest"
 else
-	KITCREATOR_MANIFEST="$(echo "$(pwd)/kitsh/buildsrc"/kitsh-*/tclkit.exe.manifest"
+	KITCREATOR_MANIFEST="$(echo "$(pwd)/kitsh/buildsrc"/kitsh-*/tclkit.exe.manifest)"
 fi
 export KITCREATOR_ICON KITCREATOR_RC KITCREATOR_MANIFEST
 
