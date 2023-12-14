@@ -267,6 +267,7 @@ fi
 
 			echo ' *** Importing user-specified resources'
 			cat "${KITCREATOR_RC}" | grep -v '^ *tclsh  *ICON' >> "./rc/tk_base.rc"
+			cp "${KITCREATOR_MANIFEST}" tclkit.exe.manifest
 
 			echo ' *** Creating tkbase.res.o to support Windows build'
 			echo "\"${RC:-windres}\" -o tkbase.res.o  --define STATIC_BUILD --include \"./../generic\" --include \"${TCLCONFIGDIR}/../generic\" --include \"${TCLCONFIGDIR}\" --include \"./rc\" \"./rc/tk_base.rc\""
