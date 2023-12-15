@@ -167,12 +167,7 @@ if [ -f "kit.rc" ]; then
 else
 	KITCREATOR_RC="$(echo "$(pwd)/kitsh/buildsrc"/kitsh-*/kit.rc)"
 fi
-if [ -f "tclkit.exe.manifest" ]; then
-	KITCREATOR_MANIFEST="$(pwd)/tclkit.exe.manifest"
-else
-	KITCREATOR_MANIFEST="$(echo "$(pwd)/kitsh/buildsrc"/kitsh-*/tclkit.exe.manifest)"
-fi
-export KITCREATOR_ICON KITCREATOR_RC KITCREATOR_MANIFEST
+export KITCREATOR_ICON KITCREATOR_RC
 
 # Determine how we invoke a Tcl interpreter
 if [ -z "${TCLSH_NATIVE}" ]; then

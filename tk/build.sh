@@ -23,6 +23,7 @@ esac
 SRC="src/tk${TCLVERS}.tar.gz"
 SRCURL="http://prdownloads.sourceforge.net/tcl/tk${TCLVERS}-src.tar.gz"
 SRCHASH='-'
+KITCREATOR_DIR="$(pwd)/.."
 BUILDDIR="$(pwd)/build/tk${TCLVERS_CLEAN}"
 PATCHDIR="$(pwd)/patches"
 OUTDIR="$(pwd)/out"
@@ -267,7 +268,14 @@ fi
 
 			echo ' *** Importing user-specified resources'
 			cat "${KITCREATOR_RC}" | grep -v '^ *tclsh  *ICON' >> "./rc/tk_base.rc"
-			cp "${KITCREATOR_MANIFEST}" tclkit.exe.manifest
+
+			if [ -f "$KITCREATOR_DIR/tclkit.exe.manifest" ]; then
+				KITCREATOR_MANIFEST="$KITCREATOR_DIR/tclkit.exe.manifest"
+			else
+				KITCREATOR_MANIFEST="$BUILDDIR/win/wish.exe.manifest"
+			fi
+			echo " *** Creating tclkit.exe.manifest from $KITCREATOR_MANIFEST"
+			cat "${KITCREATOR_MANIFEST}" | sed 's@name="Tcl.Tk.wish"@name="Tcl.tclkit"@' >> tclkit.exe.manifest
 
 			echo ' *** Creating tkbase.res.o to support Windows build'
 			echo "\"${RC:-windres}\" -o tkbase.res.o  --define STATIC_BUILD --include \"./../generic\" --include \"${TCLCONFIGDIR}/../generic\" --include \"${TCLCONFIGDIR}\" --include \"./rc\" \"./rc/tk_base.rc\""
