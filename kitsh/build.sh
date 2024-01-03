@@ -117,7 +117,7 @@ mkdir 'out' 'inst' || exit 1
 		if [ -f "$KITCREATOR_DIR/tclkit.exe.manifest" ]; then
 			KITCREATOR_MANIFEST="$KITCREATOR_DIR/tclkit.exe.manifest"
 		else
-			KITCREATOR_MANIFEST="$KITCREATOR_DIR"/tcl/build/tcl*/win/tclsh.exe.manifest
+			KITCREATOR_MANIFEST="$KITCREATOR_DIR/tcl/build/tcl${TCLVERS}/win/tclsh.exe.manifest"
 		fi
 		echo " *** Creating tclkit.exe.manifest from $KITCREATOR_MANIFEST"
 		cat "${KITCREATOR_MANIFEST}" | sed 's@name="Tcl.tclsh"@name="Tcl.tclkit"@' >> ${BUILDDIR}/tclkit.exe.manifest
