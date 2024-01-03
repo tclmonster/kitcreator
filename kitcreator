@@ -1,5 +1,8 @@
 #! /usr/bin/env bash
 
+KITCREATOR_DIR="$(pwd)"
+export KITCREATOR_DIR
+
 # Clean variables which will interfere with the build
 unset MAKEFLAGS DESTDIR
 
