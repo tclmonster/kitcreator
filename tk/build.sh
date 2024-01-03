@@ -257,8 +257,15 @@ fi
 			${MAKE:-make}
 		) || continue
 
-		echo "Running: ${MAKE:-make} install"
-		${MAKE:-make} install || continue
+		private_headers=
+		if echo " ${CONFIGUREEXTRA} " | grep ' --enable-tcl-private-headers ' \
+				> /dev/null 2>&1; then
+
+			private_headers=install-private-headers
+		fi
+
+		echo "Running: ${MAKE:-make} install $private_headers"
+		${MAKE:-make} install $private_headers || continue
 
 		# Update to include resources, if found
 		if [ "${dir}" = "win" ]; then
