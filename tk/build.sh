@@ -23,7 +23,6 @@ esac
 SRC="src/tk${TCLVERS}.tar.gz"
 SRCURL="http://prdownloads.sourceforge.net/tcl/tk${TCLVERS}-src.tar.gz"
 SRCHASH='-'
-KITCREATOR_DIR="$(pwd)/.."
 BUILDDIR="$(pwd)/build/tk${TCLVERS_CLEAN}"
 PATCHDIR="$(pwd)/patches"
 OUTDIR="$(pwd)/out"
