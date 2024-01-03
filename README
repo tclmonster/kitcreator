@@ -199,6 +199,10 @@ Kitsh Configure Options:
 		CVFS are encrypted on disk and the encryption key is included
 		in the executable.  Files are then transparently decrypted on
 		access.
+	3. --enable-tcl-private-headers
+		When provided, this option ensures private Tcl/Tk headers are
+		included with a KitDLL. This is required when building some
+		extensions.
 
 --------------------
 Using the KitDLL SDK
