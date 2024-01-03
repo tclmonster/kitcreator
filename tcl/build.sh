@@ -281,13 +281,20 @@ fi
 		echo "Running: ${MAKE:-make}"
 		${MAKE:-make} || continue
 
-		echo "Running: ${MAKE:-make} install"
-		${MAKE:-make} install || (
+		private_headers=
+		if echo " ${CONFIGUREEXTRA} " | grep ' --enable-tcl-private-headers ' \
+				> /dev/null 2>&1; then
+
+			private_headers=install-private-headers
+		fi
+
+		echo "Running: ${MAKE:-make} install $private_headers"
+		${MAKE:-make} install $private_headers || (
 			# Work with Tcl 8.6.x's TCLSH_NATIVE solution for
 			# cross-compile installs
 
-			echo "Running: ${MAKE:-make} install TCLSH_NATIVE=\"${TCLSH_NATIVE}\""
-			${MAKE:-make} install TCLSH_NATIVE="${TCLSH_NATIVE}"
+			echo "Running: ${MAKE:-make} install $private_headers TCLSH_NATIVE=\"${TCLSH_NATIVE}\""
+			${MAKE:-make} install $private_headers TCLSH_NATIVE="${TCLSH_NATIVE}"
 		) || (
 			# Make install can fail if cross-compiling using Tcl 8.5.x
 			# because the Makefile calls "$(TCLSH)".  We can't simply
@@ -296,8 +303,8 @@ fi
 			cat Makefile.new > Makefile
 			rm -f Makefile.new
 
-			echo "Running: ${MAKE:-make} install TCLSH=\"../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")\""
-			${MAKE:-make} install TCLSH="../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")"
+			echo "Running: ${MAKE:-make} install $private_headers TCLSH=\"../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")\""
+			${MAKE:-make} install $private_headers TCLSH="../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")"
 		) || (
 			# Make install can fail if cross-compiling using Tcl 8.5.9
 			# because the Makefile calls "${TCL_EXE}".  We can't simply
@@ -306,8 +313,8 @@ fi
 			cat Makefile.new > Makefile
 			rm -f Makefile.new
 
-			echo "Running: ${MAKE:-make} install TCL_EXE=\"../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")\""
-			${MAKE:-make} install TCL_EXE="../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")"
+			echo "Running: ${MAKE:-make} install $private_headers TCL_EXE=\"../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")\""
+			${MAKE:-make} install $private_headers TCL_EXE="../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")"
 		) || exit 1
 
 		mkdir "${OUTDIR}/lib" || exit 1
