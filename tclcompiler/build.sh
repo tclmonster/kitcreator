@@ -4,9 +4,9 @@
 
 version='1.7.1'
 url="https://github.com/bandoti/tclcompiler/archive/refs/tags/v${version}.tar.gz"
-sha256='391b553e2581c9e70dee8588ea2d59c19cc706f94ca84877a5707e57a078600f'
+sha256='1b652b6917f9e8e3fb77cb313de3edef381808b2fd2e000aa53ff73650c231e5'
 
-configure_extra="--with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include"
+configure_extra=(--with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
 function prebuild() {
 	local tbcload_headers="$(ls ${KITCREATOR_DIR}/tbcload/inst/include/*.h 2>/dev/null)"
