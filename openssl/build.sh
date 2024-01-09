@@ -28,6 +28,10 @@ function build() {
 	${MAKE:-make} build_libs || return 1
 }
 
+function postinstall() {
+	printf 'libcrypto.a\nlibssl.a\n' > "${installdir}/kitcreator-nolibs"
+}
+
 #function install() {
 #	${MAKE:-make} install || return 1
 #}
