@@ -8,6 +8,12 @@ sha256='179ce88b272bdfa44e551b858f6ee5783a8c72cc11a5ef29975b29d12998b3de'
 
 STATICTRF=1
 
+# Note: On MINGW32 be sure to install the "dlfcn" package. E.G. when using the
+# UCRT runtime: pacman -S mingw-w64-ucrt-x86_64-dlfcn. Without this, load.c
+# will fail to find dlopen et al. In addition, `export KC_KITSH_LDFLAGS='-static'`
+# should be supplied to ensure the static libdl.a will be linked (otherwise the
+# kit will only run within a MINGW32 environment.
+
 configure_extra=(
 	# Force Trf to use internal md2, md5, and sha algorithms.
 	# This drastically simplifies the build since md2 is not enabled by
