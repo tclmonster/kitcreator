@@ -1,0 +1,117 @@
+diff -ruN trf2.1.4.bak/compat/tclLoadNone.c trf2.1.4/compat/tclLoadNone.c
+--- trf2.1.4.bak/compat/tclLoadNone.c	2009-06-18 01:45:22.000000000 -0300
++++ trf2.1.4/compat/tclLoadNone.c	2024-01-10 23:38:32.330197100 -0400
+@@ -13,6 +13,7 @@
+  * SCCS: @(#) tclLoadNone.c 1.5 96/02/15 11:43:01
+  */
+ 
++#if 0
+ #include "tcl.h"
+ #include "compat/dlfcn.h"
+ 
+@@ -211,3 +212,5 @@
+ {
+     return 0;
+ }
++
++#endif
+diff -ruN trf2.1.4.bak/generic/loadman.h trf2.1.4/generic/loadman.h
+--- trf2.1.4.bak/generic/loadman.h	2009-06-18 01:55:33.000000000 -0300
++++ trf2.1.4/generic/loadman.h	2024-01-10 02:02:13.284110400 -0400
+@@ -134,9 +134,9 @@
+  * a mutex in case of a thread-enabled Tcl.
+  */
+ 
+-EXTERN md2Functions  md2f;  /* THREADING: serialize initialization */
+-EXTERN md5Functions  md5f;  /* THREADING: serialize initialization */
+-EXTERN sha1Functions sha1f; /* THREADING: serialize initialization */
++extern md2Functions  md2f;  /* THREADING: serialize initialization */
++extern md5Functions  md5f;  /* THREADING: serialize initialization */
++extern sha1Functions sha1f; /* THREADING: serialize initialization */
+ 
+ 
+ EXTERN int
+diff -ruN trf2.1.4.bak/generic/registry.c trf2.1.4/generic/registry.c
+--- trf2.1.4.bak/generic/registry.c	2009-06-18 01:54:44.000000000 -0300
++++ trf2.1.4/generic/registry.c	2024-01-09 22:44:10.181468600 -0400
+@@ -2668,11 +2668,15 @@
+   /* trans->standard.typePtr = entry->transType; */
+   trans->clientData       = entry->trfType->clientData;
+ 
++#ifdef USE_TCL_STUBS
+   if (trans->patchVariant == PATCH_832) {
+     trans->parent = Tcl_GetTopChannel (baseOpt->attach);
+   } else {
+     trans->parent = baseOpt->attach;
+   }
++#else
++  trans->parent = baseOpt->attach;
++#endif
+ 
+   trans->readIsFlushed    = 0;
+ 
+diff -ruN trf2.1.4.bak/generic/sha/sha.h trf2.1.4/generic/sha/sha.h
+--- trf2.1.4.bak/generic/sha/sha.h	2009-06-18 01:45:22.000000000 -0300
++++ trf2.1.4/generic/sha/sha.h	2024-01-08 23:54:45.888885500 -0400
+@@ -10,16 +10,16 @@
+ 
+ #ifndef _WIN32
+ typedef unsigned char BYTE;
+-#endif
+-#if defined(__alpha) || defined(__LP64__)
++#  if defined(__alpha) || defined(__LP64__)
+ typedef unsigned int  UINT32;
+-#else
+-#ifndef UINT32
+-#ifdef _WIN32
+-#	pragma warning ( disable : 4142 )
+-#endif
++#  else
++#    ifndef UINT32
++#      ifdef _WIN32
++#	      pragma warning ( disable : 4142 )
++#      endif
+ typedef unsigned long UINT32;
+-#endif
++#    endif
++#  endif
+ #endif
+ 
+ 
+diff -ruN trf2.1.4.bak/generic/transformInt.h trf2.1.4/generic/transformInt.h
+--- trf2.1.4.bak/generic/transformInt.h	2009-06-18 01:55:33.000000000 -0300
++++ trf2.1.4/generic/transformInt.h	2024-01-10 19:50:53.866064200 -0400
+@@ -450,7 +450,7 @@
+ } zFunctions;
+ 
+ 
+-EXTERN zFunctions zf; /* THREADING: serialize initialization */
++extern zFunctions zf; /* THREADING: serialize initialization */
+ 
+ EXTERN int
+ TrfLoadZlib _ANSI_ARGS_ ((Tcl_Interp *interp));
+@@ -487,7 +487,7 @@
+ } bzFunctions;
+ 
+ 
+-EXTERN bzFunctions bz; /* THREADING: serialize initialization */
++extern bzFunctions bz; /* THREADING: serialize initialization */
+ 
+ EXTERN int
+ TrfLoadBZ2lib _ANSI_ARGS_ ((Tcl_Interp *interp));
+@@ -683,15 +683,6 @@
+ #define NEW_DATA(r)      Tcl_NewStringObj ((char*) (r).buf, (r).used)
+ #endif
+ 
+-/* Map the names of some procedures from the stubs-variant to their
+- * pre-stubs names.
+- */
+-
+-#ifndef USE_TCL_STUBS
+-#define Tcl_UnstackChannel Tcl_UndoReplaceChannel
+-#define Tcl_StackChannel   Tcl_ReplaceChannel
+-#endif
+-
+ /* Define the code to 'provide' this package to the loading interpreter.
+  */
+ 
