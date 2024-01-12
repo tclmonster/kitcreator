@@ -10,9 +10,17 @@ STATICTRF=1
 
 # Note: On MINGW32 be sure to install the "dlfcn" package. E.G. when using the
 # UCRT runtime: pacman -S mingw-w64-ucrt-x86_64-dlfcn. Without this, load.c
-# will fail to find dlopen et al. In addition, `export KC_KITSH_LDFLAGS='-static'`
-# should be supplied to ensure the static libdl.a will be linked (otherwise the
-# kit will only run within a MINGW32 environment.
+# will fail to find dlopen et al. In addition, the following should be supplied
+# to ensure the static libdl.a will be linked (otherwise the kit will only run
+# within a MINGW32 environment).
+#
+# `export KC_KITSH_LDFLAGS='-Wl,-Bstatic -ldl -Wl,-Bdynamic'`
+#
+# In addition, if building Tk, all configure scripts (not including Trf)
+# must be "fooled" into believing dlfcn is *not* present. Otherwise kitsh will
+# think it is being built on geniune Unix—and won't be able to find WinMain.
+#
+# `./kitcreator build ... ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
 
 configure_extra=(
 	# Force Trf to use internal md2, md5, and sha algorithms.
