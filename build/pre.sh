@@ -7,7 +7,7 @@ export KITSHROOTDIR
 (
 	cd "${KITSHROOTDIR}" || exit 1
 
-	autoconf; autoheader
+	autoreconf
 	rm -rf autom4te.cache
 	rm -f *~
 
