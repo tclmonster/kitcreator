@@ -1,18 +1,37 @@
 dnl What are we running
-AC_INIT(kitsh, 0.0)
+AC_INIT([kitsh],[0.0])
+
+AC_ARG_WITH(tclsh, [  --with-tclsh=FILE location of a working tclsh executable], with_tclsh=${withval})
+
+SC_SIMPLE_EXEEXT
+
+# allow user to override the tclsh we think we found
+if test x"${with_tclsh}" != x ; then
+    AC_MSG_CHECKING([for tclsh])
+    if "${with_tclsh}" < /dev/null > /dev/null 2> /dev/null
+    then
+        TCLSH_PROG=${with_tclsh}
+        AC_MSG_RESULT([$TCLSH_PROG, via --with-tclsh])
+    else
+        AC_MSG_ERROR([Bad --with-tclsh ${with_tclsh}, not found or not executable])
+    fi
+    AC_SUBST(TCLSH_PROG)
+else
+    SC_PROG_TCLSH
+fi
 
 dnl Checks for programs.
 AC_PROG_CC
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
-AC_AIX
-AC_GNU_SOURCE
+AC_USE_SYSTEM_EXTENSIONS
+AC_USE_SYSTEM_EXTENSIONS
 
 dnl Find out if we should build a DLL or an Executable
 TARGET="tclkit"
 EXTRA_KIT_DEPS=""
 AC_MSG_CHECKING([what target to build])
-AC_ARG_ENABLE(kitdll, AC_HELP_STRING([--enable-kitdll], [Enable building KitDLL instead of Tclkit (default: no)]), [
+AC_ARG_ENABLE(kitdll, AS_HELP_STRING([--enable-kitdll],[Enable building KitDLL instead of Tclkit (default: no)]), [
 	AS_CASE([$enableval],
 		[yes|kitdll], [
 			TARGET="kitdll"
@@ -109,7 +128,15 @@ AC_CHECK_FUNCS(Tcl_GetEncodingNameFromEnvironment Tcl_SetSystemEncoding)
 LIBS="${SAVE_LIBS}"
 
 dnl Check for optional headers
-AC_HEADER_STDC
+m4_warn([obsolete],
+[The preprocessor macro `STDC_HEADERS' is obsolete.
+  Except in unusual embedded environments, you can safely include all
+  ISO C90 headers unconditionally.])dnl
+# Autoupdate added the next two lines to ensure that your configure
+# script's behavior did not change.  They are probably safe to remove.
+AC_CHECK_INCLUDES_DEFAULT
+AC_PROG_EGREP
+
 AC_CHECK_HEADERS(unistd.h string.h strings.h)
 
 dnl Check for optional system calls
@@ -119,7 +146,7 @@ dnl Check for acceptable dladdr so we can find ourselves on Solaris
 DC_CHECK_FOR_ACCEPTABLE_DLADDR
 
 dnl Find zlib
-AC_ARG_WITH(zlib, AC_HELP_STRING([--with-zlib], [directory containing zlib]), [
+AC_ARG_WITH(zlib, AS_HELP_STRING([--with-zlib],[directory containing zlib]), [
 	CPPFLAGS="${CPPFLAGS} -I${with_zlib}/include -I${with_zlib}"
 	CFLAGS="${CFLAGS} -I${with_zlib}/include -I${with_zlib}"
 	LDFLAGS="${LDFLAGS} -L${with_zlib}/lib -L${with_zlib}"
@@ -138,7 +165,7 @@ dnl Determine which storage mechanism to use
 AC_MSG_CHECKING([which Tclkit Storage mechanism to use])
 
 storage_mech="auto"
-AC_ARG_ENABLE(kit-storage, AC_HELP_STRING([--enable-kit-storage={zip|mk4|cvfs}], [Specify storage mechanism to use for built-in VFS (default: auto)]), [
+AC_ARG_ENABLE(kit-storage, AS_HELP_STRING([--enable-kit-storage={zip|mk4|cvfs}],[Specify storage mechanism to use for built-in VFS (default: auto)]), [
 	AS_CASE(["$enableval"],
 		mk4, [
 			storage_mech="mk4"
@@ -219,4 +246,5 @@ rm -f Makefile.in
 cp Makefile.${TARGET_BASE}.in Makefile.in
 
 dnl Produce output
-AC_OUTPUT(Makefile Makefile.common)
+AC_CONFIG_FILES([Makefile Makefile.common])
+AC_OUTPUT
