@@ -328,6 +328,7 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 	echo 'static void _Tclkit_GenericLib_Init(void) {' >> kitInit-libs.h
 	for lib_init_func in ${libs_init_funcs}; do
 		proj="`echo ${lib_init_func} | sed 's@_Init$$@@@' | dd conv=lcase 2>/dev/null`"
+		projdir="../../../$proj"
 		if test -f "${projdir}/inst/tcl-pkg-name"; then
 			proj="`cat "${projdir}/inst/tcl-pkg-name"`"
 		fi
