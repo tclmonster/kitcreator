@@ -1,3 +1,6 @@
+
+builtin(include,find-tclsh.m4)
+
 AC_DEFUN(DC_DO_TCL, [
 	AC_MSG_CHECKING([path to tcl])
 	AC_ARG_WITH(tcl, AC_HELP_STRING([--with-tcl], [directory containing tcl configuration (tclConfig.sh)]), [], [
