@@ -1,0 +1,12 @@
+diff -rNu tclx-8.6.2.bak/win/tclXwinOS.c tclx-8.6.2/win/tclXwinOS.c
+--- tclx-8.6.2.bak/win/tclXwinOS.c	2023-05-30 16:55:47.000000000 -0300
++++ tclx-8.6.2/win/tclXwinOS.c	2024-01-12 20:19:41.010266800 -0400
+@@ -1076,7 +1076,7 @@
+  */
+ int
+ TclXOSInetAtoN (Tcl_Interp     *interp,
+-                char           *strAddress,
++                const char     *strAddress,
+                 struct in_addr *inAddress)
+ {
+     inAddress->s_addr = inet_addr (strAddress);

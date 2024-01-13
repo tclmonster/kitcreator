@@ -2,8 +2,8 @@
 
 # BuildCompatible: KitCreator
 
-version="8.4.1"
-url="http://sourceforge.net/projects/tclx/files/TclX/${version}/tclx${version}.tar.bz2"
-sha256='a9b41f606ec6c1268b9c78512e6e1cb533bd9ae3e786e650d111fc16ffe758ec'
+version="8.6.2"
+url="https://github.com/flightaware/tclx/archive/refs/tags/v${version}.tar.gz"
+sha256='157124fa98b324c0a57c5a9f4d709bedb00a16f43b0aa8263b1ba56005d30035'
 tclpkg='Tclx'
-tclpkgversion='8.4'
+tclpkgversion='8.6'
