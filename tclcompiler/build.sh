@@ -4,7 +4,7 @@
 
 version='1.7.1'
 url="https://github.com/bandoti/tclcompiler/archive/refs/tags/v${version}.tar.gz"
-sha256='1b652b6917f9e8e3fb77cb313de3edef381808b2fd2e000aa53ff73650c231e5'
+sha256='6d44b25707f117a900b80662b685c702c5ea59c773060707227385115fdcb421'
 
 configure_extra=(--with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
