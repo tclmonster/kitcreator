@@ -6,6 +6,7 @@ version='1.7.1'
 url="https://github.com/bandoti/tclcompiler/archive/refs/tags/v${version}.tar.gz"
 sha256='6d44b25707f117a900b80662b685c702c5ea59c773060707227385115fdcb421'
 
+KC_TCLCOMPILER_CFLAGS='-Wno-error=implicit-function-declaration'
 configure_extra=(--with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
 function prebuild() {
