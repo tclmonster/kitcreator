@@ -222,9 +222,13 @@ function configure() {
 
 		if ! grep '[-]-disable-stubs' configure >/dev/null 2>/dev/null; then
 			if [ "${disable_stubs}" = '1' ]; then
-				sed 's@USE_TCL_STUBS@XXX_TCL_STUBS@g' configure > configure.new
+				sed -e 's@USE_TCL_STUBS@XXX_TCL_STUBS@g' \
+					-e 's@USE_TK_STUBS@XXX_TK_STUBS@g' \
+						configure > configure.new
 			else
-				sed 's@XXX_TCL_STUBS@USE_TCL_STUBS@g' configure > configure.new
+				sed -e 's@XXX_TCL_STUBS@USE_TCL_STUBS@g' \
+					-e 's@XXX_TK_STUBS@USE_TK_STUBS@g' \
+						configure > configure.new
 			fi
 
 			cat configure.new > configure
