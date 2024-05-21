@@ -5,7 +5,7 @@ for file in pkgs/tdbcodbc*/generic/tdbcodbc.c pkgs/tdbcmysql*/generic/tdbcmysql.
 		continue
 	fi
 
-	sed 's@const.*LiteralValues@static &@' "${file}" > "${file}.new"
+	sed 's@^const.*LiteralValues@static &@' "${file}" > "${file}.new"
 	cat "${file}.new" > "${file}"
 	rm -f "${file}.new"
 done
