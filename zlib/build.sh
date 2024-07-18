@@ -13,9 +13,14 @@ function configure() {
 
 			make_extra=(BINARY_PATH="${installdir}/bin" INCLUDE_PATH="${installdir}/include" LIBRARY_PATH="${installdir}/lib")
 
-			test -n "$CC" && make_extra+=(CC="$CC")
-			test -n "$AR" && make_extra+=(AR="$AR")
-			test -n "$STRIP" && make_extra+=(STRIP="$STRIP")
+			make_extra+=(--jobs=1) ;# Prevent a race-condition during STRIP
+
+			for var in CC AR STRIP; do
+			    local val=$(eval "echo \${$var}")
+			    if [ -n "$val" ]; then
+				    make_extra+=($var="$val")
+			    fi
+			done
 			;;
 		*)
 			if [ "${KITTARGET}" = "kitdll" ]; then
