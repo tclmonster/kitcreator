@@ -10,7 +10,12 @@ function configure() {
 	case "$(uname -s 2>/dev/null | dd conv=lcase 2>/dev/null)" in
 		mingw*)
 			cp win32/Makefile.gcc Makefile
+
 			make_extra=(BINARY_PATH="${installdir}/bin" INCLUDE_PATH="${installdir}/include" LIBRARY_PATH="${installdir}/lib")
+
+			test -n "$CC" && make_extra+=(CC="$CC")
+			test -n "$AR" && make_extra+=(AR="$AR")
+			test -n "$STRIP" && make_extra+=(STRIP="$STRIP")
 			;;
 		*)
 			if [ "${KITTARGET}" = "kitdll" ]; then
