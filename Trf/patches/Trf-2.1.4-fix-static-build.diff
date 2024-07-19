@@ -1,6 +1,6 @@
-diff -ruN trf2.1.4.bak/compat/tclLoadNone.c trf2.1.4/compat/tclLoadNone.c
---- trf2.1.4.bak/compat/tclLoadNone.c	2009-06-18 01:45:22.000000000 -0300
-+++ trf2.1.4/compat/tclLoadNone.c	2024-01-10 23:38:32.330197100 -0400
+diff -ruN a/compat/tclLoadNone.c b/compat/tclLoadNone.c
+--- a/compat/tclLoadNone.c	2009-06-18 01:45:22.000000000 -0300
++++ b/compat/tclLoadNone.c	2024-07-18 22:20:38.273131800 -0300
 @@ -13,6 +13,7 @@
   * SCCS: @(#) tclLoadNone.c 1.5 96/02/15 11:43:01
   */
@@ -15,9 +15,298 @@ diff -ruN trf2.1.4.bak/compat/tclLoadNone.c trf2.1.4/compat/tclLoadNone.c
  }
 +
 +#endif
-diff -ruN trf2.1.4.bak/generic/loadman.h trf2.1.4/generic/loadman.h
---- trf2.1.4.bak/generic/loadman.h	2009-06-18 01:55:33.000000000 -0300
-+++ trf2.1.4/generic/loadman.h	2024-01-10 02:02:13.284110400 -0400
+diff -ruN a/generic/loadman.c b/generic/loadman.c
+--- a/generic/loadman.c	2009-06-18 01:54:43.000000000 -0300
++++ b/generic/loadman.c	2024-07-18 23:37:51.029255100 -0300
+@@ -91,13 +91,13 @@
+ 
+ #ifdef MD5_STATIC_BUILD
+ #include "../md5-crypt/md5.h" /* THREADING: import of one constant var, read-only => safe */
+-extern char *md5_crypt(const char *key, const char *salt);
++extern const char *md5_crypt(const char *key, const char *salt);
+ static void md5_update(MD5_CTX *c, unsigned char* data, unsigned long length)
+ {
+     md5_process_bytes(data, length, c);
+ }
+-static void md5_final(unsigned char* digest, MD5_CTX* c) {
+-     md5_finish_ctx(c, digest);
++static void *md5_final(unsigned char* digest, MD5_CTX* c) {
++     return md5_finish_ctx(c, digest);
+ }
+ #endif
+ 
+diff -ruN a/generic/loadman.c~ b/generic/loadman.c~
+--- a/generic/loadman.c~	1969-12-31 20:00:00.000000000 -0400
++++ b/generic/loadman.c~	2024-07-18 23:23:53.570292900 -0300
+@@ -0,0 +1,265 @@
++/*
++ * loadman.c --
++ *
++ *	Loader for various crypto libraries.
++ *
++ * Copyright (c) 1997 Andreas Kupries (andreas_kupries@users.sourceforge.net)
++ * All rights reserved.
++ *
++ * CVS: $Id: loadman.c,v 1.12 2008/12/11 19:04:25 andreas_kupries Exp $
++ */
++
++#include "loadman.h"
++
++/*
++ * Allow the Makefile to define this value
++ */
++
++#ifndef SSL_LIB_NAME
++#    ifdef __WIN32__
++#    define SSL_LIB_NAME "crypto32.dll"
++#    endif /* __WIN32__ */
++#    ifdef __APPLE__
++#    define SSL_LIB_NAME "libcrypto.dylib"
++#    endif /* __APPLE__ */
++#    ifndef SSL_LIB_NAME
++#    define SSL_LIB_NAME "libcrypto.so"
++#    endif /* SSL_LIB_NAME */
++#endif /* SSL_LIB_NAME */
++
++
++#ifndef CRYPT_LIB_NAME
++#    ifdef __WIN32__
++#    define CRYPT_LIB_NAME "crypt.dll"
++#    endif /* __WIN32__ */
++#    ifdef __APPLE__
++#    define CRYPT_LIB_NAME "libcrypto.dylib"
++#    endif /* __APPLE__ */
++#    ifndef CRYPT_LIB_NAME
++#    define CRYPT_LIB_NAME "libcrypt.so"
++#    endif /* SSL_LIB_NAME */
++#endif /* SSL_LIB_NAME */
++
++
++typedef struct SslLibFunctions {
++  void* handle;
++  /* MD2 */
++  void (* md2_init)        _ANSI_ARGS_ ((MD2_CTX* c));
++  void (* md2_update)      _ANSI_ARGS_ ((MD2_CTX* c, unsigned char* data, unsigned long length));
++  void (* md2_final)       _ANSI_ARGS_ ((unsigned char* digest, MD2_CTX* c));
++  /* SHA1 */
++  void (* sha1_init)        _ANSI_ARGS_ ((SHA_CTX* c));
++  void (* sha1_update)      _ANSI_ARGS_ ((SHA_CTX* c, unsigned char* data, unsigned long length));
++  void (* sha1_final)       _ANSI_ARGS_ ((unsigned char* digest, SHA_CTX* c));
++} sslLibFunctions;
++
++
++static char* ssl_symbols [] = {
++  /* md2 */
++  "MD2_Init",
++  "MD2_Update",
++  "MD2_Final",
++  /* sha1 */
++  "SHA1_Init",
++  "SHA1_Update",
++  "SHA1_Final",
++  /* -- */
++  (char *) NULL,
++};
++
++#ifndef MD5_STATIC_BUILD
++static char* crypt_symbols [] = {
++  /* md5 */
++  "MD5_Init",
++  "MD5_Update",
++  "MD5_Final",
++  "crypt",
++  /* -- */
++  (char *) NULL,
++};
++#endif
++
++
++
++/*
++ * Global variables containing the vectors to DES, MD2, ...
++ */
++
++md2Functions  md2f  = {0}; /* THREADING: serialize initialization */
++sha1Functions sha1f = {0}; /* THREADING: serialize initialization */
++md5Functions  md5f  = {0}; /* THREADING: serialize initialization */
++
++#ifdef MD5_STATIC_BUILD
++#include "../md5-crypt/md5.h" /* THREADING: import of one constant var, read-only => safe */
++extern const char *md5_crypt(const char *key, const char *salt);
++static void md5_update(MD5_CTX *c, unsigned char* data, unsigned long length)
++{
++    md5_process_bytes(data, length, c);
++}
++static void md5_final(unsigned char* digest, MD5_CTX* c) {
++     md5_finish_ctx(c, digest);
++}
++#endif
++
++/*
++ * Internal global var's, contains all vectors loaded from SSL's 'cryptlib'.
++ *                        contains all vectors loaded from 'libdes' library.
++ */
++
++static sslLibFunctions ssl; /* THREADING: serialize initialization */
++
++/*
++ *------------------------------------------------------*
++ *
++ *	TrfLoadMD2 --
++ *
++ *	------------------------------------------------*
++ *	Makes MD2 functionality available.
++ *	------------------------------------------------*
++ *
++ *	Sideeffects:
++ *		Loads the required shared library and
++ *		makes the addresses of MD2 functionality
++ *		available. In case of failure an error
++ *		message is left in the result area of
++ *		the specified interpreter.
++ *
++ *	Result:
++ *		A standard tcl error code.
++ *
++ *------------------------------------------------------*
++ */
++
++int
++TrfLoadMD2 (interp)
++    Tcl_Interp* interp;
++{
++  int res;
++
++  TrfLock; /* THREADING: serialize initialization */
++
++  if (md2f.loaded) {
++    TrfUnlock;
++    return TCL_OK;
++  }
++
++  res = Trf_LoadLibrary (interp, SSL_LIB_NAME, (VOID**) &ssl, ssl_symbols, 0);
++
++  if ((res == TCL_OK) &&
++      (ssl.md2_init   != NULL) &&
++      (ssl.md2_update != NULL) &&
++      (ssl.md2_final  != NULL)) {
++
++    md2f.loaded = 1;
++    md2f.init   = ssl.md2_init;
++    md2f.update = ssl.md2_update;
++    md2f.final  = ssl.md2_final;
++
++    TrfUnlock;
++    return TCL_OK;
++  }
++
++  TrfUnlock;
++  return TCL_ERROR;
++}
++
++/*
++ *------------------------------------------------------*
++ *
++ *	TrfLoadMD5 --
++ *
++ *	------------------------------------------------*
++ *	Makes MD5 functionality available.
++ *	------------------------------------------------*
++ *
++ *	Sideeffects:
++ *		Loads the required shared library and
++ *		makes the addresses of MD5 functionality
++ *		available. In case of failure an error
++ *		message is left in the result area of
++ *		the specified interpreter.
++ *
++ *	Result:
++ *		A standard tcl error code.
++ *
++ *------------------------------------------------------*
++ */
++int
++TrfLoadMD5 (interp)
++    Tcl_Interp* interp;
++{
++#ifdef MD5_STATIC_BUILD
++  md5f.loaded = 1;
++  md5f.init   = md5_init_ctx;
++  md5f.update = md5_update;
++  md5f.final  = md5_final;
++  md5f.crypt  = md5_crypt;
++  return TCL_OK;
++#else
++  int res;
++
++  TrfLock; /* THREADING: serialize initialization */
++  res = Trf_LoadLibrary (interp, CRYPT_LIB_NAME, (VOID**) &md5f,
++			 crypt_symbols, 0);
++  TrfUnlock;
++
++  return res;
++#endif
++}
++
++/*
++ *------------------------------------------------------*
++ *
++ *	TrfLoadSHA1 --
++ *
++ *	------------------------------------------------*
++ *	Makes SHA-1 functionality available.
++ *	------------------------------------------------*
++ *
++ *	Sideeffects:
++ *		Loads the required shared library and
++ *		makes the addresses of SHA-1 functionality
++ *		available. In case of failure an error
++ *		message is left in the result area of
++ *		the specified interpreter.
++ *		
++ *
++ *	Result:
++ *		A standard tcl error code.
++ *
++ *------------------------------------------------------*
++ */
++
++int
++TrfLoadSHA1 (interp)
++    Tcl_Interp* interp;
++{
++  int res;
++
++  TrfLock; /* THREADING: serialize initialization */
++
++  if (sha1f.loaded) {
++    TrfUnlock;
++    return TCL_OK;
++  }
++
++  res = Trf_LoadLibrary (interp, SSL_LIB_NAME, (VOID**) &ssl, ssl_symbols, 0);
++
++  if ((res == TCL_OK) &&
++      (ssl.sha1_init   != NULL) &&
++      (ssl.sha1_update != NULL) &&
++      (ssl.sha1_final  != NULL)) {
++
++    sha1f.loaded = 1;
++    sha1f.init   = ssl.sha1_init;
++    sha1f.update = ssl.sha1_update;
++    sha1f.final  = ssl.sha1_final;
++
++    TrfUnlock;
++    return TCL_OK;
++  }
++
++  TrfUnlock;
++  return TCL_ERROR;
++}
++
+diff -ruN a/generic/loadman.h b/generic/loadman.h
+--- a/generic/loadman.h	2009-06-18 01:55:33.000000000 -0300
++++ b/generic/loadman.h	2024-07-18 22:20:38.304343900 -0300
 @@ -134,9 +134,9 @@
   * a mutex in case of a thread-enabled Tcl.
   */
@@ -31,9 +320,9 @@ diff -ruN trf2.1.4.bak/generic/loadman.h trf2.1.4/generic/loadman.h
  
  
  EXTERN int
-diff -ruN trf2.1.4.bak/generic/registry.c trf2.1.4/generic/registry.c
---- trf2.1.4.bak/generic/registry.c	2009-06-18 01:54:44.000000000 -0300
-+++ trf2.1.4/generic/registry.c	2024-01-09 22:44:10.181468600 -0400
+diff -ruN a/generic/registry.c b/generic/registry.c
+--- a/generic/registry.c	2009-06-18 01:54:44.000000000 -0300
++++ b/generic/registry.c	2024-07-18 22:20:38.351234600 -0300
 @@ -2668,11 +2668,15 @@
    /* trans->standard.typePtr = entry->transType; */
    trans->clientData       = entry->trfType->clientData;
@@ -50,9 +339,9 @@ diff -ruN trf2.1.4.bak/generic/registry.c trf2.1.4/generic/registry.c
  
    trans->readIsFlushed    = 0;
  
-diff -ruN trf2.1.4.bak/generic/sha/sha.h trf2.1.4/generic/sha/sha.h
---- trf2.1.4.bak/generic/sha/sha.h	2009-06-18 01:45:22.000000000 -0300
-+++ trf2.1.4/generic/sha/sha.h	2024-01-08 23:54:45.888885500 -0400
+diff -ruN a/generic/sha/sha.h b/generic/sha/sha.h
+--- a/generic/sha/sha.h	2009-06-18 01:45:22.000000000 -0300
++++ b/generic/sha/sha.h	2024-07-18 22:20:38.373398200 -0300
 @@ -10,16 +10,16 @@
  
  #ifndef _WIN32
@@ -78,9 +367,9 @@ diff -ruN trf2.1.4.bak/generic/sha/sha.h trf2.1.4/generic/sha/sha.h
  #endif
  
  
-diff -ruN trf2.1.4.bak/generic/transformInt.h trf2.1.4/generic/transformInt.h
---- trf2.1.4.bak/generic/transformInt.h	2009-06-18 01:55:33.000000000 -0300
-+++ trf2.1.4/generic/transformInt.h	2024-01-10 19:50:53.866064200 -0400
+diff -ruN a/generic/transformInt.h b/generic/transformInt.h
+--- a/generic/transformInt.h	2009-06-18 01:55:33.000000000 -0300
++++ b/generic/transformInt.h	2024-07-18 22:20:38.389029900 -0300
 @@ -450,7 +450,7 @@
  } zFunctions;
  
