@@ -2,18 +2,19 @@
 
 # BuildCompatible: KitCreator
 
-version="1.7.19"
-url="http://tcltls.rkeene.org/uv/tcltls-${version}.tar.gz"
-sha256='498cd118b5e128678f26d259a497bac3dfb8323442b6abeb821ccccd1a910a86'
-configure_extra=('--enable-deterministic')
+version="1.8.0"
+commit_hash="1505883e4a"
+url="https://core.tcl-lang.org/tcltls/tarball/${commit_hash}/tcltls-${commit_hash}.tar.gz"
+sha256='a57d7b6b3710e6966387f0b2269e6a014b7b8b2db736e44d982af5318adeefba'
+configure_extra=(--enable-deterministic --with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
 function buildSSLLibrary() {
 	local version url hash
 	local archive
 
-	version='2.9.0'
+	version='3.9.2'
 	url="http://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${version}.tar.gz"
-	hash='eb5f298408b723f11a0ca0192c122ecb79b4855bfdf7eea183a6264296a13cf4'
+	hash='7b031dac64a59eb6ee3304f7ffb75dad33ab8c9d279c847f92c89fb846068f97'
 
 	archive="src/libressl-${version}.tar.gz"
 
@@ -111,11 +112,12 @@ function preconfigure() {
 }
 
 function postinstall() {
-	for file in *.linkadd; do
-		if [ ! -e "${file}" ]; then
-			continue
-		fi
-
-		cp "${file}" "${installdir}/lib"/*/
-	done
+	if [ "${pkg_configure_shared_build}" = '0' ]; then
+		(
+			eval "$(grep '^PKG_LIBS=' config.log)" || exit 1
+			find "${installdir}" -type f -name '*.a' | while IFS='' read -r filename; do
+				echo "${PKG_LIBS}" > "${filename}.linkadd"
+			done
+		) || return 1
+	fi
 }
