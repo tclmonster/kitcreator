@@ -506,6 +506,9 @@ AC_DEFUN(DC_CHK_OS_INFO, [
 			SHOBJEXT="dll"
 			SHOBJFLAGS="-mms-bitfields -DPIC"
 			SHOBJLDFLAGS='-shared -Wl,--dll -Wl,--enable-auto-image-base -Wl,--output-def,$[@].def,--out-implib,$[@].a -Wl,--export-all-symbols -Wl,--add-stdcall-alias'
+			if $ac_ct_CC --version | grep -qi clang; then
+				SHOBJLDFLAGS="$(echo "$SHOBJLDFLAGS" | sed 's@-Wl,--add-stdcall-alias@@')"
+			fi
 			;;
 	esac
 ])
