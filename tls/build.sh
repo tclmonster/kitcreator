@@ -111,12 +111,51 @@ function preconfigure() {
 	fi
 }
 
+function expandLinkLibs {
+	echo "$PKG_LIBS" | awk '
+BEGIN {
+  path="";
+  libs="";
+
+} {
+  for (i=1; i <= NF; i++) {
+    if ($i ~ /^-L/)
+      path=substr($i,3)
+    if ($i ~ /^-l/)
+      libs=libs " " path "/lib" substr($i,3) ".a"
+  }
+}
+END {
+  print libs
+}'
+}
+
+function getcc {
+	grep -i 'ac_cv_prog_ac_ct_CC' config.log | awk -F= '{print $2}'
+}
+
+function shouldExpandLinkLibs {
+	case "$KC_CROSSCOMPILE_HOST_OS" in
+	    *darwin*)
+		$(getcc) --version | grep -qi clang
+		;;
+	    *)
+		false
+		;;
+	esac
+}
+
 function postinstall() {
 	if [ "${pkg_configure_shared_build}" = '0' ]; then
 		(
 			eval "$(grep '^PKG_LIBS=' config.log)" || exit 1
+
 			find "${installdir}" -type f -name '*.a' | while IFS='' read -r filename; do
-				echo "${PKG_LIBS}" > "${filename}.linkadd"
+				if shouldExpandLinkLibs; then
+					expandLinkLibs > "${filename}.linkadd"
+				else
+					echo "${PKG_LIBS}" > "${filename}.linkadd"
+				fi
 			done
 		) || return 1
 	fi
