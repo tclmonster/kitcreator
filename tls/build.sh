@@ -147,6 +147,7 @@ function shouldExpandLinkLibs {
 
 function postinstall() {
 	local tls_etag_file
+	local tls_ca_file
 
 	if [ "${pkg_configure_shared_build}" = '0' ]; then
 		(
@@ -159,17 +160,22 @@ function postinstall() {
 					echo "${PKG_LIBS}" > "${filename}.linkadd"
 				fi
 			done
+
 		) || return 1
 	fi
 
-	# Bundle the CA Certificate provided by the Curl team (which is extracted from the
+	# Bundle the CA certificate provided by the Curl team (which is extracted from the
 	# bundle provided by Mozilla), creating a better out-of-the-box experience for clients.
 	KC_TLS_BUNDLE_CACERT="${KC_TLS_BUNDLE_CACERT:-1}"
 	if [ "$KC_TLS_BUNDLE_CACERT" = "1" ]; then
 		tls_etag_file="$KITCREATOR_DIR/tls-cacert-etag.txt"
-		curl -o "$runtimedir/tls-cacert.pem" \
-		    --etag-compare $tls_etag_file \
-		    --etag-save    $tls_etag_file \
+		tls_ca_file="$KITCREATOR_DIR/tls-cacert.pem"
+		curl -o ${tls_ca_file} \
+		    --etag-compare ${tls_etag_file} \
+		    --etag-save    ${tls_etag_file} \
 		    --remote-name  https://curl.se/ca/cacert.pem
+
+		# Patched pkgIndex.tcl required to initialize CA
+		cp -f "${tls_ca_file}" "${workdir}/pkgIndex.tcl" "${installdir}/lib/tls${version}/"
 	fi
 }
