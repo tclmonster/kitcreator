@@ -1,11 +1,11 @@
 diff -ruN A/pkgIndex.tcl.in B/pkgIndex.tcl.in
 --- A/pkgIndex.tcl.in	2024-07-19 23:09:24.599474200 -0300
-+++ B/pkgIndex.tcl.in	2024-10-04 08:43:03.055959200 -0300
++++ B/pkgIndex.tcl.in	2024-10-04 11:45:14.317287500 -0300
 @@ -29,5 +29,10 @@
  	if {[file exists $initScript]} {
  	    source -encoding utf-8 $initScript
  	}
-+	set cacert [file join $::starkit::topdir tls-cacert.pem]
++	set cacert [file join $dir tls-cacert.pem]
 +	if {[file exists $cacert]} {
 +	    ::tls::init -cafile $cacert
 +	}
