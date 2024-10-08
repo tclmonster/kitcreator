@@ -146,8 +146,8 @@ mkdir 'out' 'inst' || exit 1
 		./configure --with-tcl="${TCLCONFIGDIR}" --with-zlib="${ZLIBDIR}" ${CONFIGUREEXTRA}
 	fi
 
-	echo "Running: ${MAKE:-make} TCLSH_NATIVE=\"${TCLSH_NATIVE}\""
-	${MAKE:-make} TCLSH_NATIVE="${TCLSH_NATIVE}" || exit 1
+	echo "Running: ${MAKE:-make}"
+	${MAKE:-make} || exit 1
 
 	# Strip the kit of all symbols, if possible
 	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
