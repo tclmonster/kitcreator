@@ -55,7 +55,7 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CON
 	ret_list_items[2] = Tcl_NewStringObj("mode", 4);
 	ret_list_items[4] = Tcl_NewStringObj("nlink", 5);
 
-	if (finfo->type == CVFS_FILETYPE_DIR) {
+	if ((finfo->type & CVFS_FILETYPE_DIR) == CVFS_FILETYPE_DIR) {
 		num_children = cmd_getChildren(file, NULL, 0);
 
 		ret_list_items[1] = Tcl_NewStringObj("directory", 9);
@@ -119,6 +119,9 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 	long start = 0;
 	long end = -1;
 	int tclGetLFO_ret;
+	Tcl_Obj *decompressed;
+	int decompressed_len = 0;
+	unsigned char *decompressed_bytes;
 
 	if (objc < 3 || objc > 5) {
 		Tcl_SetResult(interp, "wrong # args: should be \"getData hashKey fileName ?start? ?end?\"", TCL_STATIC);
@@ -166,7 +169,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 		return(TCL_ERROR);
 	}
 
-	if (finfo->type == CVFS_FILETYPE_ENCRYPTED_FILE) {
+	if ((finfo->type & CVFS_FILETYPE_ENCRYPTED_FILE) == CVFS_FILETYPE_ENCRYPTED_FILE) {
 		cmd_decryptFile = getCmdDecryptFile(hashkey);
 
 		if (cmd_decryptFile != NULL) {
@@ -174,10 +177,39 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 		}
 	}
 
-	if (finfo->type != CVFS_FILETYPE_FILE) {
+	if ((finfo->type & CVFS_FILETYPE_FILE) != CVFS_FILETYPE_FILE) {
 		Tcl_SetResult(interp, "Not a file", TCL_STATIC);
 
 		return(TCL_ERROR);
+	}
+
+	if ((finfo->type & CVFS_FILETYPE_COMPRESSED_FILE) == CVFS_FILETYPE_COMPRESSED_FILE) {
+		decompressed = Tcl_NewByteArrayObj(finfo->data, finfo->size);
+		Tcl_IncrRefCount(decompressed);
+
+		if (Tcl_ZlibInflate(interp, TCL_ZLIB_FORMAT_ZLIB,
+				    decompressed, 0, NULL) != TCL_OK) {
+			Tcl_SetResult(interp, "Could not decompress file", TCL_STATIC);
+			Tcl_DecrRefCount(decompressed);
+
+			return(TCL_ERROR);
+		}
+
+		decompressed_bytes = Tcl_GetByteArrayFromObj(decompressed, &decompressed_len);
+
+		if (finfo->free) {
+			finfo->data = (void *) Tcl_Realloc(finfo->data, decompressed_len);
+
+		} else {
+			finfo->data = (void *) Tcl_Alloc(decompressed_len);
+			finfo->free = 1;
+		}
+
+		memcpy(finfo->data, decompressed_bytes, decompressed_len);
+		Tcl_DecrRefCount(decompressed);
+
+		finfo->size = decompressed_len;
+		finfo->type &= ~CVFS_FILETYPE_COMPRESSED_FILE;
 	}
 
 	if (end == -1) {
@@ -250,7 +282,7 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CON
 		return(TCL_ERROR);
 	}
 
-	if (finfo->type != CVFS_FILETYPE_DIR) {
+	if ((finfo->type & CVFS_FILETYPE_DIR) != CVFS_FILETYPE_DIR) {
 		Tcl_SetResult(interp, "Not a directory", TCL_STATIC);
 
 		return(TCL_ERROR);
