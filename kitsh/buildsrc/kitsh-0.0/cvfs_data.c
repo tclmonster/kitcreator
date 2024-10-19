@@ -71,7 +71,7 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CON
 	ret_list_items[7] = Tcl_NewLongObj(finfo->index);
 
 	ret_list_items[8] = Tcl_NewStringObj("size", 4);
-	ret_list_items[9] = Tcl_NewLongObj(finfo->size);
+	ret_list_items[9] = Tcl_NewLongObj(finfo->size_inflated);
 
 	/* Dummy values */
 	ret_list_items[10] = Tcl_NewStringObj("uid", 3);
@@ -177,7 +177,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 		}
 	}
 
-	if ((finfo->type & CVFS_FILETYPE_FILE) != CVFS_FILETYPE_FILE) {
+	if ((finfo->type & CVFS_FILETYPE_FILE) == 0) {
 		Tcl_SetResult(interp, "Not a file", TCL_STATIC);
 
 		return(TCL_ERROR);
@@ -187,15 +187,20 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 		decompressed = Tcl_NewByteArrayObj(finfo->data, finfo->size);
 		Tcl_IncrRefCount(decompressed);
 
-		if (Tcl_ZlibInflate(interp, TCL_ZLIB_FORMAT_ZLIB,
-				    decompressed, 0, NULL) != TCL_OK) {
+		if (Tcl_ZlibInflate(interp, TCL_ZLIB_FORMAT_AUTO,
+				    decompressed, finfo->size_inflated, NULL) != TCL_OK) {
 			Tcl_SetResult(interp, "Could not decompress file", TCL_STATIC);
 			Tcl_DecrRefCount(decompressed);
 
 			return(TCL_ERROR);
 		}
+		Tcl_DecrRefCount(decompressed);
+
+		decompressed = Tcl_GetObjResult(interp);
+		Tcl_IncrRefCount(decompressed);
 
 		decompressed_bytes = Tcl_GetByteArrayFromObj(decompressed, &decompressed_len);
+
 
 		if (finfo->free) {
 			finfo->data = (void *) Tcl_Realloc(finfo->data, decompressed_len);
@@ -282,7 +287,7 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CON
 		return(TCL_ERROR);
 	}
 
-	if ((finfo->type & CVFS_FILETYPE_DIR) != CVFS_FILETYPE_DIR) {
+	if ((finfo->type & CVFS_FILETYPE_DIR) == 0) {
 		Tcl_SetResult(interp, "Not a directory", TCL_STATIC);
 
 		return(TCL_ERROR);
