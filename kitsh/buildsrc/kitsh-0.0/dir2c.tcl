@@ -1,14 +1,17 @@
 #! /usr/bin/env tclsh
 
 set obsfucate 0
-if {[lindex $argv end] == "--obsfucate"} {
-	set obsfucate 1
-
-	set argv [lrange $argv 0 end-1]
+set compress  0
+foreach arg {obsfucate compress} {
+	set found [lsearch $argv "--${arg}"]
+	if {$found != -1} {
+		set ${arg} 1
+		set argv [lreplace $argv $found $found]
+	}
 }
 
 if {[llength $argv] != 2} {
-	puts stderr "Usage: dir2c.tcl <hashkey> <startdir> \[--obsfucate\]"
+	puts stderr "Usage: dir2c.tcl <hashkey> <startdir> \[--obsfucate\] \[--compress\]"
 
 	exit 1
 }
@@ -326,19 +329,25 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 
 	switch -- $finfo(type) {
 		"file" {
-			set size $finfo(size)
-
 			set fd [open $file]
 			fconfigure $fd -translation binary
-			set data [read $fd]
+			set data [expr {
+				$compress ?  [zlib compress [read $fd]] : [read $fd]
+			}]
+			set size [string length $data]
 			close $fd
 
 			if {$obsfucate} {
 				set type "CVFS_FILETYPE_ENCRYPTED_FILE"
 				set data "(unsigned char *) [stringify [encrypt $data $obsfucation_key]]"
+
 			} else {
 				set type "CVFS_FILETYPE_FILE"
 				set data "(unsigned char *) [stringify $data]"
+			}
+
+			if {$compress} {
+				set type "$type | CVFS_FILETYPE_COMPRESSED_FILE"
 			}
 		}
 		"directory" {
@@ -422,7 +431,7 @@ puts "\tif (index == 0) {"
 puts "\t\treturn(0);"
 puts "\t}"
 puts ""
-puts "\tif (${code_tag}_data\[index\].type != CVFS_FILETYPE_DIR) {"
+puts "\tif ((${code_tag}_data\[index\].type & CVFS_FILETYPE_DIR) != CVFS_FILETYPE_DIR) {"
 puts "\t\treturn(0);"
 puts "\t}"
 puts ""
@@ -525,8 +534,9 @@ if {$obsfucate} {
 	puts "\told_data = (void *) finfo->data;"
 	puts ""
 	puts "\tfinfo->data = new_data;"
-	puts "\tfinfo->free = 1;"
-	puts "\tfinfo->type = CVFS_FILETYPE_FILE;"
+        puts "\tfinfo->free = 1;"
+        puts "\tfinfo->type &= ~CVFS_FILETYPE_ENCRYPTED_FILE;"
+	puts "\tfinfo->type |=  CVFS_FILETYPE_FILE;"
 	puts ""
 	puts "\tif (free_old_data) {"
 	puts "\t\tTcl_Free((void *) old_data);"
