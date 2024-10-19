@@ -596,6 +596,7 @@ AC_DEFUN(DC_SET_DIR2C_FLAGS, [
 		obsfucate_cvfs='no'
 	])
 
+	DIR2C_FLAGS=''
 	case "$obsfucate_cvfs" in
 		yes)
 			AC_MSG_RESULT([yes])
@@ -603,7 +604,22 @@ AC_DEFUN(DC_SET_DIR2C_FLAGS, [
 			;;
 		*)
 			AC_MSG_RESULT([no])
-			DIR2C_FLAGS=''
+			;;
+	esac
+
+	AC_ARG_WITH(compressed-cvfs, AC_HELP_STRING([--with-compressed-cvfs], [Compress CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
+		compress_cvfs=$withval
+	], [
+		compress_cvfs='no'
+	])
+
+	case "$compress_cvfs" in
+		yes)
+			AC_MSG_RESULT([yes])
+			DIR2C_FLAGS="$DIR2C_FLAGS --compress"
+			;;
+		*)
+			AC_MSG_RESULT([no])
 			;;
 	esac
 
