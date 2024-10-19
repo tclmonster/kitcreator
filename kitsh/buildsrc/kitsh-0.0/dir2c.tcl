@@ -246,16 +246,17 @@ puts {
 #    define LOADED_CVFS_COMMON 1
 
 typedef enum {
-	CVFS_FILETYPE_FILE            = 0,
-	CVFS_FILETYPE_DIR             = 1,
-	CVFS_FILETYPE_ENCRYPTED_FILE  = 2,
-	CVFS_FILETYPE_COMPRESSED_FILE = 4,
+	CVFS_FILETYPE_FILE            = 1,
+	CVFS_FILETYPE_DIR             = 2,
+	CVFS_FILETYPE_ENCRYPTED_FILE  = 4,
+	CVFS_FILETYPE_COMPRESSED_FILE = 8,
 } cvfs_filetype_t;
 
 struct cvfs_data {
 	const char *             name;
 	unsigned long            index;
 	unsigned long            size;
+	unsigned long            size_inflated;
 	cvfs_filetype_t          type;
 	const unsigned char *    data;
 	int                      free;
@@ -317,6 +318,7 @@ puts "\t\t.name  = NULL,"
 puts "\t\t.index = 0,"
 puts "\t\t.type  = 0,"
 puts "\t\t.size  = 0,"
+puts "\t\t.size_inflated = 0,"
 puts "\t\t.data  = NULL,"
 puts "\t\t.free  = 0,"
 puts "\t},"
@@ -335,6 +337,8 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 				$compress ?  [zlib compress [read $fd]] : [read $fd]
 			}]
 			set size [string length $data]
+			set size_inflated $finfo(size)
+
 			close $fd
 
 			if {$obsfucate} {
@@ -354,6 +358,7 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 			set type "CVFS_FILETYPE_DIR"
 			set data "NULL"
 			set size 0
+			set size_inflated 0
 		}
 	}
 
@@ -362,6 +367,7 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 	puts "\t\t.index = $idx,"
 	puts "\t\t.type  = $type,"
 	puts "\t\t.size  = $size,"
+	puts "\t\t.size_inflated = $size_inflated,"
 	puts "\t\t.data  = $data,"
 	puts "\t\t.free  = 0,"
 	puts "\t},"
@@ -431,7 +437,7 @@ puts "\tif (index == 0) {"
 puts "\t\treturn(0);"
 puts "\t}"
 puts ""
-puts "\tif ((${code_tag}_data\[index\].type & CVFS_FILETYPE_DIR) != CVFS_FILETYPE_DIR) {"
+puts "\tif ((${code_tag}_data\[index\].type & CVFS_FILETYPE_DIR) == 0) {"
 puts "\t\treturn(0);"
 puts "\t}"
 puts ""
