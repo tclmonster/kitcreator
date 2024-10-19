@@ -1,14 +1,17 @@
 #! /usr/bin/env tclsh
 
 set obsfucate 0
-if {[lindex $argv end] == "--obsfucate"} {
-	set obsfucate 1
-
-	set argv [lrange $argv 0 end-1]
+set compress  0
+foreach arg {obsfucate compress} {
+	set found [lsearch $argv "--${arg}"]
+	if {$found != -1} {
+		set ${arg} 1
+		set argv [lreplace $argv $found $found]
+	}
 }
 
 if {[llength $argv] != 2} {
-	puts stderr "Usage: dir2c.tcl <hashkey> <startdir> \[--obsfucate\]"
+	puts stderr "Usage: dir2c.tcl <hashkey> <startdir> \[--obsfucate\] \[--compress\]"
 
 	exit 1
 }
@@ -243,16 +246,17 @@ puts {
 #    define LOADED_CVFS_COMMON 1
 
 typedef enum {
-	CVFS_FILETYPE_FILE            = 0,
-	CVFS_FILETYPE_DIR             = 1,
-	CVFS_FILETYPE_ENCRYPTED_FILE  = 2,
-	CVFS_FILETYPE_COMPRESSED_FILE = 4,
+	CVFS_FILETYPE_FILE            = 1,
+	CVFS_FILETYPE_DIR             = 2,
+	CVFS_FILETYPE_ENCRYPTED_FILE  = 4,
+	CVFS_FILETYPE_COMPRESSED_FILE = 8,
 } cvfs_filetype_t;
 
 struct cvfs_data {
 	const char *             name;
 	unsigned long            index;
 	unsigned long            size;
+	unsigned long            size_inflated;
 	cvfs_filetype_t          type;
 	const unsigned char *    data;
 	int                      free;
@@ -314,6 +318,7 @@ puts "\t\t.name  = NULL,"
 puts "\t\t.index = 0,"
 puts "\t\t.type  = 0,"
 puts "\t\t.size  = 0,"
+puts "\t\t.size_inflated = 0,"
 puts "\t\t.data  = NULL,"
 puts "\t\t.free  = 0,"
 puts "\t},"
@@ -326,25 +331,34 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 
 	switch -- $finfo(type) {
 		"file" {
-			set size $finfo(size)
-
 			set fd [open $file]
 			fconfigure $fd -translation binary
-			set data [read $fd]
+			set data [expr {
+				$compress ?  [zlib compress [read $fd]] : [read $fd]
+			}]
+			set size [string length $data]
+			set size_inflated $finfo(size)
+
 			close $fd
 
 			if {$obsfucate} {
 				set type "CVFS_FILETYPE_ENCRYPTED_FILE"
 				set data "(unsigned char *) [stringify [encrypt $data $obsfucation_key]]"
+
 			} else {
 				set type "CVFS_FILETYPE_FILE"
 				set data "(unsigned char *) [stringify $data]"
+			}
+
+			if {$compress} {
+				set type "$type | CVFS_FILETYPE_COMPRESSED_FILE"
 			}
 		}
 		"directory" {
 			set type "CVFS_FILETYPE_DIR"
 			set data "NULL"
 			set size 0
+			set size_inflated 0
 		}
 	}
 
@@ -353,6 +367,7 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 	puts "\t\t.index = $idx,"
 	puts "\t\t.type  = $type,"
 	puts "\t\t.size  = $size,"
+	puts "\t\t.size_inflated = $size_inflated,"
 	puts "\t\t.data  = $data,"
 	puts "\t\t.free  = 0,"
 	puts "\t},"
@@ -422,7 +437,7 @@ puts "\tif (index == 0) {"
 puts "\t\treturn(0);"
 puts "\t}"
 puts ""
-puts "\tif (${code_tag}_data\[index\].type != CVFS_FILETYPE_DIR) {"
+puts "\tif ((${code_tag}_data\[index\].type & CVFS_FILETYPE_DIR) == 0) {"
 puts "\t\treturn(0);"
 puts "\t}"
 puts ""
@@ -525,8 +540,9 @@ if {$obsfucate} {
 	puts "\told_data = (void *) finfo->data;"
 	puts ""
 	puts "\tfinfo->data = new_data;"
-	puts "\tfinfo->free = 1;"
-	puts "\tfinfo->type = CVFS_FILETYPE_FILE;"
+        puts "\tfinfo->free = 1;"
+        puts "\tfinfo->type &= ~CVFS_FILETYPE_ENCRYPTED_FILE;"
+	puts "\tfinfo->type |=  CVFS_FILETYPE_FILE;"
 	puts ""
 	puts "\tif (free_old_data) {"
 	puts "\t\tTcl_Free((void *) old_data);"
