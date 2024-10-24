@@ -82,3 +82,14 @@ jobs:
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
 
+      - name: Upload kitcreator output
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-output
+          path: |
+            **/build.log
+            **/config.log
+            tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+            tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
+            tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
+            libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
