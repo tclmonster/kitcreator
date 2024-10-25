@@ -1,0 +1,102 @@
+name: Build macOS kits
+on: workflow_dispatch
+env:
+  TCL_TK_VERSION: 8.6.15
+  CC: /usr/bin/clang
+  CXX: /usr/bin/clang++
+  KC_TLS_SSLDIR: /opt/local
+  KC_TLS_LINKSSLSTATIC: 1
+  STATICTK: 0
+  STATICTKSVG: 0
+  STATICTLS: 1
+  STATICTDOM: 1
+  STATICTCLX: 1
+  STATICPARSE_ARGS: 1
+  STATICTRF: 1
+  STATICZLIBTCL: 1
+  STATICTCLLIB: 1
+  STATICMK4: 1
+jobs:
+  build-kits:
+    runs-on: macos-latest
+    steps:
+      - uses: melusina-org/setup-macports@v1
+        with:
+          version: "2.10.2"
+          prefix:  "/opt/local"
+          variants:
+            select:
+              - aqua
+              - metal
+            deselect: x11
+          ports:
+            - name: autoconf
+            - name: openssl
+
+      - uses: actions/checkout@v4
+      - name: Setup environment
+        run: |
+          arch=$(uname -m)
+          os=$(echo "$(uname)$(uname -r)" | tr '[:upper:]' '[:lower:]')
+          cat <<EOF > $GITHUB_ENV
+          suffix=${arch}-apple-${os}
+          EOF
+
+      - name: Base kit
+        env:
+          KITCREATOR_PKGS: mk4tcl
+        run: |
+          ./build/pre.sh
+          ./kitcreator build ${{env.TCL_TK_VERSION}}
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+
+      - name: Standard kit (No GUI)
+        env:
+          KITCREATOR_PKGS: 'tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
+        run: |
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
+              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+              --enable-tcl-private-headers
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+
+      - name: Full kit (with GUI)
+        env:
+          KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
+        run: |
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
+              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+              --enable-aqua \
+              --enable-tcl-private-headers
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+
+      - name: Kit SDK
+        env:
+          KITCREATOR_PKGS: 'tk mk4tcl kitdll'
+          STATICTK: 1
+        run: |
+          clean_all_but_tcl_and_mk4() {
+            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|mk4tcl)$'); do
+              rm -f  "${pkg}/.success"
+              rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
+            done
+          }
+          clean_all_but_tcl_and_mk4
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
+              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+              --enable-aqua \
+              --enable-tcl-private-headers
+          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
+             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+
+      - name: Upload kitcreator output
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-output
+          path: |
+            **/build.log
+            **/config.log
+            tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+            tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+            libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+        if: ${{ !cancelled() }}
