@@ -21,18 +21,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: melusina-org/setup-macports@v1
-        with:
-          version: "2.10.2"
-          prefix:  "/opt/local"
-          variants:
-            select:
-              - aqua
-              - metal
-            deselect: x11
-          ports:
-            - name: autoconf
-            - name: openssl
-
       - uses: actions/checkout@v4
       - name: Setup environment
         run: |
