@@ -20,20 +20,10 @@ jobs:
   build-kits:
     runs-on: macos-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: melusina-org/setup-macports@v1
         with:
-          version: "2.10.2"
-          prefix:  "/opt/local"
-          variants:
-            select:
-              - aqua
-              - metal
-            deselect: x11
-          ports:
-            - name: autoconf
-            - name: openssl
-
-      - uses: actions/checkout@v4
+          parameters: '.github/parameters/setup-macports.yaml'
       - name: Setup environment
         run: |
           arch=$(uname -m)
