@@ -2,9 +2,6 @@ name: Build Linux kits
 on: workflow_dispatch
 env:
   TCL_TK_VERSION: 8.6.15
-  CC: gcc
-  CXX: g++
-  KC_TLS_SSLDIR: /usr/lib/x86_64-linux-gnu/pkgconfig
   KC_TLS_LINKSSLSTATIC: 1
   STATICTK: 0
   STATICTKSVG: 0
@@ -20,21 +17,37 @@ env:
 
 jobs:
   build-kits:
+    strategy:
+      matrix:
+        platform:
+          - arch:       x86_64
+            pkg_prefix: amd64
+            cc:         gcc-x86-64-linux-gnu
+            cxx:        g++-x86-64-linux-gnu
+          - arch:       aarch64
+            pkg_prefix: arm64
+            cc:         gcc-aarch64-linux-gnu
+            cxx:        g++-aarch64-linux-gnu
+    env:
+      arch:       ${{ matrix.platform.arch }}
+      pkg_prefix: ${{ matrix.platform.pkg_prefix }}
+      suffix:     ${{ matrix.platform.arch }}-linux
+      KC_TLS_SSLDIR: /usr/lib/${{ matrix.platform.arch }}-linux-gnu/pkgconfig
+      CC:  ${{ matrix.platform.cc }}
+      CXX: ${{ matrix.platform.cxx }}
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup dependencies
         run: |
+          sudo dpkg --add-architecture ${pkg_prefix}
           sudo apt-get update
-          sudo apt-get install -y build-essential autoconf libssl-dev
-
-      - name: Setup environment
-        run: |
-          arch=$(uname -m)
-          os=$(echo "$(uname)$(uname -r)" | tr '[:upper:]' '[:lower:]')
-          cat <<EOF > $GITHUB_ENV
-          suffix=${arch}-unknown-${os}
-          EOF
+          sudo apt-get install -y \
+                  build-essential \
+                  crossbuild-essential-${pkg_prefix} \
+                  autoconf \
+                  libssl-dev:${pkg_prefix}
 
       - name: Base kit
         env:
