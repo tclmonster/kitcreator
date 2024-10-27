@@ -16,6 +16,8 @@ env:
   STATICZLIBTCL: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+  KC_MK4TCL_CXXFLAGS: '-fPIC'
+
 jobs:
   build-kits:
     runs-on: ubuntu-latest
