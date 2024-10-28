@@ -51,7 +51,7 @@ jobs:
                   build-essential \
                   crossbuild-essential-${pkg_prefix} \
                   autoconf \
-                  libssl-dev:${pkg_prefix}
+                  libssl-dev:${pkg_prefix} || true
 
       - name: Base kit
         env:
