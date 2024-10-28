@@ -58,7 +58,7 @@ jobs:
           KITCREATOR_PKGS: mk4tcl
         run: |
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --host ${{ env.HOST }}
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
 
       - name: Standard kit (No GUI)
@@ -68,7 +68,7 @@ jobs:
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
               --enable-tcl-private-headers \
-              --host ${{ env.HOST }}
+              --host=${{ env.HOST }}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Full kit (with GUI)
@@ -78,7 +78,7 @@ jobs:
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
               --enable-tcl-private-headers \
-              --host ${{ env.HOST }}
+              --host=${{ env.HOST }}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Kit SDK
@@ -96,7 +96,7 @@ jobs:
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
               --enable-tcl-private-headers \
-              --host ${{ env.HOST }}
+              --host=${{ env.HOST }}
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
