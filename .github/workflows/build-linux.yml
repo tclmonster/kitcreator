@@ -49,7 +49,7 @@ jobs:
         run: |
           for li in $(ls /etc/apt/sources.list.d/); do
             echo "$li:"
-            sudo cat $li
+            sudo cat "/etc/apt/sources.list.d/$li"
           done
           echo "apt-mirrors.txt:"
           sudo cat /etc/apt/apt-mirrors.txt
