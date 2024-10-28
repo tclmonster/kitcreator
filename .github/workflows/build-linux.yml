@@ -45,6 +45,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Dump Pkg mirrors
+        run: |
+          sudo ls /etc/apt/sources.list.d/
+          sudo cat /etc/apt/apt-mirrors.txt
+          exit 1
       - name: Setup dependencies
         run: |
           sudo dpkg --add-architecture ${{env.pkg_prefix}}
