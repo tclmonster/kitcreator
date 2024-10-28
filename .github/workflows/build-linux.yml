@@ -90,7 +90,6 @@ jobs:
           KITCREATOR_PKGS: 'mk4tcl'
         run: |
           ./kitcreator clean
-          ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$TCLKIT \
               --host=${{ env.HOST }} --enable-64bit
@@ -145,6 +144,7 @@ jobs:
           path: |
             **/build.log
             **/config.log
+            tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
