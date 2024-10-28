@@ -51,13 +51,16 @@ jobs:
             echo "$li:"
             sudo cat "/etc/apt/sources.list.d/$li"
           done
-          echo "apt-mirrors.txt:"
+          echo "/etc/apt/apt-mirrors.txt:"
           sudo cat /etc/apt/apt-mirrors.txt
-          exit 1
+          echo "/etc/apt/sources.list:"
+          sudo cat /etc/apt/sources.list
       - name: Setup dependencies
         run: |
           sudo dpkg --add-architecture ${{env.pkg_prefix}}
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' /etc/apt/sources.list
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' \
+                 /etc/apt/sources.list /etc/apt/apt-mirrors.txt
+          sudo apt-get clean
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
                   build-essential \
