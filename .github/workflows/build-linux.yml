@@ -45,6 +45,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup dependencies
         run: |
+          sudo dpkg --add-architecture ${pkg_prefix}
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
                   build-essential \
