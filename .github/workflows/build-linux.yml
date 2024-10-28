@@ -24,17 +24,21 @@ jobs:
             pkg_prefix: amd64
             cc:         gcc-x86-64-linux-gnu
             cxx:        g++-x86-64-linux-gnu
+            host:       x86_64-pc-linux-gnu
           - arch:       aarch64
             pkg_prefix: arm64
             cc:         gcc-aarch64-linux-gnu
             cxx:        g++-aarch64-linux-gnu
+            host:       aarch64-unknown-linux-gnu
+
     env:
       arch:       ${{ matrix.platform.arch }}
       pkg_prefix: ${{ matrix.platform.pkg_prefix }}
       suffix:     ${{ matrix.platform.arch }}-linux
       KC_TLS_SSLDIR: /usr/lib/${{ matrix.platform.arch }}-linux-gnu/pkgconfig
-      CC:  ${{ matrix.platform.cc }}
-      CXX: ${{ matrix.platform.cxx }}
+      CC:   ${{ matrix.platform.cc }}
+      CXX:  ${{ matrix.platform.cxx }}
+      HOST: ${{ matrix.platform.host }}
 
     runs-on: ubuntu-latest
     steps:
@@ -54,7 +58,7 @@ jobs:
           KITCREATOR_PKGS: mk4tcl
         run: |
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}}
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --host ${{ env.HOST }}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
 
       - name: Standard kit (No GUI)
@@ -63,7 +67,8 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-tcl-private-headers
+              --enable-tcl-private-headers \
+              --host ${{ env.HOST }}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Full kit (with GUI)
@@ -72,8 +77,8 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-aqua \
-              --enable-tcl-private-headers
+              --enable-tcl-private-headers \
+              --host ${{ env.HOST }}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Kit SDK
@@ -90,15 +95,15 @@ jobs:
           clean_all_but_tcl_and_mk4
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-aqua \
-              --enable-tcl-private-headers
+              --enable-tcl-private-headers \
+              --host ${{ env.HOST }}
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
       - name: Upload kitcreator output
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-output
+          name: kitcreator-${{ env.arch }}-output
           path: |
             **/build.log
             **/config.log
