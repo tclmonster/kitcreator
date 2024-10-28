@@ -8,7 +8,7 @@ SC_SIMPLE_EXEEXT
 # allow user to override the tclsh we think we found
 if test x"${with_tclsh}" != x ; then
     AC_MSG_CHECKING([for tclsh])
-    if "${with_tclsh}" < /dev/null > /dev/null 2> /dev/null
+    if echo 'exit 0' | "${with_tclsh}" >/dev/null 2>/dev/null
     then
         TCLSH_PROG=${with_tclsh}
         AC_MSG_RESULT([$TCLSH_PROG, via --with-tclsh])
