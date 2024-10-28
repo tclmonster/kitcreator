@@ -7,7 +7,6 @@ env:
   STATICTKSVG: 0
   STATICTLS: 1
   STATICTDOM: 1
-  STATICTCLX: 1
   STATICPARSE_ARGS: 1
   STATICTRF: 1
   STATICZLIBTCL: 1
@@ -97,7 +96,7 @@ jobs:
 
       - name: Standard kit (No GUI)
         env:
-          KITCREATOR_PKGS: 'tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
+          KITCREATOR_PKGS: 'tcllib tls tdom parse_args Trf zlibtcl mk4tcl'
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --enable-tcl-private-headers \
@@ -107,7 +106,7 @@ jobs:
 
       - name: Full kit (with GUI)
         env:
-          KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
+          KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom parse_args Trf zlibtcl mk4tcl'
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --enable-tcl-private-headers \
