@@ -66,6 +66,7 @@ jobs:
                   build-essential \
                   crossbuild-essential-${{env.pkg_prefix}} \
                   autoconf \
+                  libx11-dev:${{env.pkg_prefix}} \
                   libssl-dev:${{env.pkg_prefix}}
 
       - name: Base kit
