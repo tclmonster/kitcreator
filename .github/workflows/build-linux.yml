@@ -81,6 +81,7 @@ jobs:
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+          chmod +x tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
           cat <<EOF > $GITHUB_ENV
           TCLKIT="$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base"
           EOF
