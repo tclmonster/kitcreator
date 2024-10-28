@@ -17,48 +17,51 @@ env:
 
 jobs:
   build-kits:
+    runs-on: ubuntu-20.04
+
     strategy:
       matrix:
         platform:
           - arch:       x86_64
             pkg_prefix: amd64
-            cc:         gcc-x86-64-linux-gnu
-            cxx:        g++-x86-64-linux-gnu
+            cross_pfx:  x86_64-linux-gnu
             host:       x86_64-pc-linux-gnu
           - arch:       aarch64
             pkg_prefix: arm64
-            cc:         gcc-aarch64-linux-gnu
-            cxx:        g++-aarch64-linux-gnu
-            host:       aarch64-unknown-linux-gnu
+            cross_pfx:  aarch64-linux-gnu
+            host:       aarch64-generic-linux-gnu
 
     env:
-      arch:       ${{ matrix.platform.arch }}
-      pkg_prefix: ${{ matrix.platform.pkg_prefix }}
-      suffix:     ${{ matrix.platform.arch }}-linux
-      KC_TLS_SSLDIR: /usr/lib/${{ matrix.platform.arch }}-linux-gnu/pkgconfig
-      CC:   ${{ matrix.platform.cc }}
-      CXX:  ${{ matrix.platform.cxx }}
-      HOST: ${{ matrix.platform.host }}
+      arch:       ${{matrix.platform.arch}}
+      pkg_prefix: ${{matrix.platform.pkg_prefix}}
+      suffix:     ${{matrix.platform.arch}}-linux
+      KC_TLS_SSLDIR: /usr/lib/${{matrix.platform.cross_pfx}}/pkgconfig
+      CC:   ${{matrix.platform.cross_pfx}}-gcc
+      CXX:  ${{matrix.platform.cross_pfx}}-g++
+      AR:   ${{matrix.platform.cross_pfx}}-ar
+      RANLIB: ${{matrix.platform.cross_pfx}}-ranlib
+      NM:     ${{matrix.platform.cross_pfx}}-nm
+      HOST: ${{matrix.platform.host}}
 
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup dependencies
+        continue-on-error: true
         run: |
-          sudo dpkg --add-architecture ${pkg_prefix}
+          sudo dpkg --add-architecture ${{env.pkg_prefix}}
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
                   build-essential \
-                  crossbuild-essential-${pkg_prefix} \
+                  crossbuild-essential-${{env.pkg_prefix}} \
                   autoconf \
-                  libssl-dev:${pkg_prefix}
+                  libssl-dev:${{env.pkg_prefix}}
 
       - name: Base kit
         env:
           KITCREATOR_PKGS: mk4tcl
         run: |
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }}
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{env.HOST}} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
 
       - name: Standard kit (No GUI)
@@ -68,7 +71,8 @@ jobs:
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
               --enable-tcl-private-headers \
-              --host=${{ env.HOST }}
+              --host=${{ env.HOST }} \
+              --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Full kit (with GUI)
@@ -78,7 +82,8 @@ jobs:
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
               --enable-tcl-private-headers \
-              --host=${{ env.HOST }}
+              --host=${{ env.HOST }} \
+              --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Kit SDK
@@ -96,7 +101,8 @@ jobs:
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
               --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
               --enable-tcl-private-headers \
-              --host=${{ env.HOST }}
+              --host=${{ env.HOST }} \
+              --enable-64bit
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
