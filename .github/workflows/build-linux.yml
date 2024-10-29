@@ -26,6 +26,11 @@ jobs:
             cross_pfx:  x86_64-linux-gnu
             host:       x86_64-pc-linux-gnu
 
+          - arch:       i386
+            pkg_prefix: i386
+            cross_pfx:  i686-linux-gnu
+            host:       i386-pc-linux-gnu
+
           - arch:       aarch64
             pkg_prefix: arm64
             cross_pfx:  aarch64-linux-gnu
