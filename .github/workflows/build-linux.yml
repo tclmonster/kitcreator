@@ -25,15 +25,22 @@ jobs:
             pkg_prefix: amd64
             cross_pfx:  x86_64-linux-gnu
             host:       x86_64-pc-linux-gnu
+
+          - arch:
           - arch:       aarch64
             pkg_prefix: arm64
             cross_pfx:  aarch64-linux-gnu
             host:       aarch64-generic-linux-gnu
 
+          - arch:       armhf
+            pkg_prefix: armhf
+            cross_pfx:  arm-linux-gnueabihf
+            host:       arm-generic-linux-gnu
+
     env:
       arch:       ${{matrix.platform.arch}}
       pkg_prefix: ${{matrix.platform.pkg_prefix}}
-      suffix:     ${{matrix.platform.arch}}-linux
+      suffix:     ${{matrix.platform.arch}}-linux-gnu
       KC_TLS_SSLDIR: /usr/lib/${{matrix.platform.cross_pfx}}/pkgconfig
       CC:   ${{matrix.platform.cross_pfx}}-gcc
       CXX:  ${{matrix.platform.cross_pfx}}-g++
