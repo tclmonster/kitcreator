@@ -2,63 +2,138 @@ name: Build Linux kits
 on: workflow_dispatch
 env:
   TCL_TK_VERSION: 8.6.15
-  CC: gcc
-  CXX: g++
-  KC_TLS_SSLDIR: /usr/lib/x86_64-linux-gnu/pkgconfig
   KC_TLS_LINKSSLSTATIC: 1
   STATICTK: 0
   STATICTKSVG: 0
   STATICTLS: 1
   STATICTDOM: 1
-  STATICTCLX: 1
   STATICPARSE_ARGS: 1
   STATICTRF: 1
   STATICZLIBTCL: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+  KC_MK4TCL_CXXFLAGS: '-fPIC'
+
 jobs:
   build-kits:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        platform:
+          - arch:       x86_64
+            pkg_prefix: amd64
+            cross_pfx:  x86_64-linux-gnu
+            host:       x86_64-pc-linux-gnu
+            ssldir:     /usr/lib/x86_64-linux-gnu/pkgconfig
+
+          - arch:       i386
+            pkg_prefix: i386
+            cross_pfx:  i686-linux-gnu
+            host:       i386-pc-linux-gnu
+            ssldir:     /usr/lib/i386-linux-gnu/pkgconfig
+
+          - arch:       aarch64
+            pkg_prefix: arm64
+            cross_pfx:  aarch64-linux-gnu
+            host:       aarch64-generic-linux-gnu
+            ssldir:     /usr/lib/aarch64-linux-gnu/pkgconfig
+
+          - arch:       armhf
+            pkg_prefix: armhf
+            cross_pfx:  arm-linux-gnueabihf
+            host:       arm-generic-linux-gnu
+            ssldir:     /usr/lib/arm-linux-gnueabihf/pkgconfig
+
+          - arch:       riscv64
+            pkg_prefix: riscv64
+            cross_pfx:  riscv64-linux-gnu
+            host:       riscv64-generic-linux-gnu
+            ssldir:     /usr/lib/riscv64-linux-gnu/pkgconfig
+
+    env:
+      arch:          ${{matrix.platform.arch}}
+      pkg_prefix:    ${{matrix.platform.pkg_prefix}}
+      suffix:        ${{matrix.platform.arch}}-linux-gnu
+      KC_TLS_SSLDIR: ${{matrix.platform.ssldir}}
+      CC:            ${{matrix.platform.cross_pfx}}-gcc
+      CXX:           ${{matrix.platform.cross_pfx}}-g++
+      AR:            ${{matrix.platform.cross_pfx}}-ar
+      RANLIB:        ${{matrix.platform.cross_pfx}}-ranlib
+      NM:            ${{matrix.platform.cross_pfx}}-nm
+      HOST:          ${{matrix.platform.host}}
+
     steps:
       - uses: actions/checkout@v4
+      - name: Dump Pkg mirrors
+        run: |
+          for li in $(ls /etc/apt/sources.list.d/); do
+            echo "$li:"
+            sudo cat "/etc/apt/sources.list.d/$li"
+          done
+          echo "/etc/apt/apt-mirrors.txt:"
+          sudo cat /etc/apt/apt-mirrors.txt
+          echo "/etc/apt/sources.list:"
+          sudo cat /etc/apt/sources.list
+
       - name: Setup dependencies
         run: |
+          sudo dpkg --add-architecture ${{env.pkg_prefix}}
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' \
+                 /etc/apt/sources.list /etc/apt/apt-mirrors.txt
+          sudo apt-get clean
           sudo apt-get update
-          sudo apt-get install -y build-essential autoconf libssl-dev
-
-      - name: Setup environment
-        run: |
-          arch=$(uname -m)
-          os=$(echo "$(uname)$(uname -r)" | tr '[:upper:]' '[:lower:]')
-          cat <<EOF > $GITHUB_ENV
-          suffix=${arch}-unknown-${os}
-          EOF
+          sudo apt-get install -y --no-install-recommends \
+                  build-essential \
+                  crossbuild-essential-${{env.pkg_prefix}} \
+                  autoconf \
+                  libx11-dev:${{env.pkg_prefix}} \
+                  libssl-dev:${{env.pkg_prefix}}
 
       - name: Base kit
         env:
           KITCREATOR_PKGS: mk4tcl
+          CC:  x86_64-linux-gnu-gcc
+          CXX: x86_64-linux-gnu-g++
+          AR:  x86_64-linux-gnu-ar
+          RANLIB: x86_64-linux-gnu-ranlib
+          NM:     x86_64-linux-gnu-nm
         run: |
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+          cat <<EOF > $GITHUB_ENV
+          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+          EOF
+
+      - name: Minimal kit
+        env:
+          KITCREATOR_PKGS: 'mk4tcl'
+        run: |
+          ./kitcreator clean
+          ./kitcreator build ${{env.TCL_TK_VERSION}} \
+              --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
 
       - name: Standard kit (No GUI)
         env:
-          KITCREATOR_PKGS: 'tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
+          KITCREATOR_PKGS: 'tcllib tls tdom parse_args Trf zlibtcl mk4tcl'
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-tcl-private-headers
+              --enable-tcl-private-headers \
+              --host=${{ env.HOST }} \
+              --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Full kit (with GUI)
         env:
-          KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
+          KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom parse_args Trf zlibtcl mk4tcl'
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-aqua \
-              --enable-tcl-private-headers
+              --enable-tcl-private-headers \
+              --host=${{ env.HOST }} \
+              --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Kit SDK
@@ -74,19 +149,20 @@ jobs:
           }
           clean_all_but_tcl_and_mk4
           ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-aqua \
-              --enable-tcl-private-headers
+              --enable-tcl-private-headers \
+              --host=${{ env.HOST }} \
+              --enable-64bit
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
       - name: Upload kitcreator output
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-output
+          name: kitcreator-${{ env.arch }}-output
           path: |
             **/build.log
             **/config.log
+            tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
