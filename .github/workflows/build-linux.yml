@@ -45,6 +45,12 @@ jobs:
             host:       arm-generic-linux-gnu
             ssldir:     /usr/lib/arm-linux-gnueabihf/pkgconfig
 
+          - arch:       riscv64
+            pkg_prefix: riscv64
+            cross_pfx:  riscv64-linux-gnu
+            host:       riscv64-generic-linux-gnu
+            ssldir:     /usr/lib/riscv64-linux-gnu/pkgconfig
+
     env:
       arch:          ${{matrix.platform.arch}}
       pkg_prefix:    ${{matrix.platform.pkg_prefix}}
