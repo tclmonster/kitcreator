@@ -2,15 +2,23 @@ name: Create release
 on:
   workflow_dispatch:
     inputs:
-      tag:
+      tag_name:
         type: string
         required: true
         description: 'Existing tag for the release (created using fossil)'
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify tag exists
+        run: |
+          echo "Todo: verify tag ${{inputs.tag_name}} exists"
+
   create-release:
     runs-on: ubuntu-latest
     needs:
+      - validate-tag
       - build-linux-kits
       - build-windows-kits
       - build-macos-kits
