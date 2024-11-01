@@ -23,7 +23,7 @@ env:
   STATICTCLLIB: 1
   STATICMK4: 1
 jobs:
-  build-kits:
+  build-windows-kits:
     runs-on: windows-latest
     defaults:
       run:
@@ -90,13 +90,19 @@ jobs:
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
 
-      - name: Upload kitcreator output
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-output
+          name: kitcreator-windows-logs
           path: |
             **/build.log
             **/config.log
+
+      - name: Upload kits
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-windows-kits
+          path: |
             tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
             tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
             tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
