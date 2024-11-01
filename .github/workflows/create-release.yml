@@ -16,11 +16,11 @@ jobs:
       - build-macos-kits
 
     steps:
-      -name: Download all kits
-       uses: actions/download-artifact@v4
+      - name: Download all kits
+        uses: actions/download-artifact@v4
 
-      -name: Packaging kits
-       run: |
-         for kit in `ls kitcreator-*-kits/*`; do
-           echo "packaging kit $kit"
-         done
+      - name: Packaging kits
+        run: |
+          for kit in `ls kitcreator-*-kits/*`; do
+            echo "packaging kit $kit"
+          done
