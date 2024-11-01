@@ -1,0 +1,26 @@
+name: Create release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        required: true
+        description: 'Existing tag for the release (created using fossil)'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    needs:
+      - build-linux-kits
+      - build-windows-kits
+      - build-macos-kits
+
+    steps:
+      - name: Download all kits
+        uses: actions/download-artifact@v4
+
+      - name: Packaging kits
+        run: |
+          for kit in `ls kitcreator-*-kits/*`; do
+            echo "packaging kit $kit"
+          done

@@ -15,7 +15,7 @@ env:
   KC_MK4TCL_CXXFLAGS: '-fPIC'
 
 jobs:
-  build-kits:
+  build-linux-kits:
     runs-on: ubuntu-latest
 
     strategy:
@@ -155,14 +155,19 @@ jobs:
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
-      - name: Upload kitcreator output
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-${{ env.arch }}-output
+          name: kitcreator-linux-${{env.arch}}-logs
           path: |
             **/build.log
             **/config.log
-            tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+
+      - name: Upload kits
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-linux-${{env.arch}}-kits
+          path: |
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
