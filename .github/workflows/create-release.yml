@@ -11,9 +11,13 @@ jobs:
   validate-tag:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Verify tag exists
         run: |
-          echo "Todo: verify tag ${{inputs.tag_name}} exists"
+          if ! git rev-parse "refs/tags/${{inputs.tag_name}}" >/dev/null 2>&1; then
+            echo "Tag \"${{inputs.tag_name}}\" does not exist!"
+            exit 1
+          fi
 
   build-linux-kits:
     uses: ./.github/workflows/build-linux.yml
@@ -36,8 +40,13 @@ jobs:
       - name: Download all kits
         uses: actions/download-artifact@v4
 
-      - name: Package kits
+      - name: Create release
         run: |
-          for kit in `ls kitcreator-*-kits/*`; do
-            echo "Todo: package kit \"$kit\""
-          done
+          ./kitcreator-linux-x86_64-kits/tclkitsh-8.6.15-x86_64-linux-gnu \
+              ./.github/scripts/create-release.tcl \
+              ${{ github.api_url }} \
+              ${{ github.repository_owner }} \
+              ${{ github.event.repository.name }} \
+              ${{ inputs.tag_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
