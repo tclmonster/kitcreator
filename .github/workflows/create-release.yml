@@ -25,17 +25,19 @@ jobs:
 
   build-linux-kits:
     uses: ./.github/workflows/build-linux.yml
+    needs: validate-tag
 
   build-windows-kits:
     uses: ./.github/workflows/build-windows.yml
+    needs: validate-tag
 
   build-macos-kits:
     uses: ./.github/workflows/build-macos.yml
+    needs: validate-tag
 
   create-release:
     runs-on: ubuntu-latest
     needs:
-      - validate-tag
       - build-linux-kits
       - build-windows-kits
       - build-macos-kits
