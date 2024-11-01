@@ -43,6 +43,7 @@ jobs:
       - build-macos-kits
 
     steps:
+      - uses: actions/checkout@v4
       - name: Download all kits
         uses: actions/download-artifact@v4
 
