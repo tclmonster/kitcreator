@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          tags: true
+
       - name: Verify tag exists
         run: |
           if ! git rev-parse "refs/tags/${{inputs.tag_name}}" >/dev/null 2>&1; then
