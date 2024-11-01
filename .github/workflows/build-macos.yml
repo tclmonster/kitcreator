@@ -17,7 +17,7 @@ env:
   STATICTCLLIB: 1
   STATICMK4: 1
 jobs:
-  build-kits:
+  build-macos-kits:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,13 +78,19 @@ jobs:
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
              libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
-      - name: Upload kitcreator output
+      - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-output
+          name: kitcreator-macos-logs
           path: |
             **/build.log
             **/config.log
+
+      - name: Upload kitcreator output
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-macos-kits
+          path: |
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
