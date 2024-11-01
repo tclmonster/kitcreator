@@ -1,5 +1,9 @@
 name: Build Linux kits
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+
+  workflow_call:
+
 env:
   TCL_TK_VERSION: 8.6.15
   KC_TLS_LINKSSLSTATIC: 1
