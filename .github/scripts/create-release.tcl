@@ -5,6 +5,8 @@
 package require http
 package require tls
 package require json
+package require json::write
+package require tcl::chan::string
 
 http::register https 443 [list ::tls::socket -autoservername true -require true]
 
@@ -22,8 +24,8 @@ lassign $argv api_url owner repo tag_name
 
 set release_url $api_url/repos/$owner/$repo/releases
 set headers [list Accept application/vnd.github+json Authorization "Bearer $env(GH_TOKEN)" X-GitHub-Api-Version 2022-11-28]
-set query [http::formatQuery tag_name $tag_name]
-set response [http::geturl $release_url -query $query -headers $headers]
+set req_data [::tcl::chan::string [::json::write object tag_name $tag_name]]
+set response [http::geturl $release_url -type application/json -querychannel $req_data -headers $headers]
 if {[http::status $response] != "ok"} {
     puts stderr "Failed to create release at \"$release_url\" using tag \"$tag_name\""
     exit 1
