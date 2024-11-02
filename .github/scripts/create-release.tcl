@@ -47,8 +47,9 @@ foreach kitfile [glob kitcreator-*-kits/*] {
     set kitchan  [open $kitfile]
     fconfigure $kitchan -translation binary
     set response [http::geturl $upload_url -query $query -querychannel $kitchan -type application/octet-stream -headers $headers]
-    if {[http::status $response] != "ok"} {
+    if {[http::status $response] != "ok" || [http::ncode $response] != 201} {
         puts "Failed!"
+        puts stderr [http::data $response]
         exit 1
     }
     puts "Success."
