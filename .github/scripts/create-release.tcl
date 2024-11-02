@@ -7,7 +7,8 @@ package require tls
 package require json
 package require json::write
 
-http::register https 443 [list ::tls::socket -autoservername true -require true]
+http::register https 443 [list ::tls::socket -require true]
+http::config -repost true
 
 if {! [info exists env(GH_TOKEN)]} {
     puts stderr "\"env.GH_TOKEN\" must be set to \"secrets.GITHUB_TOKEN\""
@@ -23,7 +24,7 @@ lassign $argv api_url owner repo tag_name
 
 set release_url $api_url/repos/$owner/$repo/releases
 set headers  [list Accept application/vnd.github+json Authorization "Bearer $env(GH_TOKEN)" X-GitHub-Api-Version 2022-11-28]
-set response [http::geturl $release_url -headers $headers \
+set response [http::geturl $release_url -keepalive true -headers $headers \
                   -type application/json \
                   -query [::json::write object-strings tag_name $tag_name]]
 
@@ -40,14 +41,14 @@ if {[http::ncode $response] != 201} {
 set upload_url [string map [list \{?name,label\} {}] \
                     [dict get [::json::json2dict [http::data $response]] upload_url]]
 
-http::cleanup $response
-
 foreach kitfile [glob kitcreator-*-kits/*] {
     puts -nonewline "Uploading \"$kitfile\"... "
     set query [http::formatQuery name [file tail $kitfile]]
     set kitchan  [open $kitfile]
     fconfigure $kitchan -translation binary
-    set response [http::geturl ${upload_url}?${query} -headers $headers -querychannel $kitchan -type application/octet-stream]
+
+    set response [http::geturl ${upload_url}?${query} -keepalive true -headers $headers \
+                      -querychannel $kitchan -type application/octet-stream]
     if {[http::status $response] != "ok" || [http::ncode $response] != 201} {
         puts "Failed!"
         puts stderr [http::data $response]
