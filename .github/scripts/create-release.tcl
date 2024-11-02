@@ -8,7 +8,6 @@ package require json
 package require json::write
 
 http::register https 443 [list ::tls::socket -require true]
-http::config -repost true
 
 if {! [info exists env(GH_TOKEN)]} {
     puts stderr "\"env.GH_TOKEN\" must be set to \"secrets.GITHUB_TOKEN\""

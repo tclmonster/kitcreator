@@ -27,13 +27,13 @@ jobs:
     uses: ./.github/workflows/build-linux.yml
     needs: validate-tag
 
-#  build-windows-kits:
-#    uses: ./.github/workflows/build-windows.yml
-#    needs: validate-tag
+  build-windows-kits:
+    uses: ./.github/workflows/build-windows.yml
+    needs: validate-tag
 
-#  build-macos-kits:
-#    uses: ./.github/workflows/build-macos.yml
-#    needs: validate-tag
+  build-macos-kits:
+    uses: ./.github/workflows/build-macos.yml
+    needs: validate-tag
 
   create-release:
     runs-on: ubuntu-latest
@@ -43,8 +43,8 @@ jobs:
 
     needs:
       - build-linux-kits
-#      - build-windows-kits
-#      - build-macos-kits
+      - build-windows-kits
+      - build-macos-kits
 
     steps:
       - uses: actions/checkout@v4
@@ -53,9 +53,9 @@ jobs:
 
       - name: Create release
         run: |
-          tcl_cmd=./kitcreator-linux-x86_64-kits/tclkitsh-8.6.15-x86_64-linux-gnu
-          chmod +x $tcl_cmd
-          $tcl_cmd ./.github/scripts/create-release.tcl \
+          cp ./kitcreator-linux-x86_64-kits/tclkitsh-8.6.15-x86_64-linux-gnu ~/tclkit
+          chmod +x ~/tclkit
+          ~/tclkit .github/scripts/create-release.tcl \
               ${{ github.api_url }} \
               ${{ github.repository_owner }} \
               ${{ github.event.repository.name }} \
