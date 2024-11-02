@@ -31,10 +31,10 @@ if {[http::status $response] != "ok"} {
     exit 1
 }
 
+puts "[http::data $response]"
+
 set upload_url [string map [list \{?name,label\} {}] \
                     [dict get [::json::json2dict [http::data $response]] upload_url]]
-
-http::cleanup $response
 
 foreach kitfile [glob kitcreator-*-kits/*] {
     puts -nonewline "Uploading \"$kitfile\"... "
