@@ -1,7 +1,6 @@
 name: Build Windows Kits (Clang64)
 on:
   workflow_dispatch:
-
   workflow_call:
 
 env:
@@ -26,6 +25,7 @@ env:
   STATICZLIBTCL: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+
 jobs:
   build-windows-kits:
     runs-on: windows-latest
@@ -44,35 +44,41 @@ jobs:
             mingw-w64-clang-x86_64-toolchain
             mingw-w64-clang-x86_64-dlfcn
             mingw-w64-clang-x86_64-openssl
+
       - uses: actions/checkout@v4
-      - name: Base kit
+      - name: Minimal kit (No GUI)
         env:
           KITCREATOR_PKGS: mk4tcl
         run: |
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+          cat <<EOF > $GITHUB_ENV
+          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+          EOF
+
+      - name: Minimal kit (with GUI)
+        env:
+          KITCREATOR_PKGS: 'tk mk4tcl'
+        run: |
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
+          mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+          rm -f  tk/.success
+          rm -rf tk/{out,inst,build}
 
       - name: Standard kit (No GUI)
         env:
           KITCREATOR_PKGS: 'tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
         run: |
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe \
-              --enable-64bit \
-              --enable-tcl-private-headers \
-              ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
 
       - name: Full kit (with GUI)
         env:
           KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
         run: |
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe \
-              --enable-64bit \
-              --enable-tcl-private-headers \
-              ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
 
       - name: Kit SDK
@@ -87,12 +93,8 @@ jobs:
             done
           }
           clean_all_but_tcl_and_mk4
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe \
-              --enable-64bit \
-              --enable-tcl-private-headers
-          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
-             libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
+          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
@@ -108,6 +110,7 @@ jobs:
           name: kitcreator-windows-kits
           path: |
             tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+            tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
             tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
             tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
             libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
