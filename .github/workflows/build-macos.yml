@@ -1,5 +1,9 @@
 name: Build macOS kits
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+
+  workflow_call:
+
 env:
   TCL_TK_VERSION: 8.6.15
   CC: /usr/bin/clang
