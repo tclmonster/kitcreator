@@ -1,7 +1,6 @@
 name: Build macOS kits
 on:
   workflow_dispatch:
-
   workflow_call:
 
 env:
@@ -20,6 +19,7 @@ env:
   STATICZLIBTCL: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+
 jobs:
   build-macos-kits:
     runs-on: macos-latest
@@ -36,31 +36,39 @@ jobs:
           suffix=${arch}-apple-${os}
           EOF
 
-      - name: Base kit
+      - name: Minimal kit (No GUI)
         env:
           KITCREATOR_PKGS: mk4tcl
         run: |
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          cat <<EOF > $GITHUB_ENV
+          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          EOF
+
+      - name: Minimal kit (With GUI)
+        env:
+          KITCREATOR_PKGS: 'tk mk4tcl'
+        run: |
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          rm -f  tk/.success
+          rm -rf tk/{out,inst,build}
 
       - name: Standard kit (No GUI)
         env:
           KITCREATOR_PKGS: 'tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
         run: |
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Full kit (with GUI)
         env:
           KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
         run: |
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-aqua \
-              --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Kit SDK
@@ -75,12 +83,8 @@ jobs:
             done
           }
           clean_all_but_tcl_and_mk4
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --with-tclsh=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
-              --enable-aqua \
-              --enable-tcl-private-headers
-          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
-             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
+          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
@@ -96,6 +100,7 @@ jobs:
           name: kitcreator-macos-kits
           path: |
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
