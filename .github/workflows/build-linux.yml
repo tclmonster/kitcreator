@@ -1,7 +1,6 @@
 name: Build Linux kits
 on:
   workflow_dispatch:
-
   workflow_call:
 
 env:
@@ -111,33 +110,35 @@ jobs:
           TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
           EOF
 
-      - name: Minimal kit
+      - name: Minimal kit (No GUI)
         env:
           KITCREATOR_PKGS: 'mk4tcl'
         run: |
           ./kitcreator clean
-          ./kitcreator build ${{env.TCL_TK_VERSION}} \
-              --host=${{ env.HOST }} --enable-64bit
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+
+      - name: Minimal kit (with GUI)
+        env:
+          KITCREATOR_PKGS: 'tk mk4tcl'
+        run: |
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          rm -f  tk/.success
+          rm -rf tk/{out,inst,build}
 
       - name: Standard kit (No GUI)
         env:
           KITCREATOR_PKGS: 'tcllib tls tdom parse_args Trf zlibtcl mk4tcl'
         run: |
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --enable-tcl-private-headers \
-              --host=${{ env.HOST }} \
-              --enable-64bit
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Full kit (with GUI)
         env:
           KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom parse_args Trf zlibtcl mk4tcl'
         run: |
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --enable-tcl-private-headers \
-              --host=${{ env.HOST }} \
-              --enable-64bit
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
       - name: Kit SDK
@@ -152,12 +153,8 @@ jobs:
             done
           }
           clean_all_but_tcl_and_mk4
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} \
-              --enable-tcl-private-headers \
-              --host=${{ env.HOST }} \
-              --enable-64bit
-          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz \
-             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --host=${{ env.HOST }} --enable-64bit
+          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
@@ -173,6 +170,7 @@ jobs:
           name: kitcreator-linux-${{env.arch}}-kits
           path: |
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
