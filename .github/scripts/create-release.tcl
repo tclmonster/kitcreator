@@ -177,7 +177,8 @@ set response [http::geturl $release_url/$release_id -headers $headers \
                   -query $release_query]
 
 if {[http::status $response] != "ok" || [http::ncode $response] != 200} {
-    puts stderr "Failed to update release body with kit table"
-    puts stderr [http::data $response]
+    puts stderr "Failed to update release body"
+    puts stderr "Request: \"$release_query\""
+    puts stderr "Response: \"[http::data $response]\""
     exit 1
 }
