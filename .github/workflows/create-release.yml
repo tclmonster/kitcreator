@@ -23,13 +23,13 @@ jobs:
             exit 1
           fi
 
-#  build-linux-kits:
-#    uses: ./.github/workflows/build-linux.yml
-#    needs: validate-tag
+  build-linux-kits:
+    uses: ./.github/workflows/build-linux.yml
+    needs: validate-tag
 
-#  build-windows-kits:
-#    uses: ./.github/workflows/build-windows.yml
-#    needs: validate-tag
+  build-windows-kits:
+    uses: ./.github/workflows/build-windows.yml
+    needs: validate-tag
 
   build-macos-kits:
     uses: ./.github/workflows/build-macos.yml
@@ -42,8 +42,8 @@ jobs:
       contents: write
 
     needs:
-#      - build-linux-kits
-#      - build-windows-kits
+      - build-linux-kits
+      - build-windows-kits
       - build-macos-kits
 
     steps:
