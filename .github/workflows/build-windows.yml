@@ -53,6 +53,7 @@ jobs:
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe.kc_packages
           cat <<EOF > $GITHUB_ENV
           TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
           TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
@@ -64,6 +65,7 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
+          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe.kc_packages
           rm -f  tk/.success
           rm -rf tk/{out,inst,build}
 
@@ -73,6 +75,7 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
+          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
 
       - name: Full kit (with GUI)
         env:
@@ -80,6 +83,7 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
+          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
 
       - name: Kit SDK
         env:
@@ -95,6 +99,7 @@ jobs:
           clean_all_but_tcl_and_mk4
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
+          echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz.kc_packages
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
@@ -114,4 +119,12 @@ jobs:
             tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
             tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
             libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
+        if: ${{ !cancelled() }}
+
+      - name: Upload kit package list
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-windows-kc_packages
+          path: |
+            *.kc_packages
         if: ${{ !cancelled() }}
