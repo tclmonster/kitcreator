@@ -43,6 +43,7 @@ jobs:
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
           cat <<EOF > $GITHUB_ENV
           TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
@@ -54,6 +55,7 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
+          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
           rm -f  tk/.success
           rm -rf tk/{out,inst,build}
 
@@ -63,6 +65,7 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         env:
@@ -70,6 +73,7 @@ jobs:
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Kit SDK
         env:
@@ -85,6 +89,7 @@ jobs:
           clean_all_but_tcl_and_mk4
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+          echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
@@ -104,4 +109,12 @@ jobs:
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+        if: ${{ !cancelled() }}
+
+      - name: Upload kitcreator package list
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-macos-kc_packages
+          path: |
+            *.kc_packages
         if: ${{ !cancelled() }}
