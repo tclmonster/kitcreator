@@ -28,7 +28,7 @@ set release_query {
     }
 }
 set release_query [string map [list @TAG@  $tag_name \
-                                    @NAME@ "Monster kits ([clock format [clock seconds] -format {%Y-%m-%d}])"] \
+                                    @NAME@ "TclMonster kits ([clock format [clock seconds] -format {%Y-%m-%d}])"] \
                        $release_query]
 
 set release_url $api_url/repos/$owner/$repo/releases
@@ -84,6 +84,21 @@ foreach kitfile [lsort [glob kitcreator-*-kits/*]] {
     http::cleanup $response
 }
 
+set package_map [dict create]
+foreach kc_pkgs_file [glob kitcreator-*-kc_packages/*] {
+    set key [file rootname [file tail $kc_pkgs_file]]
+    set fd  [open $kc_pkgs_file]
+    set value  [list {*}[string trim [read $fd]]]
+    close $fd
+
+    set kitdll_index [lsearch $value kitdll]
+    if {$kitdll_index ne -1} {
+        set value [lreplace $value $kitdll_index $kitdll_index]    ;# Kitdll is not an actual extension
+    }
+
+    dict set package_map "$key" $value
+}
+
 proc formatSize {sizeInBytes} {
     set sizes [list "bytes" "KB" "MB" "GB" "TB"]
     set unit "bytes"
@@ -112,11 +127,11 @@ into any application.
 set hdr_template {
 #### @KIT_OS@
 
-| File | Version | Architecture | Tk  | SDK | Size |
-| ---  | ---     | ---          | --- | --- | ---  |
+| File | Version | Arch.  | Tk  | SDK | Extensions | Size |
+| :--- | ---     | ---    | --- | --- | ---        | ---: |
 }
 
-set row_template {| [@FILE@](@URL@) | @VERSION@ | @ARCH@ | @HAS_TK@ | @HAS_SDK@ | @SIZE@ |
+set row_template {| [@FILE@](@URL@) | @VERSION@ | @ARCH@ | @HAS_TK@ | @HAS_SDK@ | @EXTENSIONS@ | @SIZE@ |
 }
 
 foreach kit_os {Linux macOS Windows} {
@@ -144,13 +159,14 @@ foreach kit_os {Linux macOS Windows} {
             }
         }
         append release_body [string map [list \
-                                             @FILE@    $asset \
-                                             @URL@     [dict get $asset_info browser_download_url] \
-                                             @VERSION@ $asset_version \
-                                             @ARCH@    $asset_arch \
-                                             @HAS_TK@  $has_tk \
-                                             @HAS_SDK@ $has_sdk \
-                                             @SIZE@    [formatSize [dict get $asset_info size]]] $row_template]
+                                             @FILE@       $asset \
+                                             @URL@        [dict get $asset_info browser_download_url] \
+                                             @VERSION@    $asset_version \
+                                             @ARCH@       $asset_arch \
+                                             @HAS_TK@     $has_tk \
+                                             @HAS_SDK@    $has_sdk \
+                                             @EXTENSIONS@ [dict get $package_map $asset] \
+                                             @SIZE@       [formatSize [dict get $asset_info size]]] $row_template]
     }
 }
 
