@@ -102,22 +102,21 @@ proc formatSize {sizeInBytes} {
 set release_body {
 ### Tcl kits available for Linux, macOS, and Windows.
 
-The *tclkitsh* kits are command-line only; *tclkit* kits contain Tk as a shared library and
-so they may include a GUI if desired; *libtclkit-sdk* archives may be extracted and used to link
-extensions against (without having to compile Tcl/Tk), or they may be linked into an application
-to provide a static Tcl/Tk interpreter. Kits with the *minimal* suffix only contain base Tcl/Tk
-libraries.
+This release includes kits with and without Tk; also included are minimal kits with only
+the base dependencies; and lastly, the SDK provides shared libraries that may be used to
+conveniently build extensions (without compiling Tcl/Tk) or to link a working Tcl interpreter
+into any application.
 
 }
 
 set hdr_template {
 #### @KIT_OS@
 
-| File | Size |
-| ---  | ---  |
+| File | Version | Architecture | Tk  | SDK | Size |
+| ---  | ---     | ---          | --- | --- | ---  |
 }
 
-set row_template {| [@FILE@](@URL@) | @SIZE@ |
+set row_template {| [@FILE@](@URL@) | @VERSION@ | @ARCH@ | @HAS_TK@ | @HAS_SDK@ | @SIZE@ |
 }
 
 foreach kit_os {Linux macOS Windows} {
@@ -128,10 +127,30 @@ foreach kit_os {Linux macOS Windows} {
         }
         set asset [lindex $pair 0]
         set asset_info [lindex $pair 1]
+        lassign [regexp -inline -- {((?:lib)?tclkit(?:sh|-sdk)?)-([0-9.]+)-([^-]+)-} $asset] \
+            _ asset_prefix asset_version asset_arch
+
+        set has_tk  {}
+        set has_sdk {}
+        switch -- $asset_prefix {
+            tclkit {
+                set has_tk ✔
+            }
+            tclkitsh {
+            }
+            libtclkit-sdk {
+                set has_tk ✔
+                set has_sdk ✔
+            }
+        }
         append release_body [string map [list \
-                                             @FILE@ $asset \
-                                             @URL@  [dict get $asset_info browser_download_url] \
-                                             @SIZE@ [formatSize [dict get $asset_info size]]] $row_template]
+                                             @FILE@    $asset \
+                                             @URL@     [dict get $asset_info browser_download_url] \
+                                             @VERSION@ $asset_version \
+                                             @ARCH@    $asset_arch \
+                                             @HAS_TK@  $has_tk \
+                                             @HAS_SDK@ $has_sdk \
+                                             @SIZE@    [formatSize [dict get $asset_info size]]] $row_template]
     }
 }
 
