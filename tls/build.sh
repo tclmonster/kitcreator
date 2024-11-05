@@ -3,9 +3,9 @@
 # BuildCompatible: KitCreator
 
 version="1.8.0"
-commit_hash="1505883e4a"
+commit_hash="6d3664930c"
 url="https://core.tcl-lang.org/tcltls/tarball/${commit_hash}/tcltls-${commit_hash}.tar.gz"
-sha256='a57d7b6b3710e6966387f0b2269e6a014b7b8b2db736e44d982af5318adeefba'
+sha256='dfd1401f8b0bfa0f2992d480b4e8ba085a4a17dc54e6b0db080e8bd6bdda725f'
 configure_extra=(--enable-deterministic --with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
 function buildSSLLibrary() {
