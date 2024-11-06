@@ -170,13 +170,15 @@ foreach kit_os {Linux macOS Windows} {
     }
 }
 
-set release_query [string map [list @BODY@ [regsub -all {\n} $release_body {\\n}]] {{"body": "@BODY@"}}]
+set release_query [string map [list @BODY@ [string map {\n \\n} $release_body]] {{"body": "@BODY@"}}]
 set response [http::geturl $release_url/$release_id -headers $headers \
                   -method PATCH \
                   -type application/json \
                   -query $release_query]
 
 if {[http::status $response] != "ok" || [http::ncode $response] != 200} {
-    puts "Failed to update release body with kit table"
+    puts stderr "Failed to update release body"
+    puts stderr "Request: \"$release_query\""
+    puts stderr "Response: \"[http::data $response]\""
     exit 1
 }
