@@ -5,6 +5,7 @@
 package require http
 package require tls
 package require json
+package require tcl::chan::string
 
 http::register https 443 [list ::tls::socket -require true]
 
@@ -170,11 +171,11 @@ foreach kit_os {Linux macOS Windows} {
     }
 }
 
-set release_query [string map [list @BODY@ [string map {\n \\n} $release_body]] {{"body": "@BODY@"}}]
+set release_query [tcl::chan::string [string map [list @BODY@ [string map {\n \\n} $release_body]] {{"body": "@BODY@"}}]]
 set response [http::geturl $release_url/$release_id -headers $headers \
                   -method PATCH \
                   -type application/json \
-                  -query $release_query]
+                  -querychannel $release_query]
 
 if {[http::status $response] != "ok" || [http::ncode $response] != 200} {
     puts stderr "Failed to update release body"
