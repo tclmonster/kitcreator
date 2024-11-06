@@ -61,7 +61,7 @@ jobs:
 
       - name: Create release
         run: |
-          cp ./kitcreator-windows-kits/tclkitsh-8.6.15-x86_64-w64-mingw32-minimal.exe ~/tclkit.exe
+          cp ./kitcreator-windows-kits/tclkitsh-8.6.15-x86_64-w64-mingw32.exe ~/tclkit.exe
           chmod +x ~/tclkit.exe
           ~/tclkit.exe .github/scripts/create-release.tcl \
               ${{ github.api_url }} \
