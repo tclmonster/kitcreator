@@ -38,7 +38,7 @@ jobs:
 
       - name: Minimal kit (No GUI)
         env:
-          KITCREATOR_PKGS: 'tls tdom mk4tcl'
+          KITCREATOR_PKGS: 'tls tdom parse_args mk4tcl'
         run: |
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
@@ -51,7 +51,7 @@ jobs:
 
       - name: Minimal kit (With GUI)
         env:
-          KITCREATOR_PKGS: 'tls tdom tk mk4tcl'
+          KITCREATOR_PKGS: 'tls tdom parse_args tk mk4tcl'
         run: |
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
@@ -77,11 +77,11 @@ jobs:
 
       - name: Kit SDK
         env:
-          KITCREATOR_PKGS: 'tk mk4tcl kitdll'
+          KITCREATOR_PKGS: 'tls tdom parse_args tk mk4tcl kitdll'
           STATICTK: 1
         run: |
           clean_all_but_tcl_and_mk4() {
-            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|mk4tcl|tls|tdom)$'); do
+            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl)$'); do
               rm -f  "${pkg}/.success"
               rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
             done
