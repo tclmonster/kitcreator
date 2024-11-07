@@ -2,28 +2,9 @@
 
 # BuildCompatible: KitCreator
 
-
-# Version here ensures the proper pkgIndex version
-version='0.3.4'
-
-tag_version='0.3.4.3'
-url="https://github.com/RubyLane/parse_args.git"
-
-# Cannot extract versions higher than 0.3.4.3 due to missing
-# submodule files from tar.gz. As a workaround, clone with git.
-
-function download() {
-	mkdir "${archivedir}" >/dev/null 2>/dev/null
-	git clone -b v${tag_version} --depth 1 --recurse-submodules \
-		${url} "${archivedir}/parse_args" || return 1
-}
-
-function extract() {
-	mkdir -p "${workdir}" || return 1
-	( cd "${workdir}";
-	  cp -rf "${archivedir}"/parse_args/* $(pwd);
-	  autoreconf; )
-}
+version="0.5.1"
+url="https://github.com/TclMonster/parse_args/releases/download/v${version}/parse_args${version}.tar.gz"
+sha256='a75f2fb2f018ddc07a2b77a22e40f5c4f602ddef0c17c0d520af5592701fa0a4'
 
 function build() {
 	# Skip docs because it requires pandoc
