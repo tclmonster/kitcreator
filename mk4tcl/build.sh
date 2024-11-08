@@ -11,11 +11,10 @@ if [ -z "${TCLVERS}" ]; then
 	exit 1
 fi
 
-MK4VERS="2.4.9.7"
+MK4VERS="2.4.9.8"
 SRC="src/metakit-${MK4VERS}.tar.gz"
-SRCURL="http://www.equi4.com/pub/mk/metakit-${MK4VERS}.tar.gz"
-SRCURL="http://pkgs.fedoraproject.org/repo/pkgs/metakit/metakit-${MK4VERS}.tar.gz/17330257376eea657827ed632ea62c9e/metakit-${MK4VERS}.tar.gz"
-SRCHASH='d1ba361d2d8517925cff5c23e8602822da9c8c347a75a15c225ec656ff7ca94d'
+SRCURL="https://github.com/TclMonster/metakit/archive/refs/tags/${MK4VERS}.tar.gz"
+SRCHASH='9e7579d3f4750e7e014a4ea6bf8d715bbd043f39'
 BUILDDIR="$(pwd)/build/metakit-${MK4VERS}"
 OUTDIR="$(pwd)/out"
 INSTDIR="$(pwd)/inst"
@@ -52,7 +51,7 @@ fi
 
 	if [ ! -d '../buildsrc' ]; then
 		gzip -dc "../${SRC}" | tar -xf -
-	else    
+	else
 		cp -rp ../buildsrc/* './'
 	fi
 
@@ -69,14 +68,8 @@ fi
 
 	cd "${BUILDDIR}/unix" || exit 1
 
-	# If we are building for Win32, we need to define "BUILD_tcl" so that
-	# TCL_STORAGE_CLASS gets defined as DLLEXPORT, to make static linking
-	# work
 	BUILDTYPE="$(basename "${TCLCONFIGDIR}")"
 	if [ "${BUILDTYPE}" = "win" ]; then
-		CPPFLAGS="${CPPFLAGS} -DBUILD_tcl=1"
-		export CPPFLAGS
-
 		if [ "${STATICMK4}" != "-1" ]; then
 			if [ "${STATICMK4}" = "0" ]; then
 				echo 'Warning: Metakit4 fails to build shared on Win32, converting to static linking'
@@ -113,6 +106,11 @@ fi
 			isshared="1"
 		else
 			isshared="0"
+		fi
+
+		if [ "${isshared}" = "0" -a "${BUILDTYPE}" = "win" ]; then
+			CPPFLAGS="${CPPFLAGS} -DSTATIC_BUILD=1"  ;# Ensure DLL import/export attributes cleared
+			export CPPFLAGS
 		fi
 
 		# If build a static Mk4tcl for KitDLL, ensure that we use PIC
