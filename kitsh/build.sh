@@ -149,12 +149,6 @@ mkdir 'out' 'inst' || exit 1
 	echo "Running: ${MAKE:-make}"
 	${MAKE:-make} || exit 1
 
-	# Strip the kit of all symbols, if possible
-	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
-		"${STRIP:-strip}" kit kit.exe >/dev/null 2>/dev/null
-		"${STRIP:-strip}" -g libtclkit* >/dev/null 2>/dev/null
-	fi
-
 	# Fix up Win32 DLL names
 	## .DLL.A -> .LIB
 	for file in libtclkit*.dll.a; do
@@ -217,6 +211,22 @@ mkdir 'out' 'inst' || exit 1
 		echo "Failed to locate kit target!" >&2
 
 		exit 1
+	fi
+
+	# Strip the kit of all symbols
+	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
+		case "${KITTARGET_NAME}" in
+			./kit*)
+				echo "Running: ${STRIP:-strip} $KITTARGET_NAME"
+				"${STRIP:-strip}" $KITTARGET_NAME
+				;;
+		esac
+
+		# Strip debug symbols from shared libraries as well
+	        find . \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
+		    echo "Running: \"${STRIP:-strip}\" --strip-debug \"$file\""
+		    "${STRIP:-strip}" --strip-debug "$file"
+		done
 	fi
 
 	# Intall VFS onto kit
