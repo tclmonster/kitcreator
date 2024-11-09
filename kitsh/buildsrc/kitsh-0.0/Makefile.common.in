@@ -40,7 +40,7 @@ zlib.o: zlib.c
 
 ### Windows resources
 kit.res.o: kit.rc tclkit.ico
-	$(RC) -o kit.res.o $(CPPFLAGS) kit.rc
+	$(RC) -o kit.res.o kit.rc
 
 # Cleanup routines
 clean:
