@@ -19,6 +19,10 @@ env:
   STATICZLIBTCL: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+  CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
+  CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
+  CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
+  KC_KITSH_LDFLAGS: '-Wl,--gc-sections'
 
 jobs:
   build-macos-kits:
