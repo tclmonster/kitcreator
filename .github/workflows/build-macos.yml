@@ -102,7 +102,7 @@ jobs:
           path: |
             **/build.log
             **/config.log
-	if: ${{ !cancelled() }}
+        if: ${{ !cancelled() }}
 
       - name: Upload kitcreator output
         uses: actions/upload-artifact@v4
