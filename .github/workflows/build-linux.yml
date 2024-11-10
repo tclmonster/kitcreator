@@ -16,6 +16,10 @@ env:
   STATICTCLLIB: 1
   STATICMK4: 1
   KC_MK4TCL_CXXFLAGS: '-fPIC'
+  CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
+  CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
+  CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
+  KC_KITSH_LDFLAGS: '-Wl,--gc-sections'
 
 jobs:
   build-linux-kits:
