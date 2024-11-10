@@ -172,6 +172,7 @@ jobs:
           path: |
             **/build.log
             **/config.log
+	if: ${{ !cancelled() }}
 
       - name: Upload kits
         uses: actions/upload-artifact@v4
