@@ -22,7 +22,7 @@ env:
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
-  KC_KITSH_LDFLAGS: '-Wl,--gc-sections'
+  KC_KITSH_LDFLAGS: '-Wl,-dead_strip'
 
 jobs:
   build-macos-kits:
@@ -102,6 +102,7 @@ jobs:
           path: |
             **/build.log
             **/config.log
+	if: ${{ !cancelled() }}
 
       - name: Upload kitcreator output
         uses: actions/upload-artifact@v4
