@@ -2,6 +2,8 @@ name: Build Linux kits
 on:
   workflow_dispatch:
   workflow_call:
+  push:
+    branches: [main]
 
 env:
   TCL_TK_VERSION: 8.6.15
