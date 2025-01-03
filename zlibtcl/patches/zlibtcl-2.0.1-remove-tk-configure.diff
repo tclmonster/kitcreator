@@ -1,6 +1,6 @@
---- Img-1.4.16/zlib/configure	Sun Mar 19 19:06:02 2023
-+++ Img-1.4.16.bak/zlib/configure	Mon Jan  8 12:37:54 2024
-@@ -683,24 +683,12 @@
+--- A/zlib/configure 2024-11-12 18:44:26.000000000 -0400
++++ B/zlib/configure 2025-01-03 13:54:46.263755100 -0400
+@@ -675,24 +675,12 @@
  STUBS_BUILD
  SHARED_BUILD
  TCL_THREADS
@@ -25,27 +25,29 @@
  TCL_SHLIB_LD_LIBS
  TCL_LD_FLAGS
  TCL_EXTRA_CFLAGS
-@@ -786,9 +774,7 @@
+@@ -777,10 +765,7 @@
  enable_option_checking
  with_tcl
  with_tcl8
 -with_tk
+-with_tk8
  with_tclinclude
 -with_tkinclude
  enable_threads
  enable_shared
  enable_stubs
-@@ -1439,9 +1425,7 @@
+@@ -1431,10 +1416,7 @@
    --with-tcl              directory containing tcl configuration
                            (tclConfig.sh)
    --with-tcl8             Compile for Tcl8 in Tcl9 environment
 -  --with-tk               directory containing tk configuration (tkConfig.sh)
+-  --with-tk8              Compile for Tk8 in Tk9 environment
    --with-tclinclude       directory containing the public Tcl header files
 -  --with-tkinclude        directory containing the public Tk header files
  
  Some influential environment variables:
    CC          C compiler command
-@@ -3972,237 +3956,8 @@
+@@ -4029,251 +4011,8 @@
  
  
  
@@ -66,13 +68,20 @@
 -  withval=$with_tk; with_tkconfig="${withval}"
 -fi
 -
+-
+-# Check whether --with-tk8 was given.
+-if test ${with_tk8+y}
+-then :
+-  withval=$with_tk8; with_tk8="${withval}"
+-fi
+-
 -	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for Tk configuration" >&5
 -printf %s "checking for Tk configuration... " >&6; }
 -	if test ${ac_cv_c_tkconfig+y}
 -then :
 -  printf %s "(cached) " >&6
--else $as_nop
--
+-else case e in #(
+-  e)
 -
 -	    # First check to see if --with-tkconfig was specified.
 -	    if test x"${with_tkconfig}" != x ; then
@@ -139,12 +148,18 @@
 -			`ls -d /usr/local/lib 2>/dev/null` \
 -			`ls -d /usr/contrib/lib 2>/dev/null` \
 -			`ls -d /usr/pkg/lib 2>/dev/null` \
+-			`ls -d /usr/lib/tk9.0 2>/dev/null` \
+-			`ls -d /usr/lib/tk8.7 2>/dev/null` \
 -			`ls -d /usr/lib/tk8.6 2>/dev/null` \
 -			`ls -d /usr/lib/tk8.5 2>/dev/null` \
 -			`ls -d /usr/lib 2>/dev/null` \
 -			`ls -d /usr/lib64 2>/dev/null` \
+-			`ls -d /usr/local/lib/tk9.0 2>/dev/null` \
+-			`ls -d /usr/local/lib/tk8.7 2>/dev/null` \
 -			`ls -d /usr/local/lib/tk8.6 2>/dev/null` \
 -			`ls -d /usr/local/lib/tk8.5 2>/dev/null` \
+-			`ls -d /usr/local/lib/tcl/tk9.0 2>/dev/null` \
+-			`ls -d /usr/local/lib/tcl/tk8.7 2>/dev/null` \
 -			`ls -d /usr/local/lib/tcl/tk8.6 2>/dev/null` \
 -			`ls -d /usr/local/lib/tcl/tk8.5 2>/dev/null` \
 -			; do
@@ -186,7 +201,8 @@
 -		    fi
 -		done
 -	    fi
--
+-	 ;;
+-esac
 -fi
 -
 -
@@ -206,11 +222,11 @@
 -printf %s "checking for existence of ${TK_BIN_DIR}/tkConfig.sh... " >&6; }
 -
 -    if test -f "${TK_BIN_DIR}/tkConfig.sh" ; then
--        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: loading" >&5
+-	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: loading" >&5
 -printf "%s\n" "loading" >&6; }
 -	. "${TK_BIN_DIR}/tkConfig.sh"
 -    else
--        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: could not find ${TK_BIN_DIR}/tkConfig.sh" >&5
+-	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: could not find ${TK_BIN_DIR}/tkConfig.sh" >&5
 -printf "%s\n" "could not find ${TK_BIN_DIR}/tkConfig.sh" >&6; }
 -    fi
 -
@@ -221,9 +237,9 @@
 -    # instead of TK_BUILD_LIB_SPEC since it will work with both an
 -    # installed and uninstalled version of Tcl.
 -    if test -f "${TK_BIN_DIR}/Makefile" ; then
--        TK_LIB_SPEC="${TK_BUILD_LIB_SPEC}"
--        TK_STUB_LIB_SPEC="${TK_BUILD_STUB_LIB_SPEC}"
--        TK_STUB_LIB_PATH="${TK_BUILD_STUB_LIB_PATH}"
+-	TK_LIB_SPEC="${TK_BUILD_LIB_SPEC}"
+-	TK_STUB_LIB_SPEC="${TK_BUILD_STUB_LIB_SPEC}"
+-	TK_STUB_LIB_PATH="${TK_BUILD_STUB_LIB_PATH}"
 -    elif test "`uname -s`" = "Darwin"; then
 -	# If Tk was built as a framework, attempt to use the libraries
 -	# from the framework at the given location so that linking works
@@ -285,7 +301,7 @@
  
  #-----------------------------------------------------------------------
  # Handle the --prefix=... option by defaulting to what Tcl gave.
-@@ -5995,108 +5750,7 @@
+@@ -6111,109 +5850,7 @@
  
  
  
@@ -304,8 +320,8 @@
 -    if test ${ac_cv_c_tkh+y}
 -then :
 -  printf %s "(cached) " >&6
--else $as_nop
--
+-else case e in #(
+-  e)
 -	# Use the value from --with-tkinclude, if it was given
 -
 -	if test x"${with_tkinclude}" != x ; then
@@ -357,7 +373,8 @@
 -		fi
 -	    done
 -	fi
--
+-     ;;
+-esac
 -fi
 -
 -
