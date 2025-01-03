@@ -35,7 +35,7 @@ set release_url $api_url/repos/$owner/$repo/releases
 set headers  [list Accept application/vnd.github+json Authorization "Bearer $env(GH_TOKEN)" X-GitHub-Api-Version 2022-11-28]
 set response [http::geturl $release_url -keepalive true -headers $headers \
                   -type application/json \
-                  -query $release_query]
+                  -query [encoding convertto utf-8 $release_query]]
 
 if {[http::status $response] != "ok"} {
     puts stderr "Error retrieving URL: \"[http::error $response]\""
@@ -47,7 +47,7 @@ if {[http::ncode $response] != 201} {
     exit 1
 }
 
-set release_info [::json::json2dict [http::data $response]]
+set release_info [::json::json2dict [encoding convertfrom utf-8 [http::data $response]]]
 set upload_url [string map [list \{?name,label\} {}] [dict get $release_info upload_url]]
 set release_id [dict get $release_info id]
 
