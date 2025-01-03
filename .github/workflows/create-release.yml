@@ -1,39 +1,18 @@
 name: Create release
 on:
   workflow_dispatch:
-    inputs:
-      tag_name:
-        type: string
-        required: true
-        description: 'Existing tag for the release (created using fossil)'
+  push:
+    tags: [0.*.*, 1.*.*]
 
 jobs:
-  validate-tag:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Verify tag exists
-        run: |
-          if ! git rev-parse -- "refs/tags/${{inputs.tag_name}}" >/dev/null 2>&1; then
-            echo "Tag \"${{inputs.tag_name}}\" does not exist!"
-            exit 1
-          fi
-
   build-linux-kits:
     uses: ./.github/workflows/build-linux.yml
-    needs: validate-tag
 
   build-windows-kits:
     uses: ./.github/workflows/build-windows.yml
-    needs: validate-tag
 
   build-macos-kits:
     uses: ./.github/workflows/build-macos.yml
-    needs: validate-tag
 
   create-release:
     runs-on: windows-latest
@@ -67,6 +46,6 @@ jobs:
               ${{ github.api_url }} \
               ${{ github.repository_owner }} \
               ${{ github.event.repository.name }} \
-              ${{ inputs.tag_name }}
+              ${{ github.ref_name }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
