@@ -174,7 +174,7 @@ set release_query [string map [list @BODY@ [string map {\n \\n} $release_body]] 
 set response [http::geturl $release_url/$release_id -headers $headers \
                   -method PATCH \
                   -type application/json \
-                  -query $release_query]
+                  -query [encoding convertto utf-8 $release_query]]
 
 if {[http::status $response] != "ok" || [http::ncode $response] != 200} {
     puts stderr "Failed to update release body"
