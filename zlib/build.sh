@@ -2,9 +2,9 @@
 
 # BuildCompatible: KitCreator
 
-version="1.2.8"
-url="http://sourceforge.net/projects/libpng/files/zlib/${version}/zlib-${version}.tar.gz"
-sha256='36658cb768a54c1d4dec43c3116c27ed893e88b02ecfcb44f2166f9c0b7f2a0d'
+version="1.3.1"
+url="https://github.com/madler/zlib/releases/download/v${version}/zlib-${version}.tar.gz"
+sha256='9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23'
 
 function configure() {
 	case "$(uname -s 2>/dev/null | dd conv=lcase 2>/dev/null)" in
