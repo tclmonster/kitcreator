@@ -217,20 +217,26 @@ mkdir 'out' 'inst' || exit 1
 	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
 		case "${KITTARGET_NAME}" in
 			./kit*)
-				echo "Running: ${STRIP:-strip} -S $KITTARGET_NAME"
-				if ! "${STRIP:-strip}" -S $KITTARGET_NAME; then
-					echo "Failed to strip debug symbols from \"$KITTARGET_NAME\"."
-					exit 1
-				fi
+				echo "Running: ${STRIP:-strip} $KITTARGET_NAME"
+				"${STRIP:-strip}" $KITTARGET_NAME
 				;;
 		esac
 
-		# Strip debug symbols from shared libraries as well.
+		# Strip debug symbols from shared libraries as well. First attempt to use the
+		# Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
+		# Apple's version of strip or one supplied by a mac port toolchain (hence both
+		# are possible).
+
+		strip_flags='--strip-debug'
 		find . \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
-			echo "Running: ${STRIP:-strip} -S \"$file\""
-			if ! "${STRIP:-strip}" -S "$file"; then
-				echo "Failed to strip debug symbols from \"$file\"."
-				exit 1
+			echo "Running: ${STRIP:-strip} ${strip_flags} \"$file\""
+			if ! "${STRIP:-strip}" ${strip_flags} "$file"; then
+				strip_flags='-S'
+				echo "Running: ${STRIP:-strip} ${strip_flags} \"$file\""
+				if ! "${STRIP:-strip}" ${strip_flags} "$file"; then
+					echo "Failed to strip debug symbols from \"$file\"."
+					exit 1
+				fi
 			fi
 		done
 	fi
