@@ -41,7 +41,8 @@ jobs:
 
       - name: Minimal kit (No GUI)
         run: |
-          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-nogui-minimal.txt | tr "\n" " ")"
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-nogui-minimal.txt | tr '
+          ' " ")"
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
@@ -53,7 +54,8 @@ jobs:
 
       - name: Minimal kit (With GUI)
         run: |
-          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-gui-minimal.txt | tr "\n" " ")"
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-gui-minimal.txt | tr '
+          ' " ")"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
@@ -62,14 +64,16 @@ jobs:
 
       - name: Standard kit (No GUI)
         run: |
-          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-nogui-full.txt | tr "\n" " ")"
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-nogui-full.txt | tr '
+          ' " ")"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         run: |
-          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-gui-full.txt | tr "\n" " ")"
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-gui-full.txt | tr '
+          ' " ")"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
@@ -78,7 +82,8 @@ jobs:
         env:
           STATICTK: 1
         run: |
-          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-kitdll.txt | tr "\n" " ")"
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-kitdll.txt | tr '
+          ' " ")"
           clean_all_but_tcl_and_mk4() {
             for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl)$'); do
               rm -f  "${pkg}/.success"
