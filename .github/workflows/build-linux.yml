@@ -118,7 +118,7 @@ jobs:
 
       - name: Minimal kit (No GUI)
         run: |
-          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-nogui-minimal.txt)
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-nogui-minimal.txt | tr "\n" " ")"
           ./kitcreator clean
           ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
@@ -126,7 +126,7 @@ jobs:
 
       - name: Minimal kit (with GUI)
         run: |
-          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-gui-minimal.txt)
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-gui-minimal.txt | tr "\n" " ")"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
@@ -135,14 +135,14 @@ jobs:
 
       - name: Standard kit (No GUI)
         run: |
-          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-nogui-full.txt)
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-nogui-full.txt | tr "\n" " ")"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         run: |
-          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-gui-full.txt)
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-gui-full.txt | tr "\n" " ")"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --host=${{ env.HOST }} --enable-64bit
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
@@ -151,7 +151,7 @@ jobs:
         env:
           STATICTK: 1
         run: |
-          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-kitdll.txt)
+          export KITCREATOR_PKGS="$(cat .github/workflows/pkgs-kitdll.txt | tr "\n" " ")"
           clean_all_but_tcl_and_mk4() {
             for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl)$'); do
               rm -f  "${pkg}/.success"
