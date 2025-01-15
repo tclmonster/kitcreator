@@ -9,16 +9,13 @@ env:
   TCL_TK_VERSION: 8.6.16
   CC: /usr/bin/clang
   CXX: /usr/bin/clang++
-  KC_TLS_SSLDIR: /opt/local
+  KC_TLS_SSLDIR: /opt/local/libexec/openssl3
   KC_TLS_LINKSSLSTATIC: 1
   STATICTK: 0
   STATICTKSVG: 0
   STATICTLS: 1
   STATICTDOM: 1
-  STATICTCLX: 1
   STATICPARSE_ARGS: 1
-  STATICTRF: 1
-  STATICZLIBTCL: 1
   STATICTCLLIB: 1
   STATICMK4: 1
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -43,9 +40,8 @@ jobs:
           EOF
 
       - name: Minimal kit (No GUI)
-        env:
-          KITCREATOR_PKGS: 'tls tdom parse_args mk4tcl'
         run: |
+          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-nogui-minimal.txt)
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
@@ -56,9 +52,8 @@ jobs:
           EOF
 
       - name: Minimal kit (With GUI)
-        env:
-          KITCREATOR_PKGS: 'tls tdom parse_args tk mk4tcl'
         run: |
+          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-gui-minimal.txt)
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
@@ -66,26 +61,24 @@ jobs:
           rm -rf tk/{out,inst,build}
 
       - name: Standard kit (No GUI)
-        env:
-          KITCREATOR_PKGS: 'tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
         run: |
+          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-nogui-full.txt)
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
-        env:
-          KITCREATOR_PKGS: 'tk tksvg tcllib tls tdom tclx parse_args Trf zlibtcl mk4tcl'
         run: |
+          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-gui-full.txt)
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Kit SDK
         env:
-          KITCREATOR_PKGS: 'tls tdom parse_args tk mk4tcl kitdll'
           STATICTK: 1
         run: |
+          export KITCREATOR_PKGS=$(cat .github/workflows/pkgs-kitdll.txt)
           clean_all_but_tcl_and_mk4() {
             for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl)$'); do
               rm -f  "${pkg}/.success"
