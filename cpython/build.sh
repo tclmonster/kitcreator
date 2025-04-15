@@ -9,9 +9,12 @@ pkg_always_static=1
 
 # For MSYS2
 KC_CPYTHON_LDFLAGS='-static -lversion -lws2_32 -lpathcch -lbcrypt -ladvapi32 -lkernel32 -luser32'
+KC_CPYTHON_FREEZE_DIR="${pkgdir}"/freeze-py
 
-configure_extra=(--with-static-libpython
-		 --with-build-python="${workdir}"/bootstrap-py/bin/python3.12.exe
+configure_extra=(--host=$MINGW_CHOST
+		 --build=$MINGW_CHOST
+		 --with-static-libpython
+		 --with-build-python="${KC_CPYTHON_FREEZE_DIR}"/bin/python3.12.exe
 		 --with-system-expat
 		 --with-system-libmpdec
 		 --without-ensurepip
@@ -31,26 +34,27 @@ preconfigure() {
 	autoreconf -vfi
 
 	# Build the bootstrap python first in order to freeze standard modules.
-	mkdir -p "${workdir}"/bootstrap-py
+	if ! test -f "${KC_CPYTHON_FREEZE_DIR}"/bin/python3.12.exe; then
+		mkdir -p "${KC_CPYTHON_FREEZE_DIR}"
 
-	./configure --prefix="${workdir}"/bootstrap-py \
-		    --enable-shared \
-		    --with-system-expat \
-		    --with-system-libmpdec \
-		    --without-ensurepip \
-		    --disable-test-modules
-	make
-	make install
-	make clean
+		./configure --prefix="${KC_CPYTHON_FREEZE_DIR}" \
+			    --enable-shared \
+			    --with-system-expat \
+			    --with-system-libmpdec \
+			    --without-ensurepip \
+			    --disable-test-modules
+
+		make
+		make install
+		make clean
+
+		rm -f "${workdir}"/Modules/Setup.{stdlib,bootstrap} ;# Just to make sure nothing carries over.
+	fi
 
 	export MODULE_BUILDTYPE=static ;# Ensure standard modules will be static.
 }
 
 postconfigure() {
+	sed -i 's/\*shared\*/\*disabled\*/g' "${workdir}"/Modules/Setup.stdlib ;# Prevent test modules.
 	sed -i 's/getpath_noop.o/getpath.o/g' Makefile ;# Force build to link getpath.o
 }
-
-# TODO: patch configure.ac to set FREEZE_MODULE_BOOTSTRAP & *_DEPS
-# in order to force use the --with-build-python supplied python instead
-# of compiling _bootstrap_python. Or, try to trick it into a cross-compiling
-# situation with --host and --build.
