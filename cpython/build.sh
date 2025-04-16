@@ -14,11 +14,14 @@ KC_CPYTHON_FREEZE_DIR="${pkgdir}"/freeze-py
 configure_extra=(--host=$MINGW_CHOST
 		 --build=$MINGW_CHOST
 		 --with-static-libpython
+		 --with-tzpath='/python_zoneinfo' ;# TODO: bundle zone info in binary
 		 --with-build-python="${KC_CPYTHON_FREEZE_DIR}"/bin/python3.12.exe
 		 --with-system-expat
 		 --with-system-libmpdec
 		 --without-ensurepip
-		 --disable-test-modules)
+		 --disable-test-modules
+		 --enable-optimizations
+		 --with-lto=full)
 
 download() {
 	if [ -d "${buildsrcdir}" ]; then
@@ -57,4 +60,17 @@ preconfigure() {
 postconfigure() {
 	sed -i 's/\*shared\*/\*disabled\*/g' "${workdir}"/Modules/Setup.stdlib ;# Prevent test modules.
 	sed -i 's/getpath_noop.o/getpath.o/g' Makefile ;# Force build to link getpath.o
+}
+
+build() {
+	${MAKE:-make} libpython3.12.a
+}
+
+install() {
+	mkdir -p "${installdir}"/lib || return 1
+	cp -f "${workdir}"/libpython3.12.a "${installdir}"/lib
+}
+
+createruntime() {
+	:
 }
