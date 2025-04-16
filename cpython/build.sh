@@ -14,7 +14,7 @@ KC_CPYTHON_FREEZE_DIR="${pkgdir}"/freeze-py
 configure_extra=(--host=$MINGW_CHOST
 		 --build=$MINGW_CHOST
 		 --with-static-libpython
-		 --with-tzpath='/python_zoneinfo' ;# TODO: bundle zone info in binary
+		 --with-tzpath='/python_zoneinfo'
 		 --with-build-python="${KC_CPYTHON_FREEZE_DIR}"/bin/python3.12.exe
 		 --with-system-expat
 		 --with-system-libmpdec
