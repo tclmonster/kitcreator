@@ -67,8 +67,13 @@ build() {
 }
 
 install() {
-	mkdir -p "${installdir}"/lib || return 1
+	mkdir -p "${installdir}"/{include,lib} || return 1
+	make inclinstall
 	cp -f "${workdir}"/libpython3.12.a "${installdir}"/lib
+}
+
+postinstall() {
+	echo "libpython3\.12\.a" > "${installdir}"/kitcreator-nolibs ;# Don't let kitsh link.
 }
 
 createruntime() {
