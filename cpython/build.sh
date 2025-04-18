@@ -32,13 +32,13 @@ download() {
 }
 
 preconfigure() {
-	#cp -f "${pkgdir}"/Setup.local "${workdir}"/Modules
-
 	autoreconf -vfi
 
 	# Build the bootstrap python first in order to freeze standard modules.
 	if ! test -f "${KC_CPYTHON_FREEZE_DIR}"/bin/python3.12.exe; then
 		mkdir -p "${KC_CPYTHON_FREEZE_DIR}"
+
+		touch "${workdir}"/Modules/Setup.local ;# Minimal modules
 
 		./configure --prefix="${KC_CPYTHON_FREEZE_DIR}" \
 			    --enable-shared \
@@ -50,15 +50,13 @@ preconfigure() {
 		make
 		make install
 		make clean
-
-		rm -f "${workdir}"/Modules/Setup.{stdlib,bootstrap} ;# Just to make sure nothing carries over.
 	fi
 
-	export MODULE_BUILDTYPE=static ;# Ensure standard modules will be static.
+#	export MODULE_BUILDTYPE=static ;# Ensure standard modules will be static.
+	cp -f "${pkgdir}"/Setup.local "${workdir}"/Modules
 }
 
 postconfigure() {
-	sed -i 's/\*shared\*/\*disabled\*/g' "${workdir}"/Modules/Setup.stdlib ;# Prevent test modules.
 	sed -i 's/getpath_noop.o/getpath.o/g' Makefile ;# Force build to link getpath.o
 }
 
