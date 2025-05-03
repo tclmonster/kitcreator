@@ -72,6 +72,11 @@ case "${TCLVERS}" in
 		;;
 esac
 
+SQLITE_VEC_VER='0.1.7-alpha.2'
+SQLITE_VEC_SRC="src/sqlite-vec-${SQLITE_VEC_VER}-amalgamation.tar.gz"
+SQLITE_VEC_SRCURL="https://github.com/asg017/sqlite-vec/releases/download/v${SQLITE_VEC_VER}/sqlite-vec-${SQLITE_VEC_VER}-amalgamation.tar.gz"
+SQLITE_VEC_SRCHASH='e3e563af0c312f6083b557f01ca985a124bde784b84f4add2f276d94aac25d07'
+
 # Set configure options for this sub-project
 LDFLAGS="${LDFLAGS} ${KC_TCL_LDFLAGS}"
 CFLAGS="${CFLAGS} ${KC_TCL_CFLAGS}"
@@ -213,6 +218,14 @@ if [ ! -f "${SRC}" ]; then
 	fi
 fi
 
+if [ ! -d 'buildsrc' ]; then
+	download "${SQLITE_VEC_SRCURL}" "${SQLITE_VEC_SRC}" "${SQLITE_VEC_SRCHASH}" || (
+		echo '  Unable to download source code for sqlite-vec.' >&4
+		echo '  Aborting Tcl...' >&4
+		exit 1
+	) || exit 1
+fi
+
 (
 	cd 'build' || exit 1
 
@@ -220,6 +233,33 @@ fi
 		gzip -dc "../${SRC}" | tar -xf -
 	else
 		cp -rp ../buildsrc/* './'
+	fi
+
+	if [ -f "../${SQLITE_VEC_SRC}" ]; then
+		gzip -dc "../${SQLITE_VEC_SRC}" | tar -xf -
+
+		SQLITE_VEC_DST=$(cd "${BUILDDIR}"/pkgs/sqlite*/compat/sqlite3; pwd;)
+
+		echo "Appending sqlite-vec.c to sqlite amalgamation..."
+		cat sqlite-vec.c >> "${SQLITE_VEC_DST}"/sqlite3.c || exit 1
+
+		echo "Appending vec_extra_init to sqlite amalgamation..."
+		cat <<'EOF' >> "${SQLITE_VEC_DST}"/sqlite3.c || exit 1
+/* Bridge function for the SQLITE_EXTRA_INIT mechanism */
+static int vec_extra_init(const char*) {
+  /* We'll use this to register the extension for auto-loading */
+  int rc = SQLITE_OK;
+
+  /* Register the vec extension to be auto-loaded with each new connection */
+  rc = sqlite3_auto_extension((void(*)(void))sqlite3_vec_init);
+
+  return rc;
+}
+EOF
+		echo "Copying sqlite-vec.h..."
+		cp -f sqlite-vec.h "${SQLITE_VEC_DST}"/sqlite-vec.h
+
+		export CFLAGS="${CFLAGS} -DSQLITE_EXTRA_INIT=vec_extra_init"
 	fi
 
 	cd "${BUILDDIR}" || exit 1
