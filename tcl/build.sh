@@ -246,7 +246,7 @@ fi
 		echo "Appending vec_extra_init to sqlite amalgamation..."
 		cat <<'EOF' >> "${SQLITE_VEC_DST}"/sqlite3.c || exit 1
 /* Bridge function for the SQLITE_EXTRA_INIT mechanism */
-static int vec_extra_init(const char*) {
+int vec_extra_init(const char*) {
   /* We'll use this to register the extension for auto-loading */
   int rc = SQLITE_OK;
 
