@@ -72,6 +72,8 @@ case "${TCLVERS}" in
 		;;
 esac
 
+KC_TCL_SQLITE_VEC="${KC_TCL_SQLITE_VEC:-0}"
+
 SQLITE_VEC_VER='0.1.7-alpha.2'
 SQLITE_VEC_SRC="src/sqlite-vec-${SQLITE_VEC_VER}-amalgamation.tar.gz"
 SQLITE_VEC_SRCURL="https://github.com/asg017/sqlite-vec/releases/download/v${SQLITE_VEC_VER}/sqlite-vec-${SQLITE_VEC_VER}-amalgamation.tar.gz"
@@ -218,7 +220,7 @@ if [ ! -f "${SRC}" ]; then
 	fi
 fi
 
-if [ ! -d 'buildsrc' ]; then
+if [ "${KC_TCL_SQLITE_VEC}" = "1" ]; then
 	download "${SQLITE_VEC_SRCURL}" "${SQLITE_VEC_SRC}" "${SQLITE_VEC_SRCHASH}" || (
 		echo '  Unable to download source code for sqlite-vec.' >&4
 		echo '  Aborting Tcl...' >&4
