@@ -240,6 +240,26 @@ fi
 	if [ -f "../${SQLITE_VEC_SRC}" ]; then
 		gzip -dc "../${SQLITE_VEC_SRC}" | tar -xf -
 
+		# Fix type redefinitions affecting amalgamation.
+		patch -p1 <<'EOF'
+diff -ruN A/sqlite-vec.c B/sqlite-vec.c
+--- A/sqlite-vec.c	2025-01-10 19:18:50.000000000 -0400
++++ B/sqlite-vec.c	2025-05-05 09:56:30.383237900 -0300
+@@ -73,13 +73,7 @@
+ #endif
+ #endif
+ 
+-typedef int8_t i8;
+-typedef uint8_t u8;
+-typedef int16_t i16;
+ typedef int32_t i32;
+-typedef sqlite3_int64 i64;
+-typedef uint32_t u32;
+-typedef uint64_t u64;
+ typedef float f32;
+ typedef size_t usize;
+EOF
+
 		SQLITE_VEC_DST=$(cd "${BUILDDIR}"/pkgs/sqlite*/compat/sqlite3; pwd;)
 
 		echo "Appending sqlite-vec.c to sqlite amalgamation..."
@@ -261,7 +281,7 @@ EOF
 		echo "Copying sqlite-vec.h..."
 		cp -f sqlite-vec.h "${SQLITE_VEC_DST}"/sqlite-vec.h
 
-		export CFLAGS="${CFLAGS} -DSQLITE_EXTRA_INIT=vec_extra_init"
+		export CFLAGS="${CFLAGS} -DSQLITE_EXTRA_INIT=vec_extra_init -DSQLITE_CORE"
 	fi
 
 	cd "${BUILDDIR}" || exit 1
