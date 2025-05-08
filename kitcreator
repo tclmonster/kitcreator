@@ -350,7 +350,7 @@ for postscript in common/post/*; do
 		continue
 	fi
 
-	"${postscript}"
+	( set -x; "${postscript}" ) 3>&1 4>&2 >> build.log 2>&1 || exit 1
 done
 
 exit "${buildfailed}"
