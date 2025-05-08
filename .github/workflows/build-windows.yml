@@ -53,7 +53,7 @@ jobs:
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-minimal.txt)"
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}}
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe.kc_packages
           cat <<EOF > $GITHUB_ENV
@@ -64,7 +64,7 @@ jobs:
       - name: Minimal kit (with GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-minimal.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe.kc_packages
           rm -f  tk/.success
@@ -73,14 +73,14 @@ jobs:
       - name: Standard kit (No GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
 
       - name: Full kit (with GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
 
