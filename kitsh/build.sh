@@ -179,7 +179,7 @@ mkdir 'out' 'inst' || exit 1
 				continue
 			fi
 
-			if echo "${chkkittarget}" | egrep '\..*\.(lib|def|a)$'; then
+			if echo "${chkkittarget}" | egrep '\.(lib|def|a)$'; then
 				continue
 			fi
 
