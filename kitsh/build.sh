@@ -188,14 +188,23 @@ mkdir 'out' 'inst' || exit 1
 			break
 		done
 
-		## Also create an executable named "kit" so that we can run it later
+		## Build either tclsh or wish to bundle with KitDLL and
+		## copy the target as "kit" so it may be run later.
+
+		kitdll_exe_target=tclsh
+		if echo " ${KITCREATOR_PKGS} " | grep -q 'tk'; then
+			kitdll_exe_target=wish
+		fi
+
 		eval tclshExtraMakeArgs=(${KC_KITSH_TCLSH_EXTRA_MAKE_ARGS})
-		echo "Running: ${MAKE:-make} tclsh ${tclshExtraMakeArgs[@]}"
-		${MAKE:-make} tclsh "${tclshExtraMakeArgs[@]}"
-		if [ -f "tclsh.exe" ]; then
-			cp tclsh.exe kit.exe
+
+		echo "Running: ${MAKE:-make} ${kitdll_exe_target} ${tclshExtraMakeArgs[@]}"
+		${MAKE:-make} ${kitdll_exe_target} "${tclshExtraMakeArgs[@]}"
+
+		if [ -f "${kitdll_exe_target}.exe" ]; then
+			cp ${kitdll_exe_target}.exe kit.exe
 		else
-			cp tclsh kit
+			cp ${kitdll_exe_target} kit
 		fi
 	else
 		## The executable is always named "kit"

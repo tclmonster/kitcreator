@@ -345,12 +345,12 @@ if [ ! -f "tclkit-${TCLVERS}" ]; then
 	cp 'kitsh/build'/kitsh-*/kit.exe "tclkit-${TCLVERS}" >/dev/null 2>/dev/null
 fi
 
-for postscript in common/post/*; do
+for postscript in common/post/*.sh; do
 	if [ ! -f "${postscript}" ]; then
 		continue
 	fi
 
-	( set -x; "${postscript}" ) 3>&1 4>&2 >> build.log 2>&1 || exit 1
+	"${postscript}"
 done
 
 exit "${buildfailed}"

@@ -30,6 +30,8 @@ fi
 cp 'kitsh/build'/kitsh-*/libtclkit* '__tmp__/lib/'
 cp 'kitsh/build'/kitsh-*/tclsh '__tmp__/bin/' >/dev/null 2>/dev/null
 cp 'kitsh/build'/kitsh-*/tclsh.exe '__tmp__/bin/' >/dev/null 2>/dev/null
+cp 'kitsh/build'/kitsh-*/wish '__tmp__/bin/' >/dev/null 2>/dev/null
+cp 'kitsh/build'/kitsh-*/wish.exe '__tmp__/bin/' >/dev/null 2>/dev/null
 rmdir '__tmp__/bin' >/dev/null 2>/dev/null
 
 for dir in */; do
