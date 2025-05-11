@@ -159,6 +159,14 @@ if [ "${KITTARGET}" = "kitdll" ]; then
 	fi
 fi
 
+if [ "${STATICTK}" = "1" ]; then
+	case "${KC_CROSSCOMPILE_HOST_OS}" in
+		*darwin*)
+			export LDFLAGS="-ObjC ${LDFLAGS}"
+			;;
+	esac
+fi
+
 # Find Windows resource-related files
 if [ -f "kit.ico" ]; then
 	KITCREATOR_ICON="$(pwd)/kit.ico"
