@@ -79,13 +79,6 @@ jobs:
           STATICTK: 1
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
-          clean_all_but_tcl_and_mk4() {
-            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl)$'); do
-              rm -f  "${pkg}/.success"
-              rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
-            done
-          }
-          clean_all_but_tcl_and_mk4
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
