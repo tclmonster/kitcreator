@@ -1,0 +1,26 @@
+diff -ru A/unix/Makefile.in B/unix/Makefile.in
+--- A/unix/Makefile.in	2024-12-10 13:31:03.000000000 -0400
++++ B/unix/Makefile.in	2025-05-13 14:59:03.627615100 -0300
+@@ -564,6 +564,7 @@
+ # The private headers we want installed for install-private-headers
+ PRIVATE_HDRS = $(GENERIC_DIR)/tkInt.h $(GENERIC_DIR)/tkIntDecls.h \
+ 	$(GENERIC_DIR)/tkIntPlatDecls.h $(GENERIC_DIR)/tkPort.h \
++	$(GENERIC_DIR)/default.h $(UNIX_DIR)/tkUnixDefault.h $(TOP_DIR)/macosx/tkMacOSXDefault.h \
+ 	$(TTK_HDRS) $(@TK_WINDOWINGSYSTEM@_PRIVATE_HDRS)
+ 
+ DEMOPROGS = browse hello ixset rmt rolodex square tcolor timer widget
+Only in B/unix: Makefile.in~
+diff -ru A/win/Makefile.in B/win/Makefile.in
+--- A/win/Makefile.in	2024-12-10 13:31:03.000000000 -0400
++++ B/win/Makefile.in	2025-05-13 14:57:56.142484700 -0300
+@@ -603,7 +603,8 @@
+ 	@echo "Installing private header files to $(PRIVATE_INCLUDE_INSTALL_DIR)/";
+ 	@for i in "$(GENERIC_DIR)/tkInt.h" "$(GENERIC_DIR)/tkIntDecls.h" \
+ 		"$(GENERIC_DIR)/tkIntPlatDecls.h" "$(GENERIC_DIR)/tkPort.h" \
+-		"$(WIN_DIR)/tkWinPort.h" "$(WIN_DIR)/tkWinInt.h" "$(WIN_DIR)/tkWin.h"; \
++		"$(WIN_DIR)/tkWinPort.h" "$(WIN_DIR)/tkWinInt.h" "$(WIN_DIR)/tkWin.h" \
++		"$(GENERIC_DIR)/default.h" "$(WIN_DIR)/tkWinDefault.h"; \
+ 	    do \
+ 	    $(INSTALL_DATA) $$i $(PRIVATE_INCLUDE_INSTALL_DIR); \
+ 	    done;
+Only in B/win: Makefile.in~
