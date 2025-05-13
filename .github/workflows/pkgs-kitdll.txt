@@ -1,6 +1,8 @@
 tls
 tdom
 parse_args
-tk
 mk4tcl
+tk
+tksvg
+tcllib
 kitdll
