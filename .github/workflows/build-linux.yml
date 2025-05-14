@@ -153,7 +153,7 @@ jobs:
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
           clean_all_but_tcl_and_mk4() {
-            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl)$'); do
+            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl|tcllib)$'); do
               rm -f  "${pkg}/.success"
               rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
             done
