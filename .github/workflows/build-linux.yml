@@ -89,8 +89,9 @@ jobs:
           sudo dpkg --add-architecture ${{env.pkg_prefix}}
           sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' \
                  /etc/apt/sources.list /etc/apt/apt-mirrors.txt
-          sudo apt-get clean
-          sudo apt-get update
+
+          sudo apt-get update || true ;# Prevent failure due to missing URLs
+
           sudo apt-get install -y --no-install-recommends \
                   build-essential \
                   crossbuild-essential-${{env.pkg_prefix}} \
