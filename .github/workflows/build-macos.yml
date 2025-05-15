@@ -4,6 +4,7 @@ on:
   workflow_call:
   push:
     branches: [main]
+    tags-ignore: ['*']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
