@@ -4,6 +4,10 @@ on:
   push:
     tags: [0.*.*, 1.*.*]
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-linux-kits:
     uses: ./.github/workflows/build-linux.yml
