@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TCL_TK_VERSION: 8.6.16
   KC_TLS_LINKSSLSTATIC: 0  # Linux generally has OpenSSL installed
