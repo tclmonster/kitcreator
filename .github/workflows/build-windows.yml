@@ -4,11 +4,6 @@ on:
   workflow_call:
   push:
     branches: [main]
-    tags-ignore: ['*']
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 env:
   TCL_TK_VERSION: 8.6.16
