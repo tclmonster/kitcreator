@@ -21,7 +21,7 @@ env:
   KC_KITSH_LDFLAGS: '-Wl,--gc-sections'
   KC_TLS_SSLDIR: /clang64/lib/pkgconfig
   KC_TLS_LINKSSLSTATIC: 1
-  STATICTWAPI: 0
+  STATICTWAPI: 1
   STATICTK: 0
   STATICTKSVG: 0
   STATICTLS: 1
