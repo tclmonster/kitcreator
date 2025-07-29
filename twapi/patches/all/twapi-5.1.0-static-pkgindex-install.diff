@@ -1,0 +1,31 @@
+diff -ruN A/Makefile.in B/Makefile.in
+--- A/Makefile.in	2025-07-10 05:12:16.000000000 -0300
++++ B/Makefile.in	2025-07-29 10:17:00.775872300 -0300
+@@ -404,10 +404,8 @@
+ 	    $(INSTALL_DATA) $(srcdir)/$$p $(DESTDIR)$(pkglibdir)/$$destp; \
+ 	  fi; \
+ 	done
+-	@if test "x$(SHARED_BUILD)" = "x1"; then \
+-	    echo " Install pkgIndex.tcl $(DESTDIR)$(pkglibdir)"; \
+-	    $(INSTALL_DATA) pkgIndex.tcl $(DESTDIR)$(pkglibdir); \
+-	fi
++	@echo " Install pkgIndex.tcl $(DESTDIR)$(pkglibdir)";
++	@$(INSTALL_DATA) pkgIndex.tcl $(DESTDIR)$(pkglibdir);
+ 
+ #========================================================================
+ # Install binary executables (e.g. .exe files and dependent .dll files)
+diff -ruN A/pkgIndex.tcl.in B/pkgIndex.tcl.in
+--- A/pkgIndex.tcl.in	2025-07-10 05:12:16.000000000 -0300
++++ B/pkgIndex.tcl.in	2025-07-29 10:38:21.075633800 -0300
+@@ -33,7 +33,10 @@
+         }
+ 
+         if {!$dllFound} {
+-            error "Could not locate TWAPI dll."
++            if {[catch {uplevel #0 [list load {} $package_init_name]}]} {
++                error "Could not locate TWAPI dll."
++            }
++            set path {}
+         }
+ 
+         # Load was successful
