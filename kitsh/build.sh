@@ -222,7 +222,26 @@ mkdir 'out' 'inst' || exit 1
 		exit 1
 	fi
 
-	# Strip the kit of all unnecessary symbols
+	function apply_signature() {
+	    local path="${1}"
+	    if test -z "${path}"; then
+		    echo "No path provided to apply_signature"
+		    exit 1
+	    fi
+	    if test -n "${CODESIGN_SIGNATURE}"; then
+		    printf '%s' "Signing \"$path\"... "
+		    codesign --sign "${CODESIGN_SIGNATURE}" --options runtime --timestamp "$path" || exit 1
+
+		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
+			    echo "success."
+		    else
+			    echo "verification failed."
+			    exit 1
+		    fi
+	    fi
+	}
+
+	# Strip all binaries of unnecessary symbols and apply signature (if requested)
 	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
 		case "${KITTARGET_NAME}" in
 			./kit*)
@@ -247,6 +266,9 @@ mkdir 'out' 'inst' || exit 1
 					exit 1
 				fi
 			fi
+
+			# All extensions must be signed prior to being added to the VFS
+			apply_signature "${file}"
 		done
 	fi
 
@@ -285,6 +307,9 @@ mkdir 'out' 'inst' || exit 1
 		## they're just tiny stubs anyway
 		rm -f kit kit.exe
 	fi
+
+	# Sign now that the VFS has been attached
+	apply_signature "${KITTARGET_NAME}"
 
 	exit 0
 ) || exit 1
