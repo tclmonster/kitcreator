@@ -227,14 +227,24 @@ mkdir 'out' 'inst' || exit 1
 	}
 
 	function apply_signature() {
-	    local path="${1}"
+	    local path="$1"
+	    local identifier="$2"
 	    if test -z "${path}"; then
 		    echo "No path provided to apply_signature"
 		    exit 1
 	    fi
 	    if codesign_requested; then
+		    codesign_extra=
+		    if test -n "${CODESIGN_PREFIX}"; then
+			    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
+		    fi
+		    if test -n "${identifier}"; then
+			    codesign_extra="${codesign_extra} --identifier ${identifier}"
+		    fi
 		    printf '%s' "Signing \"$path\"... "
-		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp "$path" || exit 1
+		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
+			     ${codesign_extra} \
+			     "$path" >/dev/null 2>&1 || exit 1
 
 		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
 			    echo "success."
@@ -279,7 +289,7 @@ mkdir 'out' 'inst' || exit 1
 
 	# macOS must sign before appending the VFS
 	if codesign_requested; then
-		apply_signature "${KITTARGET_NAME}"
+		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 	fi
 
 	# Intall VFS onto kit
