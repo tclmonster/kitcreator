@@ -132,7 +132,6 @@ jobs:
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           TEAM_ID:           ${{ secrets.TEAM_ID }}
         run: |
-          # Package binaries for notarization
           echo "Creating notarization package..."
           zip -r tclkits-${{env.TCL_TK_VERSION}}-${{env.suffix}}-signed.zip \
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
@@ -140,23 +139,50 @@ jobs:
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}} \
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
 
-          # Submit for notarization
           echo "Submitting for notarization..."
           xcrun notarytool submit tclkits-${{env.TCL_TK_VERSION}}-${{env.suffix}}-signed.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --team-id "$TEAM_ID" \
-            --wait
+            --wait > notarization_result.txt 2>&1
 
-          echo "Notarization completed successfully!"
+          if grep -q "status: Accepted" notarization_result.txt; then
+            echo "✅ Notarization completed successfully!"
+            cat notarization_result.txt
 
-          # Final verification of notarized binaries
+          elif grep -q "status: Invalid" notarization_result.txt; then
+            echo "❌ Notarization failed with status: Invalid"
+            cat notarization_result.txt
+
+            # Extract submission ID and get detailed logs
+            SUBMISSION_ID=$(grep "id:" notarization_result.txt | head -1 | awk '{print $2}')
+            if test ! -z "$SUBMISSION_ID"; then
+              echo "Getting detailed error logs for submission: $SUBMISSION_ID"
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_ID_PASSWORD" \
+                --team-id "$TEAM_ID"
+            fi
+            exit 1
+
+          else
+            echo "❌ Notarization failed with unknown status"
+            cat notarization_result.txt
+            exit 1
+          fi
+
           echo "Verifying notarized binaries..."
           for binary in tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
                        tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
                        tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}} \
                        tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}; do
-            spctl -a -t exec -vv "$binary" || echo "Note: $binary will verify online on first user launch"
+            echo "Testing $binary with Gatekeeper..."
+            spctl -a -t exec -vv "$binary" && \
+              echo "✅ $binary: Gatekeeper accepts (notarization successful)" || \
+              echo "⚠️  $binary: May require user intervention on first launch"
+
+            # Show what source Gatekeeper sees
+            spctl -a -t exec -vv "$binary" 2>&1 | grep "source=" || echo "No source info available"
           done
 
       - name: Upload kitcreator output
