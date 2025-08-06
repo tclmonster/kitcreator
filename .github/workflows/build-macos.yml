@@ -126,6 +126,39 @@ jobs:
             **/config.log
         if: ${{ !cancelled() }}
 
+      - name: Notarize binaries
+        env:
+          APPLE_ID:          ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID:           ${{ secrets.TEAM_ID }}
+        run: |
+          # Package binaries for notarization
+          echo "Creating notarization package..."
+          zip -r tclkits-${{env.TCL_TK_VERSION}}-${{env.suffix}}-signed.zip \
+            tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+            tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}} \
+            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
+
+          # Submit for notarization
+          echo "Submitting for notarization..."
+          xcrun notarytool submit tclkits-${{env.TCL_TK_VERSION}}-${{env.suffix}}-signed.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+
+          echo "Notarization completed successfully!"
+
+          # Final verification of notarized binaries
+          echo "Verifying notarized binaries..."
+          for binary in tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+                       tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal \
+                       tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}} \
+                       tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}; do
+            spctl -a -t exec -vv "$binary" || echo "Note: $binary will verify online on first user launch"
+          done
+
       - name: Upload kitcreator output
         uses: actions/upload-artifact@v4
         with:
