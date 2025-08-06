@@ -222,15 +222,19 @@ mkdir 'out' 'inst' || exit 1
 		exit 1
 	fi
 
+	function codesign_requested() {
+		test -n "${CODESIGN_SIGNATURE}"
+	}
+
 	function apply_signature() {
 	    local path="${1}"
 	    if test -z "${path}"; then
 		    echo "No path provided to apply_signature"
 		    exit 1
 	    fi
-	    if test -n "${CODESIGN_SIGNATURE}"; then
+	    if codesign_requested; then
 		    printf '%s' "Signing \"$path\"... "
-		    codesign --sign "${CODESIGN_SIGNATURE}" --options runtime --timestamp "$path" || exit 1
+		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp "$path" || exit 1
 
 		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
 			    echo "success."
@@ -257,6 +261,7 @@ mkdir 'out' 'inst' || exit 1
 
 		strip_flags='--strip-debug'
 		find . \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
+			chmod +w "${file}"
 			echo "Running: ${STRIP:-strip} ${strip_flags} \"$file\""
 			if ! "${STRIP:-strip}" ${strip_flags} "$file"; then
 				strip_flags='-S'
@@ -270,6 +275,11 @@ mkdir 'out' 'inst' || exit 1
 			# All extensions must be signed prior to being added to the VFS
 			apply_signature "${file}"
 		done
+	fi
+
+	# macOS must sign before appending the VFS
+	if codesign_requested; then
+		apply_signature "${KITTARGET_NAME}"
 	fi
 
 	# Intall VFS onto kit
@@ -307,9 +317,6 @@ mkdir 'out' 'inst' || exit 1
 		## they're just tiny stubs anyway
 		rm -f kit kit.exe
 	fi
-
-	# Sign now that the VFS has been attached
-	apply_signature "${KITTARGET_NAME}"
 
 	exit 0
 ) || exit 1
