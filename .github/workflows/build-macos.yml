@@ -9,7 +9,6 @@ env:
   TCL_TK_VERSION: 8.6.16
   CC: /usr/bin/clang
   CXX: /usr/bin/clang++
-  KC_TLS_SSLDIR: /opt/local/libexec/openssl3
   KC_TLS_LINKSSLSTATIC: 1
   STATICTK: 0
   STATICTKSVG: 0
@@ -28,9 +27,15 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: melusina-org/setup-macports@v1
-        with:
-          parameters: '.github/parameters/setup-macports.yaml'
+
+      - name: Setup Packages
+        run: |
+          brew update
+          brew install autoconf automake libtool groff cmake openssl@3 curl create-dmg
+          cat <<EOF >> $GITHUB_ENV
+          KC_TLS_SSLDIR=$(brew --prefix openssl@3)
+          EOF
+
       - name: Setup environment
         run: |
           arch=$(uname -m)
