@@ -222,7 +222,40 @@ mkdir 'out' 'inst' || exit 1
 		exit 1
 	fi
 
-	# Strip the kit of all unnecessary symbols
+	function codesign_requested() {
+		test -n "${CODESIGN_SIGNATURE}"
+	}
+
+	function apply_signature() {
+	    local path="$1"
+	    local identifier="$2"
+	    if test -z "${path}"; then
+		    echo "No path provided to apply_signature"
+		    exit 1
+	    fi
+	    if codesign_requested; then
+		    codesign_extra=
+		    if test -n "${CODESIGN_PREFIX}"; then
+			    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
+		    fi
+		    if test -n "${identifier}"; then
+			    codesign_extra="${codesign_extra} --identifier ${identifier}"
+		    fi
+		    printf '%s' "Signing \"$path\"... "
+		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
+			     ${codesign_extra} \
+			     "$path" >/dev/null 2>&1 || exit 1
+
+		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
+			    echo "success."
+		    else
+			    echo "verification failed."
+			    exit 1
+		    fi
+	    fi
+	}
+
+	# Strip all binaries of unnecessary symbols and apply signature (if requested)
 	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
 		case "${KITTARGET_NAME}" in
 			./kit*)
@@ -238,6 +271,7 @@ mkdir 'out' 'inst' || exit 1
 
 		strip_flags='--strip-debug'
 		find . \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
+			chmod +w "${file}"
 			echo "Running: ${STRIP:-strip} ${strip_flags} \"$file\""
 			if ! "${STRIP:-strip}" ${strip_flags} "$file"; then
 				strip_flags='-S'
@@ -247,7 +281,15 @@ mkdir 'out' 'inst' || exit 1
 					exit 1
 				fi
 			fi
+
+			# All extensions must be signed prior to being added to the VFS
+			apply_signature "${file}"
 		done
+	fi
+
+	# macOS must sign before appending the VFS
+	if codesign_requested; then
+		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 	fi
 
 	# Intall VFS onto kit
