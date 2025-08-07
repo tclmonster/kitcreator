@@ -68,6 +68,7 @@ jobs:
 
       - name: Basekit
         run: |
+          unset CODESIGN_SIGNATURE
           export KITCREATOR_PKGS="itcl mk4tcl"
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-kit-storage=mk4
