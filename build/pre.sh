@@ -11,8 +11,7 @@ export KITSHROOTDIR
 	rm -rf autom4te.cache
 	rm -f *~
 
-	export TCLSH_NATIVE="${TCLSH_NATIVE:-tclsh}"
-	make -f Makefile.common.in zipvfs.tcl.h cvfs.tcl.h
+	make TCLSH_NATIVE="${TCLSH_NATIVE:-tclsh}" -f Makefile.common.in zipvfs.tcl.h cvfs.tcl.h
 
 	make distclean >/dev/null 2>/dev/null
 
