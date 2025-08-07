@@ -78,6 +78,36 @@ fi
 CONFIGUREEXTRA="$@"
 export CONFIGUREEXTRA
 
+# Detect which storage mechanism will be used. This mimics the algorithm
+# in the kitsh configure.ac script.
+
+case "$CONFIGUREEXTRA" in
+    *--enable-kit-storage=*)
+	KC_KITSTORAGE=$(printf '%s\n' "$CONFIGUREEXTRA" |
+			    grep -o -- '--enable-kit-storage=[^[:space:]]*' |
+				    cut -d= -f2 | head -n1)
+	;;
+    *)
+	# See kitsh/buildsrc/kitsh-0.0/configure.ac when storage_mech is auto
+	case "$KITTARGET" in
+	    *kitdll*)
+		KC_KITSTORAGE="cvfs"
+		;;
+	    *)
+		case "$KITCREATOR_PKGS" in
+		    *mk4tcl*)
+			KC_KITSTORAGE="mk4"
+			;;
+		    *)
+			KC_KITSTORAGE="zip"
+			;;
+		esac
+		;;
+	esac
+	;;
+esac
+export KC_KITSTORAGE
+
 if echo " ${CONFIGUREEXTRA} " | grep ' --enable-threads ' >/dev/null 2>/dev/null; then
 	KITCREATOR_ADD_ENABLE_THREADS='1'
 	KITCREATOR_PKGS="${KITCREATOR_PKGS} thread"

@@ -318,7 +318,7 @@ mkdir 'out' 'inst' || exit 1
 
 	# Note: codesign will only really work with CVFS because notarization
 	# will later fail if data is appended to the binary.
-	if codesign_requested; then
+	if test codesign_requested -a "${KC_KITSTORAGE}" = "cvfs"; then
 		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 	fi
 
