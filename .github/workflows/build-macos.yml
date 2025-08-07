@@ -66,17 +66,23 @@ jobs:
           suffix=${arch}-apple-${os}
           EOF
 
+      - name: Basekit
+        run: |
+          ./build/pre.sh
+          ./kitcreator build ${{env.TCL_TK_VERSION}}
+          mv tclkit-${{env.TCL_TK_VERSION}} basekit-${{env.TCL_TK_VERSION}}
+          cat <<EOF > $GITHUB_ENV
+          TCLKIT=$(pwd)/basekit-${{env.TCL_TK_VERSION}}
+          TCLSH_NATIVE=$(pwd)/basekit-${{env.TCL_TK_VERSION}}
+          EOF
+
       - name: Minimal kit (No GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-minimal.txt)"
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
-          cat <<EOF > $GITHUB_ENV
-          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-          EOF
 
       - name: Minimal kit (With GUI)
         run: |
