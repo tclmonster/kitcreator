@@ -287,11 +287,6 @@ mkdir 'out' 'inst' || exit 1
 		done
 	fi
 
-	# macOS must sign before appending the VFS
-	if codesign_requested; then
-		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
-	fi
-
 	# Intall VFS onto kit
 	## Determine if we have a Tclkit to do this work
 	TCLKIT="${TCLKIT:-tclkit}"
@@ -320,6 +315,12 @@ mkdir 'out' 'inst' || exit 1
 
 	cp "${KITTARGET_NAME}.new" "${KITTARGET_NAME}"
 	rm -f "${KITTARGET_NAME}.new"
+
+	# Note: codesign will only really work with CVFS because notarization
+	# will later fail if data is appended to the binary.
+	if codesign_requested; then
+		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+	fi
 
 	# Cleanup
 	if [ "${KITTARGET}" = "kitdll" ]; then
