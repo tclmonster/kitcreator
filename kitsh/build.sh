@@ -320,6 +320,27 @@ mkdir 'out' 'inst' || exit 1
 	# will later fail if data is appended to the binary.
 	if test codesign_requested -a "${KC_KITSTORAGE}" = "cvfs"; then
 		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+
+		export kitsh_libfiles=$(find ./starpack.vfs \( -name '*.so' -o -name '*.dylib' \))
+		export kitsh_exe=${KITTARGET_NAME}
+		export notarydir="${KITTARGET_NAME}-notarize"
+		export notaryzip="${KITCREATOR_DIR}/${notarydir}.zip"
+
+		echo '
+		     if {[file exists $env(notarydir)]} {
+			     file delete -force $env(notarydir)
+		     }
+		     file mkdir $env(notarydir)
+		     file copy $env(kitsh_exe) $env(notarydir)
+		     foreach file [lmap li $env(kitsh_libfiles) {expr { $li eq "" ? [continue] : [string trim $li]}}] {
+			     set dst [file join $env(notarydir) [string range $file [string length "./starpack.vfs/"] end]]
+			     file mkdir [file dirname $dst]
+			     file copy $file $dst
+		     }
+		     exec zip -r $env(notaryzip) $env(notarydir)
+		     file delete -force $env(notarydir)
+
+		' | "${TCLSH_NATIVE:-tclsh}" || exit 1
 	fi
 
 	# Cleanup
