@@ -135,6 +135,69 @@ mkdir 'out' 'inst' || exit 1
 		fi
 	fi
 
+	function codesign_requested() {
+		test -n "${CODESIGN_SIGNATURE}"
+	}
+
+	function apply_signature() {
+	    local path="$1"
+	    local identifier="$2"
+	    if test -z "${path}"; then
+		    echo "No path provided to apply_signature"
+		    exit 1
+	    fi
+	    if codesign_requested; then
+		    codesign_extra=
+		    if test -n "${CODESIGN_PREFIX}"; then
+			    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
+		    fi
+		    if test -n "${identifier}"; then
+			    codesign_extra="${codesign_extra} --identifier ${identifier}"
+		    fi
+		    printf '%s' "Signing \"$path\"... "
+		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
+			     ${codesign_extra} \
+			     "$path" >/dev/null 2>&1 || exit 1
+
+		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
+			    echo "success."
+		    else
+			    echo "verification failed."
+			    exit 1
+		    fi
+	    fi
+	}
+
+	function strip_debug_symbols() {
+	    ! echo " ${CONFIGUREEXTRA} " | grep -q ' --enable-symbols '
+	}
+
+	# Strip all binaries of unnecessary symbols and apply signature (if requested)
+	if strip_debug_symbols; then
+
+		# Strip debug symbols from shared libraries. First attempt to use the
+		# Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
+		# Apple's version of strip or one supplied by a mac port toolchain (hence both
+		# are possible).
+
+		STRIP_FLAGS='--strip-debug'
+		find ./starpack.vfs \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
+			chmod +w "${file}"
+			echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
+			if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+				STRIP_FLAGS='-S'
+				echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
+				if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+					echo "Failed to strip debug symbols from \"$file\"."
+					exit 1
+				fi
+			fi
+
+			# All extensions must be signed prior to being added to the VFS
+			apply_signature "${file}"
+		done
+	fi
+
 	# Compile Kit
 	if [ -z "${ZLIBDIR}" ]; then
 		echo "Running: ./configure --with-tcl=\"${TCLCONFIGDIR}\" ${CONFIGUREEXTRA}"
@@ -191,21 +254,27 @@ mkdir 'out' 'inst' || exit 1
 		## Build either tclsh or wish to bundle with KitDLL and
 		## copy the target as "kit" so it may be run later.
 
-		kitdll_exe_target=tclsh
+		KITDLL_EXE_TARGET=tclsh
 		if echo " ${KITCREATOR_PKGS} " | grep -q 'tk'; then
-			kitdll_exe_target=wish
+			KITDLL_EXE_TARGET=wish
 		fi
 
 		eval tclshExtraMakeArgs=(${KC_KITSH_TCLSH_EXTRA_MAKE_ARGS})
 
-		echo "Running: ${MAKE:-make} ${kitdll_exe_target} ${tclshExtraMakeArgs[@]}"
-		${MAKE:-make} ${kitdll_exe_target} "${tclshExtraMakeArgs[@]}"
+		echo "Running: ${MAKE:-make} ${KITDLL_EXE_TARGET} ${tclshExtraMakeArgs[@]}"
+		${MAKE:-make} ${KITDLL_EXE_TARGET} "${tclshExtraMakeArgs[@]}"
 
-		if [ -f "${kitdll_exe_target}.exe" ]; then
-			cp ${kitdll_exe_target}.exe kit.exe
+		if [ -f "${KITDLL_EXE_TARGET}.exe" ]; then
+			KITDLL_EXE_TARGET="${KITDLL_EXE_TARGET}.exe"
+			cp ${KITDLL_EXE_TARGET} kit.exe
 		else
-			cp ${kitdll_exe_target} kit
+			cp ${KITDLL_EXE_TARGET} kit
 		fi
+
+		apply_signature "${KITDLL_EXE_TARGET}"
+
+		export KITDLL_EXE_TARGET ;# Allow this exe to be bundled for notarization (see below)
+
 	else
 		## The executable is always named "kit"
 		if [ -f 'kit.exe' ]; then
@@ -220,71 +289,6 @@ mkdir 'out' 'inst' || exit 1
 		echo "Failed to locate kit target!" >&2
 
 		exit 1
-	fi
-
-	function codesign_requested() {
-		test -n "${CODESIGN_SIGNATURE}"
-	}
-
-	function apply_signature() {
-	    local path="$1"
-	    local identifier="$2"
-	    if test -z "${path}"; then
-		    echo "No path provided to apply_signature"
-		    exit 1
-	    fi
-	    if codesign_requested; then
-		    codesign_extra=
-		    if test -n "${CODESIGN_PREFIX}"; then
-			    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
-		    fi
-		    if test -n "${identifier}"; then
-			    codesign_extra="${codesign_extra} --identifier ${identifier}"
-		    fi
-		    printf '%s' "Signing \"$path\"... "
-		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
-			     ${codesign_extra} \
-			     "$path" >/dev/null 2>&1 || exit 1
-
-		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
-			    echo "success."
-		    else
-			    echo "verification failed."
-			    exit 1
-		    fi
-	    fi
-	}
-
-	# Strip all binaries of unnecessary symbols and apply signature (if requested)
-	if ! echo " ${CONFIGUREEXTRA} " | grep ' --enable-symbols ' >/dev/null; then
-		case "${KITTARGET_NAME}" in
-			./kit*)
-				echo "Running: ${STRIP:-strip} $KITTARGET_NAME"
-				"${STRIP:-strip}" $KITTARGET_NAME
-				;;
-		esac
-
-		# Strip debug symbols from shared libraries as well. First attempt to use the
-		# Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
-		# Apple's version of strip or one supplied by a mac port toolchain (hence both
-		# are possible).
-
-		strip_flags='--strip-debug'
-		find . \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
-			chmod +w "${file}"
-			echo "Running: ${STRIP:-strip} ${strip_flags} \"$file\""
-			if ! "${STRIP:-strip}" ${strip_flags} "$file"; then
-				strip_flags='-S'
-				echo "Running: ${STRIP:-strip} ${strip_flags} \"$file\""
-				if ! "${STRIP:-strip}" ${strip_flags} "$file"; then
-					echo "Failed to strip debug symbols from \"$file\"."
-					exit 1
-				fi
-			fi
-
-			# All extensions must be signed prior to being added to the VFS
-			apply_signature "${file}"
-		done
 	fi
 
 	# Intall VFS onto kit
@@ -316,11 +320,30 @@ mkdir 'out' 'inst' || exit 1
 	cp "${KITTARGET_NAME}.new" "${KITTARGET_NAME}"
 	rm -f "${KITTARGET_NAME}.new"
 
-	# Note: codesign will only really work with CVFS because notarization
-	# will later fail if data is appended to the binary.
-	if test codesign_requested -a "${KC_KITSTORAGE}" = "cvfs"; then
-		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+	if strip_debug_symbols; then
+		case "${KITTARGET_NAME}" in
+			./kit*)
+				echo "Running: ${STRIP:-strip} ${KITTARGET_NAME}"
+				if ! "${STRIP:-strip}" ${KITTARGET_NAME}; then
+					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\""
+					exit 1
+				fi
+				;;
 
+			*)
+				echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} ${KITTARGET_NAME}"
+				if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\"."
+					exit 1
+				fi
+		esac
+	fi
+
+	apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+
+	# Package all binaries for notarization on macOS. This requires CVFS because notarization
+	# will fail when data is appended to the binary.
+	if test codesign_requested -a "${KC_KITSTORAGE}" = "cvfs"; then
 		export kitsh_libfiles=$(find ./starpack.vfs \( -name '*.so' -o -name '*.dylib' \))
 		export kitsh_exe=${KITTARGET_NAME}
 		export notarydir="tclkit-notarize-$(openssl dgst -sha256 "$kitsh_exe" | cut -d' ' -f2)"
@@ -336,6 +359,9 @@ mkdir 'out' 'inst' || exit 1
 			     set dst [file join $env(notarydir) [string range $file [string length "./starpack.vfs/"] end]]
 			     file mkdir [file dirname $dst]
 			     file copy $file $dst
+		     }
+		     if {[info exists env(KITDLL_EXE_TARGET)]} {
+		     	     file copy $env(KITDLL_EXE_TARGET) $env(notarydir)
 		     }
 		     exec zip -r $env(notaryzip) $env(notarydir)
 		     file delete -force $env(notarydir)
