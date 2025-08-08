@@ -194,12 +194,17 @@ Kitsh Configure Options:
 		Specify which type of storage to use with the Tclkit.  The
 		default is to auto-detect.  Auto-detection uses Mk4 if
 		available and built statically, otherwise it falls back to Zip.
+
 	2. --with-obsfucated-cvfs
 		Specify that CVFS should be obsfucated.  The contents of the
 		CVFS are encrypted on disk and the encryption key is included
 		in the executable.  Files are then transparently decrypted on
 		access.
-	3. --enable-tcl-private-headers
+
+	3. --with-compressed-cvfs
+		Specify that CVFS should be compressed.
+
+	4. --enable-tcl-private-headers
 		When provided, this option ensures private Tcl/Tk headers are
 		included with a KitDLL. This is required when building some
 		extensions.

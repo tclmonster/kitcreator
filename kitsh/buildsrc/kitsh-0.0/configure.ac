@@ -16,6 +16,18 @@ if test x"${with_tclsh}" != x ; then
         AC_MSG_ERROR([Bad --with-tclsh ${with_tclsh}, not found or not executable])
     fi
     AC_SUBST(TCLSH_PROG)
+
+elif test x"${TCLSH_NATIVE}" != x ; then
+    AC_MSG_CHECKING([for tclsh])
+    if echo 'exit 0' | "${TCLSH_NATIVE}" >/dev/null 2>/dev/null
+    then
+        TCLSH_PROG=${TCLSH_NATIVE}
+        AC_MSG_RESULT([$TCLSH_PROG, via TCLSH_NATIVE environment variable])
+    else
+        AC_MSG_ERROR([Bad TCLSH_NATIVE ${TCLSH_NATIVE}, not found or not executable])
+    fi
+    AC_SUBST(TCLSH_PROG)
+
 else
     SC_PROG_TCLSH
 fi

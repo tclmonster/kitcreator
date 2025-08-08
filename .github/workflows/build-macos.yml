@@ -21,6 +21,8 @@ env:
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   KC_KITSH_LDFLAGS: '-Wl,-dead_strip'
+  CODESIGN_SIGNATURE: ${{ secrets.CODESIGN_SIGNATURE }}
+  CODESIGN_PREFIX: com.bandoti.
 
 jobs:
   build-macos-kits:
@@ -36,6 +38,26 @@ jobs:
           KC_TLS_SSLDIR=$(brew --prefix openssl@3)
           EOF
 
+      - name: Import Code Signing Certificate
+        env:
+          CERTIFICATE_BASE64:   ${{ secrets.CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD:    ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          # Import certificate (use empty string if no password was set)
+          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "${CERTIFICATE_PASSWORD:-}" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          # Clean up certificate file
+          rm certificate.p12
+
       - name: Setup environment
         run: |
           arch=$(uname -m)
@@ -44,22 +66,29 @@ jobs:
           suffix=${arch}-apple-${os}
           EOF
 
+      - name: Basekit
+        run: |
+          unset CODESIGN_SIGNATURE
+          export KITCREATOR_PKGS="itcl mk4tcl"
+          ./build/pre.sh
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-kit-storage=mk4
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkit-local
+          cat <<EOF > $GITHUB_ENV
+          TCLKIT=$(pwd)/tclkit-local
+          TCLSH_NATIVE=$(pwd)/tclkit-local
+          EOF
+
       - name: Minimal kit (No GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-minimal.txt)"
-          ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
-          cat <<EOF > $GITHUB_ENV
-          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-          EOF
 
       - name: Minimal kit (With GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-minimal.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
           rm -f  tk/.success
@@ -68,14 +97,14 @@ jobs:
       - name: Standard kit (No GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
@@ -91,7 +120,7 @@ jobs:
             done
           }
           clean_all_but_tcl_and_mk4
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=mk4
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
 
@@ -103,6 +132,51 @@ jobs:
             **/build.log
             **/config.log
         if: ${{ !cancelled() }}
+
+      - name: Notarize binaries
+        env:
+          APPLE_ID:          ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          TEAM_ID:           ${{ secrets.TEAM_ID }}
+        run: |
+          echo "Notarizing  packages..."
+          for pkg in ./tclkit-notarize-*.zip; do
+            if ! test -f "$pkg"; then
+              echo "Invalid notarization package \"$pkg\""
+              exit 1
+            fi
+            printf '%s' "Submitting \"$pkg\"... "
+            xcrun notarytool submit $pkg \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$TEAM_ID" \
+              --wait > notarization_result.txt 2>&1
+
+            if grep -q "status: Accepted" notarization_result.txt; then
+              echo "success."
+              cat notarization_result.txt
+
+            elif grep -q "status: Invalid" notarization_result.txt; then
+              echo "failed with status: Invalid"
+              cat notarization_result.txt
+
+              # Extract submission ID and get detailed logs
+              SUBMISSION_ID=$(grep "id:" notarization_result.txt | head -1 | awk '{print $2}')
+              if test ! -z "$SUBMISSION_ID"; then
+                echo "Getting detailed error logs for submission: $SUBMISSION_ID"
+                xcrun notarytool log "$SUBMISSION_ID" \
+                  --apple-id "$APPLE_ID" \
+                  --password "$APPLE_ID_PASSWORD" \
+                  --team-id "$TEAM_ID"
+              fi
+              exit 1
+
+            else
+              echo "failed with unknown status"
+              cat notarization_result.txt
+              exit 1
+            fi
+          done
 
       - name: Upload kitcreator output
         uses: actions/upload-artifact@v4
