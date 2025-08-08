@@ -172,28 +172,39 @@ mkdir 'out' 'inst' || exit 1
 	    ! echo " ${CONFIGUREEXTRA} " | grep -q ' --enable-symbols '
 	}
 
-	# Strip all binaries of unnecessary symbols and apply signature (if requested)
+	function strip_binary() {
+	    local file="$1"
+	    echo "Running: ${STRIP:-strip} \"${file}\""
+	    if ! "${STRIP:-strip}" "${file}"; then
+		    echo "Failed to strip debug symbols from \"${file}\""
+		    exit 1
+	    fi
+	}
+
+	STRIP_FLAGS='--strip-debug'
+	function strip_library() {
+	    local file="$1"
+	    chmod +w "${file}"
+
+	    # Strip debug symbols from shared libraries. First attempt to use the
+	    # Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
+	    # Apple's version of strip or one supplied by a mac port toolchain (hence both
+	    # are possible).
+
+	    echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
+	    if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+		    STRIP_FLAGS='-S'
+		    echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
+		    if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+			    echo "Failed to strip debug symbols from \"$file\"."
+			    exit 1
+		    fi
+	    fi
+	}
+
 	if strip_debug_symbols; then
-
-		# Strip debug symbols from shared libraries. First attempt to use the
-		# Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
-		# Apple's version of strip or one supplied by a mac port toolchain (hence both
-		# are possible).
-
-		STRIP_FLAGS='--strip-debug'
-		find ./starpack.vfs \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \) | while read -r file; do
-			chmod +w "${file}"
-			echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
-			if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
-				STRIP_FLAGS='-S'
-				echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
-				if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
-					echo "Failed to strip debug symbols from \"$file\"."
-					exit 1
-				fi
-			fi
-
-			# All extensions must be signed prior to being added to the VFS
+		for file in $(find ./starpack.vfs \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \)); do
+			strip_library   "${file}"
 			apply_signature "${file}"
 		done
 	fi
@@ -271,6 +282,7 @@ mkdir 'out' 'inst' || exit 1
 			cp ${KITDLL_EXE_TARGET} kit
 		fi
 
+		strip_binary    "${KITDLL_EXE_TARGET}"
 		apply_signature "${KITDLL_EXE_TARGET}"
 
 		export KITDLL_EXE_TARGET ;# Allow this exe to be bundled for notarization (see below)
@@ -294,19 +306,12 @@ mkdir 'out' 'inst' || exit 1
 	if strip_debug_symbols; then
 		case "${KITTARGET_NAME}" in
 			./kit*)
-				echo "Running: ${STRIP:-strip} ${KITTARGET_NAME}"
-				if ! "${STRIP:-strip}" ${KITTARGET_NAME}; then
-					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\""
-					exit 1
-				fi
+				strip_binary "${KITTARGET_NAME}"
 				;;
 
 			*)
-				echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} ${KITTARGET_NAME}"
-				if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
-					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\"."
-					exit 1
-				fi
+				strip_library "${KITTARGET_NAME}"
+				;;
 		esac
 	fi
 
@@ -339,7 +344,9 @@ mkdir 'out' 'inst' || exit 1
 	cp "${KITTARGET_NAME}.new" "${KITTARGET_NAME}"
 	rm -f "${KITTARGET_NAME}.new"
 
-	apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+	if strip_debug_symbols; then
+		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+	fi
 
 	# Package all binaries for notarization on macOS. This requires CVFS because notarization
 	# will fail when data is appended to the binary.
