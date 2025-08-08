@@ -323,7 +323,7 @@ mkdir 'out' 'inst' || exit 1
 
 		export kitsh_libfiles=$(find ./starpack.vfs \( -name '*.so' -o -name '*.dylib' \))
 		export kitsh_exe=${KITTARGET_NAME}
-		export notarydir="${KITTARGET_NAME}-notarize"
+		export notarydir="tclkit-notarize-$(openssl dgst -sha256 "$kitsh_exe" | cut -d' ' -f2)"
 		export notaryzip="${KITCREATOR_DIR}/${notarydir}.zip"
 
 		echo '
