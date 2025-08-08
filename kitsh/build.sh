@@ -291,6 +291,25 @@ mkdir 'out' 'inst' || exit 1
 		exit 1
 	fi
 
+	if strip_debug_symbols; then
+		case "${KITTARGET_NAME}" in
+			./kit*)
+				echo "Running: ${STRIP:-strip} ${KITTARGET_NAME}"
+				if ! "${STRIP:-strip}" ${KITTARGET_NAME}; then
+					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\""
+					exit 1
+				fi
+				;;
+
+			*)
+				echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} ${KITTARGET_NAME}"
+				if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\"."
+					exit 1
+				fi
+		esac
+	fi
+
 	# Intall VFS onto kit
 	## Determine if we have a Tclkit to do this work
 	TCLKIT="${TCLKIT:-tclkit}"
@@ -319,25 +338,6 @@ mkdir 'out' 'inst' || exit 1
 
 	cp "${KITTARGET_NAME}.new" "${KITTARGET_NAME}"
 	rm -f "${KITTARGET_NAME}.new"
-
-	if strip_debug_symbols; then
-		case "${KITTARGET_NAME}" in
-			./kit*)
-				echo "Running: ${STRIP:-strip} ${KITTARGET_NAME}"
-				if ! "${STRIP:-strip}" ${KITTARGET_NAME}; then
-					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\""
-					exit 1
-				fi
-				;;
-
-			*)
-				echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} ${KITTARGET_NAME}"
-				if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
-					echo "Failed to strip debug symbols from \"${KITTARGET_NAME}\"."
-					exit 1
-				fi
-		esac
-	fi
 
 	apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 
