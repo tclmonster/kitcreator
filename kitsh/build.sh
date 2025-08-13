@@ -389,7 +389,7 @@ function strip_library() {
 
 	# Package all binaries for notarization on macOS. This requires CVFS because notarization
 	# will fail when data is appended to the binary.
-	if test codesign_requested -a "${KC_KITSTORAGE}" = "cvfs"; then
+	if codesign_requested && test "${KC_KITSTORAGE}" = "cvfs"; then
 		export kitsh_libfiles=$(find ./starpack.vfs \( -name '*.so' -o -name '*.dylib' \))
 		export kitsh_exe=${KITTARGET_NAME}
 		export notarydir="tclkit-notarize-$(openssl dgst -sha256 "$kitsh_exe" | cut -d' ' -f2)"
