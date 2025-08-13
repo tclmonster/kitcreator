@@ -35,6 +35,96 @@ rm -rf 'build' 'out' 'inst'
 mkdir 'out' 'inst' || exit 1
 
 
+function codesign_requested() {
+	test -n "${CODESIGN_SIGNATURE}"
+}
+
+function digicert_requested() {
+	# See: https://docs.digicert.com/en/software-trust-manager/get-started/requirements/secure-credentials/set-up-secure-credentials-for-windows/session-based-environment-variables-for-windows.html
+	test -n "${SM_HOST}" -a -n "${SM_API_KEY}" -a -n "${SM_CLIENT_CERT_FILE}" \
+		-a -n "${SM_CLIENT_CERT_PASSWORD}" -a -n "${SM_FINGERPRINT}" -a -n "${SM_PKCS11_CONFIG}"
+}
+
+function apply_signature() {
+    local path="$1"
+    local identifier="$2"
+
+    if test -z "${path}"; then
+	    echo "No path provided to apply_signature"
+	    exit 1
+    fi
+
+    if codesign_requested; then
+	    codesign_extra=
+	    if test -n "${CODESIGN_PREFIX}"; then
+		    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
+	    fi
+	    if test -n "${identifier}"; then
+		    codesign_extra="${codesign_extra} --identifier ${identifier}"
+	    fi
+	    printf '%s' "Signing \"$path\"... "
+	    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
+		     ${codesign_extra} \
+		     "$path" >/dev/null 2>&1 || exit 1
+
+	    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
+		    echo "success."
+	    else
+		    echo "verification failed."
+		    exit 1
+	    fi
+
+    elif digicert_requested; then
+	    printf '%s' "Signing \"$path\"... "
+	    smctl sign --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
+		  --input "${path}" >/dev/null 2>&1 || exit 1
+
+	    if smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${path}" 2>/dev/null; then
+		    echo "success."
+	    else
+		    echo "verification failed."
+		    exit 1
+	    fi
+    else
+	    echo "Not signing \"${path}\""
+    fi
+}
+
+function strip_debug_symbols() {
+    ! echo " ${CONFIGUREEXTRA} " | grep -q ' --enable-symbols '
+}
+
+function strip_binary() {
+	local file="$1"
+	echo "Running: ${STRIP:-strip} \"${file}\""
+	if ! "${STRIP:-strip}" "${file}"; then
+		echo "Failed to strip debug symbols from \"${file}\""
+		exit 1
+	fi
+}
+
+function strip_library() {
+	local file="$1"
+	chmod +w "${file}"
+
+	# Strip debug symbols from shared libraries. First attempt to use the
+	# Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
+	# Apple's version of strip or one supplied by a mac port toolchain (hence both
+	# are possible).
+
+	STRIP_FLAGS="${STRIP_FLAGS:---strip-debug}"
+
+	echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
+	if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+		STRIP_FLAGS='-S'
+		echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
+		if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
+			echo "Failed to strip debug symbols from \"$file\"."
+			exit 1
+		fi
+	fi
+}
+
 (
 	cp -rp 'buildsrc' 'build'
 	cd "${BUILDDIR}" || exit 1
@@ -75,6 +165,17 @@ mkdir 'out' 'inst' || exit 1
 
 	## Install "tclkit.ico"
 	cp 'tclkit.ico' 'starpack.vfs/'
+
+	## Strip & sign before copying to preserve signature on "retry"
+	if strip_debug_symbols; then
+		readarray -t sofiles < <(
+			find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \)
+		)
+		for file in "${sofiles[@]}"; do
+			strip_library   "${file}"
+			apply_signature "${file}"
+		done
+	fi
 
 	## Copy in all built directories
 	cp -r "${OTHERPKGSDIR}"/*/out/* 'starpack.vfs/'
@@ -133,102 +234,6 @@ mkdir 'out' 'inst' || exit 1
 		else
 			CONFIGUREEXTRA="${CONFIGUREEXTRA} --enable-kitdll"
 		fi
-	fi
-
-	function codesign_requested() {
-		test -n "${CODESIGN_SIGNATURE}"
-	}
-
-	function digicert_requested() {
-		# See: https://docs.digicert.com/en/software-trust-manager/get-started/requirements/secure-credentials/set-up-secure-credentials-for-windows/session-based-environment-variables-for-windows.html
-		test -n "${SM_HOST}" -a -n "${SM_API_KEY}" -a -n "${SM_CLIENT_CERT_FILE}" \
-			-a -n "${SM_CLIENT_CERT_PASSWORD}" -a -n "${SM_FINGERPRINT}" -a -n "${SM_PKCS11_CONFIG}"
-	}
-
-	function apply_signature() {
-	    local path="$1"
-	    local identifier="$2"
-
-	    if test -z "${path}"; then
-		    echo "No path provided to apply_signature"
-		    exit 1
-	    fi
-
-	    if codesign_requested; then
-		    codesign_extra=
-		    if test -n "${CODESIGN_PREFIX}"; then
-			    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
-		    fi
-		    if test -n "${identifier}"; then
-			    codesign_extra="${codesign_extra} --identifier ${identifier}"
-		    fi
-		    printf '%s' "Signing \"$path\"... "
-		    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
-			     ${codesign_extra} \
-			     "$path" >/dev/null 2>&1 || exit 1
-
-		    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
-			    echo "success."
-		    else
-			    echo "verification failed."
-			    exit 1
-		    fi
-
-	    elif digicert_requested; then
-		    printf '%s' "Signing \"$path\"... "
-		    smctl sign --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
-			  --input "${path}" >/dev/null 2>&1 || exit 1
-
-		    if smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${path}" 2>/dev/null; then
-			    echo "success."
-		    else
-			    echo "verification failed."
-			    exit 1
-		    fi
-	    else
-		    echo "Not signing \"${path}\""
-	    fi
-	}
-
-	function strip_debug_symbols() {
-	    ! echo " ${CONFIGUREEXTRA} " | grep -q ' --enable-symbols '
-	}
-
-	function strip_binary() {
-	    local file="$1"
-	    echo "Running: ${STRIP:-strip} \"${file}\""
-	    if ! "${STRIP:-strip}" "${file}"; then
-		    echo "Failed to strip debug symbols from \"${file}\""
-		    exit 1
-	    fi
-	}
-
-	STRIP_FLAGS='--strip-debug'
-	function strip_library() {
-	    local file="$1"
-	    chmod +w "${file}"
-
-	    # Strip debug symbols from shared libraries. First attempt to use the
-	    # Gnu strip-flag and fallback to the macOS strip-flag. On macOS it may be
-	    # Apple's version of strip or one supplied by a mac port toolchain (hence both
-	    # are possible).
-
-	    echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
-	    if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
-		    STRIP_FLAGS='-S'
-		    echo "Running: ${STRIP:-strip} ${STRIP_FLAGS} \"$file\""
-		    if ! "${STRIP:-strip}" ${STRIP_FLAGS} "$file"; then
-			    echo "Failed to strip debug symbols from \"$file\"."
-			    exit 1
-		    fi
-	    fi
-	}
-
-	if strip_debug_symbols; then
-		for file in $(find ./starpack.vfs \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \)); do
-			strip_library   "${file}"
-			apply_signature "${file}"
-		done
 	fi
 
 	# Compile Kit
