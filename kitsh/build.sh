@@ -15,7 +15,7 @@ KITSHVERS="0.0"
 BUILDDIR="$(pwd)/build/kitsh-${KITSHVERS}"
 OUTDIR="$(pwd)/out"
 INSTDIR="$(pwd)/inst"
-OTHERPKGSDIR="$(pwd)/../"
+OTHERPKGSDIR="$(cd ..; pwd)"
 export KITSHVERS BUILDDIR OUTDIR INSTDIR OTHERPKGSDIR
 
 # Set configure options for this sub-project
@@ -40,58 +40,67 @@ function codesign_requested() {
 }
 
 function digicert_requested() {
-	# See: https://docs.digicert.com/en/software-trust-manager/get-started/requirements/secure-credentials/set-up-secure-credentials-for-windows/session-based-environment-variables-for-windows.html
 	test -n "${SM_HOST}" -a -n "${SM_API_KEY}" -a -n "${SM_CLIENT_CERT_FILE}" \
 		-a -n "${SM_CLIENT_CERT_PASSWORD}" -a -n "${SM_FINGERPRINT}" -a -n "${SM_PKCS11_CONFIG}"
 }
 
+function is_signed() {
+	local file="$1"
+	if codesign_requested; then
+		codesign --verify --deep --strict "${file}" >/dev/null 2>&1
+	elif digicert_requested; then
+		smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${file}" | grep -qi 'success'
+	else
+		false
+	fi
+}
+
 function apply_signature() {
-    local path="$1"
-    local identifier="$2"
+	local path="$1"
+	local identifier="$2"
 
-    if test -z "${path}"; then
-	    echo "No path provided to apply_signature"
-	    exit 1
-    fi
+	if test -z "${path}"; then
+		echo "No path provided to apply_signature"
+		exit 1
+	fi
 
-    if codesign_requested; then
-	    codesign_extra=
-	    if test -n "${CODESIGN_PREFIX}"; then
-		    codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
-	    fi
-	    if test -n "${identifier}"; then
-		    codesign_extra="${codesign_extra} --identifier ${identifier}"
-	    fi
-	    printf '%s' "Signing \"$path\"... "
-	    codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
-		     ${codesign_extra} \
-		     "$path" >/dev/null 2>&1 || exit 1
+	if codesign_requested; then
+		local codesign_extra=
+		if test -n "${CODESIGN_PREFIX}"; then
+			codesign_extra="${codesign_extra} --prefix ${CODESIGN_PREFIX}"
+		fi
+		if test -n "${identifier}"; then
+			codesign_extra="${codesign_extra} --identifier ${identifier}"
+		fi
+		printf '%s' "Signing \"$path\"... "
+		codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
+			${codesign_extra} "$path" >/dev/null 2>&1 || exit 1
 
-	    if codesign --verify --deep --strict "${path}" 2>/dev/null; then
-		    echo "success."
-	    else
-		    echo "verification failed."
-		    exit 1
-	    fi
+		if codesign --verify --deep --strict "${path}" 2>/dev/null; then
+			echo "success."
+		else
+			echo "verification failed."
+			exit 1
+		fi
 
-    elif digicert_requested; then
-	    printf '%s' "Signing \"$path\"... "
-	    smctl sign --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
-		  --input "${path}" >/dev/null 2>&1 || exit 1
+	elif digicert_requested; then
+		printf '%s' "Signing \"$path\"... "
+		smctl sign --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
+				--input "${path}" >/dev/null || exit 1
 
-	    if smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${path}" 2>/dev/null; then
-		    echo "success."
-	    else
-		    echo "verification failed."
-		    exit 1
-	    fi
-    else
-	    echo "Not signing \"${path}\""
-    fi
+		if smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${path}" | grep -qi 'success'; then
+			echo "success."
+		else
+			echo "verification failed."
+			exit 1
+		fi
+	else
+		echo "Not signing \"${path}\""
+	fi
 }
 
 function strip_debug_symbols() {
-    ! echo " ${CONFIGUREEXTRA} " | grep -q ' --enable-symbols '
+	! echo " ${CONFIGUREEXTRA} " | grep -q ' --enable-symbols '
 }
 
 function strip_binary() {
@@ -172,6 +181,9 @@ function strip_library() {
 			find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \)
 		)
 		for file in "${sofiles[@]}"; do
+			if is_signed "${file}"; then
+				continue ;# Otherwise signature will be clobbered
+			fi
 			strip_library   "${file}"
 			apply_signature "${file}"
 		done
