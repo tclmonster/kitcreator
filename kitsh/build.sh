@@ -46,10 +46,13 @@ function digicert_requested() {
 
 function is_signed() {
 	local file="$1"
+
 	if codesign_requested; then
-		codesign --verify --deep --strict "${file}" >/dev/null 2>&1
+		false ;# Always sign with macOS
+
 	elif digicert_requested; then
 		smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${file}" | grep -qi 'success'
+
 	else
 		false
 	fi
