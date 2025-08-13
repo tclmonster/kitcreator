@@ -139,13 +139,21 @@ mkdir 'out' 'inst' || exit 1
 		test -n "${CODESIGN_SIGNATURE}"
 	}
 
+	function digicert_requested() {
+		# See: https://docs.digicert.com/en/software-trust-manager/get-started/requirements/secure-credentials/set-up-secure-credentials-for-windows/session-based-environment-variables-for-windows.html
+		test -n "${SM_HOST}" -a -n "${SM_API_KEY}" -a -n "${SM_CLIENT_CERT_FILE}" \
+			-a -n "${SM_CLIENT_CERT_PASSWORD}" -a -n "${SM_FINGERPRINT}" -a -n "${SM_PKCS11_CONFIG}"
+	}
+
 	function apply_signature() {
 	    local path="$1"
 	    local identifier="$2"
+
 	    if test -z "${path}"; then
 		    echo "No path provided to apply_signature"
 		    exit 1
 	    fi
+
 	    if codesign_requested; then
 		    codesign_extra=
 		    if test -n "${CODESIGN_PREFIX}"; then
@@ -165,6 +173,20 @@ mkdir 'out' 'inst' || exit 1
 			    echo "verification failed."
 			    exit 1
 		    fi
+
+	    elif digicert_requested; then
+		    printf '%s' "Signing \"$path\"... "
+		    smctl sign --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
+			  --input "${path}" >/dev/null 2>&1 || exit 1
+
+		    if smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${path}" 2>/dev/null; then
+			    echo "success."
+		    else
+			    echo "verification failed."
+			    exit 1
+		    fi
+	    else
+		    echo "Not signing \"${path}\""
 	    fi
 	}
 
