@@ -46,13 +46,10 @@ function digicert_requested() {
 
 function is_signed() {
 	local file="$1"
-
 	if codesign_requested; then
-		false ;# Always sign with macOS
-
+		! codesign -dv "${file}" 2>&1 | grep -q "TeamIdentifier=not set" ;# Adhoc sigs. will be valid so check team id. instead
 	elif digicert_requested; then
 		smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${file}" | grep -qi 'success'
-
 	else
 		false
 	fi
@@ -77,7 +74,7 @@ function apply_signature() {
 		fi
 		printf '%s' "Signing \"$path\"... "
 		codesign --sign "${CODESIGN_SIGNATURE}" --force --options runtime --timestamp \
-			${codesign_extra} "$path" >/dev/null 2>&1 || exit 1
+			${codesign_extra} "$path" >/dev/null 2>&1
 
 		if codesign --verify --deep --strict "${path}" 2>/dev/null; then
 			echo "success."
@@ -180,16 +177,15 @@ function strip_library() {
 
 	## Strip & sign before copying to preserve signature on "retry"
 	if strip_debug_symbols; then
-		readarray -t sofiles < <(
-			find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \)
-		)
-		for file in "${sofiles[@]}"; do
+		while IFS= read -r file; do
 			if is_signed "${file}"; then
-				continue ;# Otherwise signature will be clobbered
+			    echo "Skipping signed file \"${file}\""
+			    continue ;# Otherwise signature will be clobbered
 			fi
 			strip_library   "${file}"
 			apply_signature "${file}"
-		done
+
+		done < <(find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \))
 	fi
 
 	## Copy in all built directories
@@ -357,37 +353,39 @@ function strip_library() {
 		esac
 	fi
 
-	# Intall VFS onto kit
-	## Determine if we have a Tclkit to do this work
-	TCLKIT="${TCLKIT:-tclkit}"
-	if echo 'exit 0' | "${TCLKIT}" >/dev/null 2>/dev/null; then
-		## Install using existing Tclkit
-		### Call installer
-		echo "Running: \"${TCLKIT}\" installvfs.tcl \"${KITTARGET_NAME}\" starpack.vfs \"${ENABLECOMPRESSION}\" \"${KITTARGET_NAME}.new\""
-		"${TCLKIT}" installvfs.tcl "${KITTARGET_NAME}" starpack.vfs "${ENABLECOMPRESSION}" "${KITTARGET_NAME}.new" || exit 1
-	else
-		if echo 'exit 0' | "${KITTARGET_NAME}" >/dev/null 2>/dev/null; then
-			## Bootstrap (cannot cross-compile)
-			### Call installer
-			echo "set argv [list {${KITTARGET_NAME}} starpack.vfs {${ENABLECOMPRESSION}} {${KITTARGET_NAME}.new}]" > setup.tcl
-			echo 'if {[catch { clock seconds }]} { proc clock args { return 0 } }' >> setup.tcl
-			echo 'source installvfs.tcl' >> setup.tcl
-
-			echo 'Running: echo | \"${KITTARGET_NAME}\" setup.tcl'
-			echo | "${KITTARGET_NAME}" setup.tcl || exit 1
-		else
-			## Install using Tclsh, which may work if we're not using Metakit
-			### Call installer
-			echo "Running: \"${TCLSH_NATIVE}\" installvfs.tcl \"${KITTARGET_NAME}\" starpack.vfs \"${ENABLECOMPRESSION}\" \"${KITTARGET_NAME}.new\""
-			"${TCLSH_NATIVE}" installvfs.tcl "${KITTARGET_NAME}" starpack.vfs "${ENABLECOMPRESSION}" "${KITTARGET_NAME}.new" || exit 1
-		fi
-	fi
-
-	cp "${KITTARGET_NAME}.new" "${KITTARGET_NAME}"
-	rm -f "${KITTARGET_NAME}.new"
-
 	if strip_debug_symbols; then
 		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
+	fi
+
+	if ! test "${KC_KITSTORAGE}" = "cvfs"; then
+		# Intall VFS onto kit
+		## Determine if we have a Tclkit to do this work
+		TCLKIT="${TCLKIT:-tclkit}"
+		if echo 'exit 0' | "${TCLKIT}" >/dev/null 2>/dev/null; then
+			## Install using existing Tclkit
+			### Call installer
+			echo "Running: \"${TCLKIT}\" installvfs.tcl \"${KITTARGET_NAME}\" starpack.vfs \"${ENABLECOMPRESSION}\" \"${KITTARGET_NAME}.new\""
+			"${TCLKIT}" installvfs.tcl "${KITTARGET_NAME}" starpack.vfs "${ENABLECOMPRESSION}" "${KITTARGET_NAME}.new" || exit 1
+		else
+			if echo 'exit 0' | "${KITTARGET_NAME}" >/dev/null 2>/dev/null; then
+				## Bootstrap (cannot cross-compile)
+				### Call installer
+				echo "set argv [list {${KITTARGET_NAME}} starpack.vfs {${ENABLECOMPRESSION}} {${KITTARGET_NAME}.new}]" > setup.tcl
+				echo 'if {[catch { clock seconds }]} { proc clock args { return 0 } }' >> setup.tcl
+				echo 'source installvfs.tcl' >> setup.tcl
+
+				echo 'Running: echo | \"${KITTARGET_NAME}\" setup.tcl'
+				echo | "${KITTARGET_NAME}" setup.tcl || exit 1
+			else
+				## Install using Tclsh, which may work if we're not using Metakit
+				### Call installer
+				echo "Running: \"${TCLSH_NATIVE}\" installvfs.tcl \"${KITTARGET_NAME}\" starpack.vfs \"${ENABLECOMPRESSION}\" \"${KITTARGET_NAME}.new\""
+				"${TCLSH_NATIVE}" installvfs.tcl "${KITTARGET_NAME}" starpack.vfs "${ENABLECOMPRESSION}" "${KITTARGET_NAME}.new" || exit 1
+			fi
+		fi
+
+		cp "${KITTARGET_NAME}.new" "${KITTARGET_NAME}"
+		rm -f "${KITTARGET_NAME}.new"
 	fi
 
 	# Package all binaries for notarization on macOS. This requires CVFS because notarization
