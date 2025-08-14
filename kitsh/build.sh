@@ -320,8 +320,10 @@ function strip_library() {
 			cp ${KITDLL_EXE_TARGET} kit
 		fi
 
-		strip_binary    "${KITDLL_EXE_TARGET}"
-		apply_signature "${KITDLL_EXE_TARGET}"
+		if strip_debug_symbols; then
+			strip_binary    "${KITDLL_EXE_TARGET}" ;# Only need to strip & sign the tclsh/wish
+			apply_signature "${KITDLL_EXE_TARGET}" ;# that will end up in the kitdll.
+		fi
 
 		export KITDLL_EXE_TARGET ;# Allow this exe to be bundled for notarization (see below)
 
@@ -351,9 +353,6 @@ function strip_library() {
 				strip_library "${KITTARGET_NAME}"
 				;;
 		esac
-	fi
-
-	if strip_debug_symbols; then
 		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 	fi
 
