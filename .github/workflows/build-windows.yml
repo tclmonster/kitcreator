@@ -37,10 +37,39 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
+      - name: Install DigiCert Client tools
+        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        uses: digicert/ssm-code-signing@v1.1.0
+
+      - name: Setup Digicert
+        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        shell: pwsh
+        run: |
+          echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | openssl base64 -d > D:\Certificate_pkcs12.p12
+          echo "SM_HOST=${{ secrets.SM_HOST }}" >> $env:GITHUB_ENV
+          echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> $env:GITHUB_ENV
+          echo "SM_CLIENT_CERT_FILE=D:\Certificate_pkcs12.p12" >> $env:GITHUB_ENV
+          echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> $env:GITHUB_ENV
+          echo "SM_FINGERPRINT=${{ secrets.SM_FINGERPRINT }}" >> $env:GITHUB_ENV
+          echo "SM_PKCS11_CONFIG=$env:TEMP\smtools-windows-x64\pkcs11properties.cfg" >> $env:GITHUB_ENV
+
+          # For signtool
+          echo "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64" >> $env:GITHUB_PATH
+
+          # For smctl
+          echo "$env:TEMP\smtools-windows-x64" >> $env:GITHUB_PATH
+
+      - name: Sync DigiCert certificates
+        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        shell: pwsh
+        run: |
+          smctl windows certsync 2>&1 | Out-Null
+
       - uses: msys2/setup-msys2@v2
         with:
-          msystem: CLANG64
-          update:  true
+          msystem:   CLANG64
+          update:    true
+          path-type: inherit
           install: >-
             git
             patch
