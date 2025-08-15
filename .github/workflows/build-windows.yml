@@ -63,7 +63,7 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
         shell: pwsh
         run: |
-          smctl windows certsync
+          smctl windows certsync 2>&1 | Out-Null
 
       - uses: msys2/setup-msys2@v2
         with:
