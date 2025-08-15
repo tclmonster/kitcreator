@@ -85,8 +85,8 @@ function apply_signature() {
 
 	elif digicert_requested; then
 		printf '%s' "Signing \"$path\"... "
-		smctl sign --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
-				--input "${path}" >/dev/null || exit 1
+		smctl sign --verbose --fingerprint "${SM_FINGERPRINT}" --config-file "${SM_PKCS11_CONFIG}" \
+				--input "${path}"
 
 		if smctl sign verify --fingerprint "${SM_FINGERPRINT}" -i "${path}" | grep -qi 'success'; then
 			echo "success."
