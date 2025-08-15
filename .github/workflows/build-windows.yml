@@ -59,6 +59,12 @@ jobs:
           # For smctl
           echo "$env:TEMP\smtools-windows-x64" >> $env:GITHUB_PATH
 
+      - name: Sync DigiCert certificates
+        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        shell: pwsh
+        run: |
+          smctl windows certsync
+
       - uses: msys2/setup-msys2@v2
         with:
           msystem:   CLANG64
