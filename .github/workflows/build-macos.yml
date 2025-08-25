@@ -21,8 +21,6 @@ env:
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   KC_KITSH_LDFLAGS: '-Wl,-dead_strip'
-  CODESIGN_SIGNATURE: ${{ secrets.CODESIGN_SIGNATURE }}
-  CODESIGN_PREFIX: com.bandoti.
 
 jobs:
   build-macos-kits:
@@ -38,7 +36,15 @@ jobs:
           KC_TLS_SSLDIR=$(brew --prefix openssl@3)
           EOF
 
+      - name: Setup codesign variables
+        id: setup_codesign_variables
+        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          echo "CODESIGN_SIGNATURE=${{ secrets.CODESIGN_SIGNATURE }}" >> $GITHUB_ENV
+          echo "CODESIGN_PREFIX=com.bandoti." >> $GITHUB_ENV
+
       - name: Import Code Signing Certificate
+        if: ${{ steps.setup_codesign_variables.outcome == 'success' }}
         env:
           CERTIFICATE_BASE64:   ${{ secrets.CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
@@ -134,6 +140,7 @@ jobs:
         if: ${{ !cancelled() }}
 
       - name: Notarize binaries
+        if: ${{ steps.setup_codesign_variables.outcome == 'success' }}
         env:
           APPLE_ID:          ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}

@@ -38,11 +38,12 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Install DigiCert Client tools
+        id: install_digicert_tools
         if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
         uses: digicert/ssm-code-signing@v1.1.0
 
       - name: Setup Digicert
-        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ steps.install_digicert_tools.outcome == 'success' }}
         shell: pwsh
         run: |
           echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | openssl base64 -d > D:\Certificate_pkcs12.p12
@@ -60,7 +61,7 @@ jobs:
           echo "$env:TEMP\smtools-windows-x64" >> $env:GITHUB_PATH
 
       - name: Sync DigiCert certificates
-        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ steps.install_digicert_tools.outcome == 'success' }}
         shell: pwsh
         run: |
           smctl windows certsync 2>&1 | Out-Null
