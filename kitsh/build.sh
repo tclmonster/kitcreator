@@ -302,11 +302,15 @@ function strip_library() {
 
 		## Build either tclsh or wish to bundle with KitDLL and
 		## copy the target as "kit" so it may be run later.
-
-		KITDLL_EXE_TARGET=tclsh
-		if echo " ${KITCREATOR_PKGS} " | grep -q 'tk'; then
-			KITDLL_EXE_TARGET=wish
-		fi
+		KITDLL_EXE_TARGET="tclsh"
+		case "${KC_CROSSCOMPILE_HOST_OS}" in
+		    *mingw* | *msys* | *cygwin* | *windows*)
+			if echo " ${KITCREATOR_PKGS} " | grep -q 'tk'; then
+			    KITDLL_EXE_TARGET="wish"
+			fi
+			;;
+		esac
+		export KITDLL_EXE_TARGET
 
 		eval tclshExtraMakeArgs=(${KC_KITSH_TCLSH_EXTRA_MAKE_ARGS})
 
