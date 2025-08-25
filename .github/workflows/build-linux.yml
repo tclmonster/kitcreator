@@ -69,6 +69,7 @@ jobs:
       RANLIB:        ${{matrix.platform.cross_pfx}}-ranlib
       NM:            ${{matrix.platform.cross_pfx}}-nm
       STRIP:         ${{matrix.platform.cross_pfx}}-strip
+      OBJCOPY:       ${{matrix.platform.cross_pfx}}-objcopy
       HOST:          ${{matrix.platform.host}}
 
     steps:
