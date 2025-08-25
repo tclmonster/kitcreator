@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 env:
-  TCL_TK_VERSION: 8.6.16
+  TCL_TK_VERSION: 8.6.17
   KC_TLS_LINKSSLSTATIC: 0  # Linux generally has OpenSSL installed
   STATICTK: 0
   STATICTKSVG: 0

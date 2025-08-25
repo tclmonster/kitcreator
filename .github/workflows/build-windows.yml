@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 env:
-  TCL_TK_VERSION: 8.6.16
+  TCL_TK_VERSION: 8.6.17
   CC: x86_64-w64-mingw32-clang.exe
   CXX: x86_64-w64-mingw32-clang++.exe
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'

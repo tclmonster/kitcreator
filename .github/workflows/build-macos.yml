@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 env:
-  TCL_TK_VERSION: 8.6.16
+  TCL_TK_VERSION: 8.6.17
   CC: /usr/bin/clang
   CXX: /usr/bin/clang++
   KC_TLS_LINKSSLSTATIC: 1
