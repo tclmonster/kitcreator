@@ -17,8 +17,15 @@ libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS
 		;; \
 		*) \
 			for striplib in $(STRIPLIBS); do \
-				echo "Running: $(OBJCOPY) --weaken \"$${striplib}\""; \
-				$(OBJCOPY) --weaken "$${striplib}"; \
+				case "$${striplib}" in \
+					*libz.a) \
+						echo "Skipping symbol weakening for zlib: $${striplib}"; \
+						;; \
+					*) \
+						echo "Running: $(OBJCOPY) --weaken \"$${striplib}\""; \
+						$(OBJCOPY) --weaken "$${striplib}"; \
+						;; \
+				esac; \
 			done; \
 		;; \
 	esac
