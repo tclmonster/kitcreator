@@ -22,6 +22,7 @@ env:
   KC_TLS_SSLDIR: /clang64/lib/pkgconfig
   KC_TLS_LINKSSLSTATIC: 1
   STATICTWAPI: 1
+  STATICCFFI: 1
   STATICTK: 0
   STATICTKSVG: 0
   STATICTLS: 1
@@ -79,6 +80,7 @@ jobs:
             mingw-w64-clang-x86_64-toolchain
             mingw-w64-clang-x86_64-dlfcn
             mingw-w64-clang-x86_64-openssl
+            mingw-w64-clang-x86_64-libffi
 
       - uses: actions/checkout@v4
 
