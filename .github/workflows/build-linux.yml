@@ -122,14 +122,14 @@ jobs:
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-minimal.txt)"
           ./kitcreator clean
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
 
       - name: Minimal kit (with GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-minimal.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
           rm -f  tk/.success
@@ -138,14 +138,14 @@ jobs:
       - name: Standard kit (No GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
@@ -161,7 +161,7 @@ jobs:
             done
           }
           clean_all_but_tcl_and_mk4
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=mk4
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
 
