@@ -81,11 +81,12 @@ jobs:
             mingw-w64-clang-x86_64-openssl
 
       - uses: actions/checkout@v4
+
       - name: Minimal kit (No GUI)
         run: |
           export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-minimal.txt)"
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe.kc_packages
           cat <<EOF > $GITHUB_ENV
@@ -96,7 +97,7 @@ jobs:
       - name: Minimal kit (with GUI)
         run: |
           export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-minimal.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32-minimal.exe.kc_packages
           rm -f  tk/.success
@@ -105,14 +106,14 @@ jobs:
       - name: Standard kit (No GUI)
         run: |
           export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
 
       - name: Full kit (with GUI)
         run: |
           export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
 
@@ -128,7 +129,7 @@ jobs:
             done
           }
           clean_all_but_tcl_and_mk4
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=mk4
+          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz.kc_packages
 
