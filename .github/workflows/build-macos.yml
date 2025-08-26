@@ -33,9 +33,10 @@ jobs:
         run: |
           brew update
           brew install autoconf automake libtool groff cmake openssl@3 libffi curl create-dmg
-          cat <<EOF >> $GITHUB_ENV
-          KC_TLS_SSLDIR=$(brew --prefix openssl@3)
-          EOF
+          echo "KC_TLS_SSLDIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "LIBFFI_CFLAGS=-I$(brew --prefix libffi)/include" >> "$GITHUB_ENV"
+          echo "LIBFFI_LIBS=-L$(brew --prefix libffi)/lib -lffi" >> "$GITHUB_ENV"
+
 
       - name: Setup codesign variables
         id: setup_codesign_variables
