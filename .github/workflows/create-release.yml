@@ -7,12 +7,15 @@ on:
 jobs:
   build-linux-kits:
     uses: ./.github/workflows/build-linux.yml
+    secrets: inherit
 
   build-windows-kits:
     uses: ./.github/workflows/build-windows.yml
+    secrets: inherit
 
   build-macos-kits:
     uses: ./.github/workflows/build-macos.yml
+    secrets: inherit
 
   create-release:
     runs-on: ubuntu-22.04
