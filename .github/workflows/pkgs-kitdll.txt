@@ -6,4 +6,3 @@ tk
 tksvg
 tcllib
 kitdll
-cffi

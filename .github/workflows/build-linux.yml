@@ -15,7 +15,7 @@ env:
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
   STATICMK4: 1
-  STATICCFFI: 0
+  STATICCFFI: 1
   KC_MK4TCL_CXXFLAGS: '-fPIC'
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
