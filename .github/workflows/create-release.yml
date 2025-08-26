@@ -35,7 +35,7 @@ jobs:
 
       - name: Create release
         run: |
-          cp ./kitcreator-linux-x86_64-kits/tclkitsh-8.6.16-x86_64-linux-gnu ~/tclkit
+          cp ./kitcreator-linux-x86_64-kits/tclkitsh-*-x86_64-linux-gnu ~/tclkit
           chmod +x ~/tclkit
           ~/tclkit .github/scripts/create-release.tcl \
               ${{ github.api_url }} \
