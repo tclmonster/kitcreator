@@ -17,6 +17,7 @@ env:
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+  STATICCFFI: 1
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -31,7 +32,7 @@ jobs:
       - name: Setup Packages
         run: |
           brew update
-          brew install autoconf automake libtool groff cmake openssl@3 curl create-dmg
+          brew install autoconf automake libtool groff cmake openssl@3 libffi curl create-dmg
           cat <<EOF >> $GITHUB_ENV
           KC_TLS_SSLDIR=$(brew --prefix openssl@3)
           EOF

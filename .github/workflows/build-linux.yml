@@ -15,6 +15,7 @@ env:
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
   STATICMK4: 1
+  STATICCFFI: 1
   KC_MK4TCL_CXXFLAGS: '-fPIC'
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -98,7 +99,8 @@ jobs:
                   crossbuild-essential-${{env.pkg_prefix}} \
                   autoconf \
                   libx11-dev:${{env.pkg_prefix}} \
-                  libssl-dev:${{env.pkg_prefix}}
+                  libssl-dev:${{env.pkg_prefix}} \
+                  libffi-dev:${{env.pkg_prefix}}
 
       - name: Base kit
         env:
