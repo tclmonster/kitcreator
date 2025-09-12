@@ -15,9 +15,10 @@ case "${CONFIGUREEXTRA}" in
 esac
 
 configure() {
+	stub_lib="$(ls "${KITCREATOR_DIR}"/tcl/inst/lib/libtclstub*.a)"
 	cmake . \
 	      -DCMAKE_INSTALL_PREFIX="${installdir}" \
-	      -DTCL_LIBRARY_PATH="${KITCREATOR_DIR}/tcl/inst/lib" \
+	      -DTCL_STUB_LIBRARY="${stub_lib}" \
 	      -DTCL_INCLUDE_PATH="${KITCREATOR_DIR}/tcl/inst/include" \
 	      -DCMAKE_BUILD_TYPE="${tjson_build_type}"
 }
@@ -28,4 +29,8 @@ build() {
 
 install() {
 	cmake --install . --config "${tjson_build_type}" --prefix "${installdir}"
+}
+
+postinstall() {
+	rm -f "${installdir}"/lib/*/libtjson.dll.a ;# Prevent inadvertent link on MSys2
 }
