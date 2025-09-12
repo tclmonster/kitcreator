@@ -1,0 +1,15 @@
+diff -ruN A/CMakeLists.txt B/CMakeLists.txt
+--- A/CMakeLists.txt	2024-08-05 05:21:26
++++ B/CMakeLists.txt	2025-09-12 14:01:13
+@@ -30,6 +30,11 @@
+ 
+ include_directories(${TCL_INCLUDE_PATH})
+ target_link_libraries(tjson PRIVATE ${TCL_LIBRARY})
++
++if(APPLE)
++    target_link_libraries(tjson PRIVATE z "-framework CoreFoundation")
++endif()
++
+ get_filename_component(TCL_LIBRARY_PATH "${TCL_LIBRARY}" PATH)
+ 
+ install(TARGETS ${TARGET}
