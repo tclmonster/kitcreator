@@ -1,0 +1,48 @@
+diff -ruN A/CMakeLists.txt B/CMakeLists.txt
+--- A/CMakeLists.txt	2024-08-05 05:21:26.000000000 -0300
++++ B/CMakeLists.txt	2025-09-12 15:52:14.949298400 -0300
+@@ -13,14 +13,11 @@
+     set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
+ endif()
+ 
+-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+-find_package(TCL 8.6.13 REQUIRED)  # TCL_INCLUDE_PATH TCL_LIBRARY
++find_package(TclStub REQUIRED)
++find_package(Threads REQUIRED)
+ 
+ message(STATUS "TCL_INCLUDE_PATH: ${TCL_INCLUDE_PATH}")
+-message(STATUS "TCL_LIBRARY: ${TCL_LIBRARY}")
+-
+-#set(CMAKE_VERBOSE_MAKEFILE ON)
+-set(CMAKE_C_FLAGS  "-DTCL_THREADS -DVERSION=${PROJECT_VERSION} ${CMAKE_C_FLAGS}")
++message(STATUS "TCL_LIBRARY: ${TCL_STUB_LIBRARY}")
+ 
+ enable_testing()
+ add_test(NAME AllUnitTests COMMAND tclsh8.6 ${CMAKE_CURRENT_SOURCE_DIR}/tests/all.tcl)
+@@ -29,7 +26,13 @@
+ set_target_properties(tjson PROPERTIES POSITION_INDEPENDENT_CODE ON)
+ 
+ include_directories(${TCL_INCLUDE_PATH})
+-target_link_libraries(tjson PRIVATE ${TCL_LIBRARY})
++target_link_libraries(tjson PRIVATE Threads::Threads ${TCL_STUB_LIBRARY})
++add_compile_definitions(USE_TCL_STUBS TCL_THREADS VERSION=${PROJECT_VERSION})
++
++if(APPLE)
++    target_link_libraries(tjson PRIVATE z "-framework CoreFoundation")
++endif()
++
+ get_filename_component(TCL_LIBRARY_PATH "${TCL_LIBRARY}" PATH)
+ 
+ install(TARGETS ${TARGET}
+diff -ruN A/src/library.h B/src/library.h
+--- A/src/library.h	2024-08-05 05:21:26.000000000 -0300
++++ B/src/library.h	2025-09-12 15:43:38.205703300 -0300
+@@ -18,7 +18,7 @@
+ extern "C" {
+ #endif
+ 
+-EXTERN int Tjson_Init(Tcl_Interp *interp);
++DLLEXPORT int Tjson_Init(Tcl_Interp *interp);
+ #ifdef USE_NAVISERVER
+ NS_EXTERN int Ns_ModuleVersion = 1;
+ NS_EXTERN int Ns_ModuleInit(const char *server, const char *module);
