@@ -17,8 +17,8 @@ esac
 configure() {
 	cmake . \
 	      -DCMAKE_INSTALL_PREFIX="${installdir}" \
-	      -DTCL_LIBRARY_DIR="${KITCREATOR_DIR}/tcl/inst/lib" \
-	      -DTCL_INCLUDE_DIR="${KITCREATOR_DIR}/tcl/inst/include" \
+	      -DTCL_LIBRARY_PATH="${KITCREATOR_DIR}/tcl/inst/lib" \
+	      -DTCL_INCLUDE_PATH="${KITCREATOR_DIR}/tcl/inst/include" \
 	      -DCMAKE_BUILD_TYPE="${tjson_build_type}"
 }
 
