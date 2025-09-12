@@ -6,3 +6,4 @@ tk
 tksvg
 tcllib
 cffi
+tjson
