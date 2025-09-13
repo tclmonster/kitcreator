@@ -93,6 +93,15 @@ jobs:
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
 
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitcreator-macos-minimal-nogui-logs
+          path: |
+            **/build.log
+            **/config.log
+        if: ${{ !cancelled() }}
+
       - name: Minimal kit (With GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-minimal.txt)"
