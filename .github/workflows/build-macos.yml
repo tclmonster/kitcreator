@@ -1,6 +1,13 @@
 name: Build macOS kits
 on:
   workflow_dispatch:
+    inputs:
+      codesign:
+        description: 'Enable code signing'
+        required: false
+        default:  true
+        type: boolean
+
   workflow_call:
   push:
     branches: [main]
@@ -39,7 +46,7 @@ jobs:
 
       - name: Setup codesign variables
         id: setup_codesign_variables
-        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.codesign == 'true') || startsWith(github.ref, 'refs/tags/') }}
         run: |
           echo "CODESIGN_SIGNATURE=${{ secrets.CODESIGN_SIGNATURE }}" >> $GITHUB_ENV
           echo "CODESIGN_PREFIX=com.bandoti." >> $GITHUB_ENV
