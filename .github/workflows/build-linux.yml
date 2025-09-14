@@ -33,37 +33,37 @@ jobs:
             pkg_prefix: amd64
             cross_pfx:  x86_64-linux-gnu
             host:       x86_64-pc-linux-gnu
-            ssldir:     /usr/lib/x86_64-linux-gnu/pkgconfig
+            pcdir:      /usr/lib/x86_64-linux-gnu/pkgconfig
 
           - arch:       i386
             pkg_prefix: i386
             cross_pfx:  i686-linux-gnu
             host:       i386-pc-linux-gnu
-            ssldir:     /usr/lib/i386-linux-gnu/pkgconfig
+            pcdir:      /usr/lib/i386-linux-gnu/pkgconfig
 
           - arch:       aarch64
             pkg_prefix: arm64
             cross_pfx:  aarch64-linux-gnu
             host:       aarch64-generic-linux-gnu
-            ssldir:     /usr/lib/aarch64-linux-gnu/pkgconfig
+            pcdir:      /usr/lib/aarch64-linux-gnu/pkgconfig
 
           - arch:       armhf
             pkg_prefix: armhf
             cross_pfx:  arm-linux-gnueabihf
             host:       arm-generic-linux-gnu
-            ssldir:     /usr/lib/arm-linux-gnueabihf/pkgconfig
+            pcdir:      /usr/lib/arm-linux-gnueabihf/pkgconfig
 
           - arch:       riscv64
             pkg_prefix: riscv64
             cross_pfx:  riscv64-linux-gnu
             host:       riscv64-generic-linux-gnu
-            ssldir:     /usr/lib/riscv64-linux-gnu/pkgconfig
+            pcdir:      /usr/lib/riscv64-linux-gnu/pkgconfig
 
     env:
       arch:          ${{matrix.platform.arch}}
       pkg_prefix:    ${{matrix.platform.pkg_prefix}}
       suffix:        ${{matrix.platform.arch}}-linux-gnu
-      KC_TLS_SSLDIR: ${{matrix.platform.ssldir}}
+      KC_TLS_SSLDIR: ${{matrix.platform.pcdir}}
       CC:            ${{matrix.platform.cross_pfx}}-gcc
       CXX:           ${{matrix.platform.cross_pfx}}-g++
       AR:            ${{matrix.platform.cross_pfx}}-ar
@@ -75,16 +75,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Dump Pkg mirrors
-        run: |
-          for li in $(ls /etc/apt/sources.list.d/); do
-            echo "$li:"
-            sudo cat "/etc/apt/sources.list.d/$li"
-          done
-          echo "/etc/apt/apt-mirrors.txt:"
-          sudo cat /etc/apt/apt-mirrors.txt
-          echo "/etc/apt/sources.list:"
-          sudo cat /etc/apt/sources.list
 
       - name: Setup dependencies
         run: |
@@ -108,6 +98,11 @@ jobs:
                   libssl-dev:${{env.pkg_prefix}} \
                   uuid-dev:${{env.pkg_prefix}}   \
                   libffi-dev:${{env.pkg_prefix}}
+
+          export PKG_CONFIG_PATH=""
+          export PKG_CONFIG_LIBDIR="${{matrix.platform.pcdir}}"
+          echo "LIBFFI_CFLAGS=$(pkg-config --cflags libffi)" >> "$GITHUB_ENV"
+          echo "LIBFFI_LIBS=$(pkg-config --libs libffi)" >> "$GITHUB_ENV"
 
       - name: Base kit
         env:
