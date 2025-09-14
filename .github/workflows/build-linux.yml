@@ -147,13 +147,13 @@ jobs:
           STATICTK: 1
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
-          clean_all_but_tcl_and_mk4() {
-            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl|tcllib)$'); do
+          clean_dynamic_tk_pkgs() {
+            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^tk.*$'); do
               rm -f  "${pkg}/.success"
               rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
             done
           }
-          clean_all_but_tcl_and_mk4
+          clean_dynamic_tk_pkgs
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
