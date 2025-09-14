@@ -89,8 +89,14 @@ jobs:
       - name: Setup dependencies
         run: |
           sudo dpkg --add-architecture ${{env.pkg_prefix}}
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://ports.ubuntu.com/ubuntu-ports|g' \
-                 /etc/apt/sources.list /etc/apt/apt-mirrors.txt
+
+          # Add arch-specific repositories for non-amd64 architectures
+          cat << EOF | sudo tee /etc/apt/sources.list.d/${{ env.pkg_prefix }}-ports.list
+          deb [arch=${{ env.pkg_prefix }}] http://ports.ubuntu.com/ubuntu-ports/ jammy main universe restricted
+          deb [arch=${{ env.pkg_prefix }}] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main universe restricted
+          deb [arch=${{ env.pkg_prefix }}] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main universe restricted
+          deb [arch=${{ env.pkg_prefix }}] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main universe restricted
+          EOF
 
           sudo apt-get update || true ;# Prevent failure due to missing URLs
 
