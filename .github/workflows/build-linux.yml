@@ -148,7 +148,7 @@ jobs:
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
           clean_dynamic_tk_pkgs() {
-            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^tk.*$'); do
+            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^(zlib|tk)$'); do
               rm -f  "${pkg}/.success"
               rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
             done
