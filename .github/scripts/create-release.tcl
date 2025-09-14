@@ -114,15 +114,14 @@ proc formatSize {sizeInBytes} {
 }
 
 
-set release_body {
-### Tcl kits available for Linux, macOS, and Windows.
+set release_body [string map [list @TAGNAME@ $tag_name] {
+### Tclmonster kits (release @TAGNAME@) available for Linux, macOS, and Windows.
 
-This release includes kits with and without Tk; also included are minimal kits with only
-the base dependencies; and lastly, the SDK provides shared libraries that may be used to
-conveniently build extensions (without compiling Tcl/Tk) or to link a working Tcl interpreter
-into any application.
+This release includes standalone Tcl runtimes with and without Tk, and a Tcl SDK which
+provides shared libraries that may be used to build extensions (without compiling Tcl/Tk)
+or to link a working Tcl interpreter into an existing application.
 
-}
+}]
 
 set hdr_template {
 #### @KIT_OS@
