@@ -1,6 +1,13 @@
 name: Create release
 on:
   workflow_dispatch:
+    inputs:
+      codesign:
+        description: 'Enable code signing'
+        required: false
+        default:  true
+        type: boolean
+
   push:
     tags: [0.*.*, 1.*.*]
 
@@ -11,10 +18,14 @@ jobs:
 
   build-windows-kits:
     uses: ./.github/workflows/build-windows.yml
+    with:
+      codesign: ${{ github.event.inputs.codesign || true }}
     secrets: inherit
 
   build-macos-kits:
     uses: ./.github/workflows/build-macos.yml
+    with:
+      codesign: ${{ github.event.inputs.codesign || true }}
     secrets: inherit
 
   create-release:

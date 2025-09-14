@@ -1,6 +1,13 @@
 name: Build macOS kits
 on:
   workflow_dispatch:
+    inputs:
+      codesign:
+        description: 'Enable code signing'
+        required: false
+        default:  true
+        type: boolean
+
   workflow_call:
   push:
     branches: [main]
@@ -37,10 +44,9 @@ jobs:
           echo "LIBFFI_CFLAGS=-I$(brew --prefix libffi)/include" >> "$GITHUB_ENV"
           echo "LIBFFI_LIBS=$(brew --prefix libffi)/lib/libffi.a" >> "$GITHUB_ENV"
 
-
       - name: Setup codesign variables
         id: setup_codesign_variables
-        if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.codesign == 'true') || startsWith(github.ref, 'refs/tags/') }}
         run: |
           echo "CODESIGN_SIGNATURE=${{ secrets.CODESIGN_SIGNATURE }}" >> $GITHUB_ENV
           echo "CODESIGN_PREFIX=com.bandoti." >> $GITHUB_ENV
@@ -86,32 +92,16 @@ jobs:
           TCLSH_NATIVE=$(pwd)/tclkit-local
           EOF
 
-      - name: Minimal kit (No GUI)
-        run: |
-          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-minimal.txt)"
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
-          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
-
-      - name: Minimal kit (With GUI)
-        run: |
-          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-minimal.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
-          mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal.kc_packages
-          rm -f  tk/.success
-          rm -rf tk/{out,inst,build}
-
       - name: Standard kit (No GUI)
         run: |
-          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui-full.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
+          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui.txt)"
+          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         run: |
-          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui-full.txt)"
+          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui.txt)"
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
@@ -121,13 +111,13 @@ jobs:
           STATICTK: 1
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
-          clean_all_but_tcl_and_mk4() {
-            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep -v '^(tcl|tls|tdom|parse_args|mk4tcl|tcllib)$'); do
+          clean_dynamic_tk_pkgs() {
+            for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^(zlib|tk)$'); do
               rm -f  "${pkg}/.success"
               rm -rf "${pkg}/out" "${pkg}/inst" "${pkg}/build"
             done
           }
-          clean_all_but_tcl_and_mk4
+          clean_dynamic_tk_pkgs
           ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-aqua --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs
           mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
@@ -192,8 +182,6 @@ jobs:
         with:
           name: kitcreator-macos-kits
           path: |
-            tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
-            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}-minimal
             tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
             libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
