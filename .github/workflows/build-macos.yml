@@ -9,6 +9,9 @@ on:
         type: boolean
 
   workflow_call:
+    inputs:
+      codesign: { required: false, default: true, type: boolean }
+
   push:
     branches: [main]
 
