@@ -77,10 +77,10 @@ esac
 
 KC_TCL_SQLITE_VEC="${KC_TCL_SQLITE_VEC:-0}"
 
-SQLITE_VEC_VER='0.1.7-alpha.2'
-SQLITE_VEC_SRC="src/sqlite-vec-${SQLITE_VEC_VER}-amalgamation.tar.gz"
-SQLITE_VEC_SRCURL="https://github.com/asg017/sqlite-vec/releases/download/v${SQLITE_VEC_VER}/sqlite-vec-${SQLITE_VEC_VER}-amalgamation.tar.gz"
-SQLITE_VEC_SRCHASH='e3e563af0c312f6083b557f01ca985a124bde784b84f4add2f276d94aac25d07'
+SQLITE_VEC_VER='0.2.3-alpha'
+SQLITE_VEC_SRC="src/sqlite-vec-${SQLITE_VEC_VER}.tar.gz"
+SQLITE_VEC_SRCURL="https://github.com/vlasky/sqlite-vec/archive/refs/tags/v${SQLITE_VEC_VER}.tar.gz"
+SQLITE_VEC_SRCHASH='b70a1050048268fb38a985d999f150cd463fd4aedd7b9e64b78b3ea4874f939c'
 
 # Set configure options for this sub-project
 LDFLAGS="${LDFLAGS} ${KC_TCL_LDFLAGS}"
@@ -242,6 +242,8 @@ fi
 
 	if [ -f "../${SQLITE_VEC_SRC}" ]; then
 		gzip -dc "../${SQLITE_VEC_SRC}" | tar -xf -
+
+		cd "sqlite-vec-${SQLITE_VEC_VER}"
 
 		# Fix type redefinitions affecting amalgamation.
 		patch -p1 <<'EOF'
