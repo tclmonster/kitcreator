@@ -5,7 +5,7 @@ on:
       codesign:
         description: 'Enable code signing'
         required: false
-        default:  true
+        default: true
         type: boolean
 
   workflow_call:
@@ -49,28 +49,38 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - name: Install DigiCert Client tools
-        id: install_digicert_tools
+      - name: Setup SM_CLIENT_CERT_FILE from base64 secret data
+        id: setup_cert
         if: ${{ (github.event_name == 'workflow_dispatch' && github.event.inputs.codesign == 'true') || startsWith(github.ref, 'refs/tags/') }}
-        uses: digicert/ssm-code-signing@v1.1.0
-
-      - name: Setup Digicert
-        if: ${{ steps.install_digicert_tools.outcome == 'success' }}
         shell: pwsh
         run: |
           echo "${{ secrets.SM_CLIENT_CERT_FILE_B64 }}" | openssl base64 -d > D:\Certificate_pkcs12.p12
+
+      - name: Install DigiCert Client tools
+        id: install_digicert_tools
+        if: ${{ steps.setup_cert.outcome == 'success' }}
+        uses: digicert/code-signing-software-trust-action@v1.0.1
+        env:
+          SM_HOST: ${{ secrets.SM_HOST }}
+          SM_API_KEY: ${{ secrets.SM_API_KEY }}
+          SM_CLIENT_CERT_FILE: D:\Certificate_pkcs12.p12
+          SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD }}
+
+      - name: Setup Digicert environment
+        if: ${{ steps.install_digicert_tools.outcome == 'success' }}
+        shell: pwsh
+        run: |
           echo "SM_HOST=${{ secrets.SM_HOST }}" >> $env:GITHUB_ENV
           echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> $env:GITHUB_ENV
           echo "SM_CLIENT_CERT_FILE=D:\Certificate_pkcs12.p12" >> $env:GITHUB_ENV
           echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> $env:GITHUB_ENV
           echo "SM_FINGERPRINT=${{ secrets.SM_FINGERPRINT }}" >> $env:GITHUB_ENV
-          echo "SM_PKCS11_CONFIG=$env:TEMP\smtools-windows-x64\pkcs11properties.cfg" >> $env:GITHUB_ENV
+          echo "SM_PKCS11_CONFIG=${{ steps.install_digicert_tools.outputs.PKCS11_CONFIG }}" >> $env:GITHUB_ENV
 
-          # For signtool
-          echo "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64" >> $env:GITHUB_PATH
-
-          # For smctl
-          echo "$env:TEMP\smtools-windows-x64" >> $env:GITHUB_PATH
+          # Add signtool to PATH (use latest SDK version)
+          $signtoolPath = (Resolve-Path "C:\Program Files (x86)\Windows Kits\10\bin\*\x64" | Sort-Object -Descending | Select-Object -First 1).Path
+          if (-not (Test-Path "$signtoolPath\signtool.exe")) { throw "signtool.exe not found" }
+          echo $signtoolPath >> $env:GITHUB_PATH
 
       - name: Sync DigiCert certificates
         if: ${{ steps.install_digicert_tools.outcome == 'success' }}
@@ -80,8 +90,8 @@ jobs:
 
       - uses: msys2/setup-msys2@v2
         with:
-          msystem:   CLANG64
-          update:    true
+          msystem: CLANG64
+          update: true
           path-type: inherit
           install: >-
             git
