@@ -7,3 +7,4 @@ tksvg
 tcllib
 cffi
 tjson
+tkdnd
