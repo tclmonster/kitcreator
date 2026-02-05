@@ -24,7 +24,7 @@ env:
 
 jobs:
   build-linux-kits:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.platform.runner }}
 
     strategy:
       matrix:
@@ -34,30 +34,14 @@ jobs:
             cross_pfx:  x86_64-linux-gnu
             host:       x86_64-pc-linux-gnu
             pcdir:      /usr/lib/x86_64-linux-gnu/pkgconfig
-
-          - arch:       i386
-            pkg_prefix: i386
-            cross_pfx:  i686-linux-gnu
-            host:       i386-pc-linux-gnu
-            pcdir:      /usr/lib/i386-linux-gnu/pkgconfig
+            runner:     ubuntu-22.04
 
           - arch:       aarch64
             pkg_prefix: arm64
             cross_pfx:  aarch64-linux-gnu
             host:       aarch64-generic-linux-gnu
             pcdir:      /usr/lib/aarch64-linux-gnu/pkgconfig
-
-          - arch:       armhf
-            pkg_prefix: armhf
-            cross_pfx:  arm-linux-gnueabihf
-            host:       arm-generic-linux-gnu
-            pcdir:      /usr/lib/arm-linux-gnueabihf/pkgconfig
-
-          - arch:       riscv64
-            pkg_prefix: riscv64
-            cross_pfx:  riscv64-linux-gnu
-            host:       riscv64-generic-linux-gnu
-            pcdir:      /usr/lib/riscv64-linux-gnu/pkgconfig
+            runner:     ubuntu-22.04-arm64
 
     env:
       arch:          ${{matrix.platform.arch}}
@@ -107,19 +91,19 @@ jobs:
       - name: Base kit
         env:
           KITCREATOR_PKGS: mk4tcl
-          CC:  x86_64-linux-gnu-gcc
-          CXX: x86_64-linux-gnu-g++
-          AR:  x86_64-linux-gnu-ar
-          RANLIB: x86_64-linux-gnu-ranlib
-          NM:     x86_64-linux-gnu-nm
-          STRIP:  x86_64-linux-gnu-strip
+          CC:  ${{matrix.platform.cross_pfx}}-gcc
+          CXX: ${{matrix.platform.cross_pfx}}-g++
+          AR:  ${{matrix.platform.cross_pfx}}-ar
+          RANLIB: ${{matrix.platform.cross_pfx}}-ranlib
+          NM:     ${{matrix.platform.cross_pfx}}-nm
+          STRIP:  ${{matrix.platform.cross_pfx}}-strip
         run: |
           ./build/pre.sh
           ./kitcreator build ${{env.TCL_TK_VERSION}}
-          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.arch}}-base
           cat <<EOF > $GITHUB_ENV
-          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
-          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-base
+          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.arch}}-base
+          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.arch}}-base
           EOF
 
       - name: Standard kit (No GUI)
