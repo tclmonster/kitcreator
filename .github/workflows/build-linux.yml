@@ -80,6 +80,7 @@ jobs:
                   crossbuild-essential-${{env.pkg_prefix}} \
                   autoconf \
                   libx11-dev:${{env.pkg_prefix}} \
+                  libxcursor-dev:${{env.pkg_prefix}} \
                   libssl-dev:${{env.pkg_prefix}} \
                   uuid-dev:${{env.pkg_prefix}}   \
                   libffi-dev:${{env.pkg_prefix}}
