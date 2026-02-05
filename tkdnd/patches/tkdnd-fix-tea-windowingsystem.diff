@@ -1,0 +1,38 @@
+diff -ruN A/configure B/configure
+--- A/configure	2025-01-04 07:45:25
++++ B/configure	2026-02-05 10:47:49
+@@ -4566,7 +4566,15 @@
+ 		TEA_WINDOWINGSYSTEM="aqua"
+ 		;;
+ 	    *)
+-		TEA_WINDOWINGSYSTEM="x11"
++		tk_inc_dir=`echo "${TK_INCLUDE_SPEC}" | sed 's/^-I//'`
++		if test -f "${tk_inc_dir}/tkConfig.h" && grep -q 'MAC_OSX_TK\s1' "${tk_inc_dir}/tkConfig.h"; then
++
++printf "%s\n" "#define MAC_OSX_TK 1" >>confdefs.h
++
++		    TEA_WINDOWINGSYSTEM="aqua"
++		else
++		    TEA_WINDOWINGSYSTEM="x11"
++		fi
+ 		;;
+ 	esac
+     elif test "${TEA_PLATFORM}" = "windows" ; then
+diff -ruN A/tclconfig/tcl.m4 B/tclconfig/tcl.m4
+--- A/tclconfig/tcl.m4	2025-01-04 07:45:25
++++ B/tclconfig/tcl.m4	2026-02-05 10:31:49
+@@ -525,7 +525,13 @@
+ 		TEA_WINDOWINGSYSTEM="aqua"
+ 		;;
+ 	    *)
+-		TEA_WINDOWINGSYSTEM="x11"
++		tk_inc_dir=`echo "${TK_INCLUDE_SPEC}" | sed 's/^-I//'`
++		if test -f "${tk_inc_dir}/tkConfig.h" && grep -q 'MAC_OSX_TK\s1' "${tk_inc_dir}/tkConfig.h"; then
++		    AC_DEFINE(MAC_OSX_TK, 1, [Are we building against Mac OS X TkAqua?])
++		    TEA_WINDOWINGSYSTEM="aqua"
++		else
++		    TEA_WINDOWINGSYSTEM="x11"
++		fi
+ 		;;
+ 	esac
+     elif test "${TEA_PLATFORM}" = "windows" ; then
