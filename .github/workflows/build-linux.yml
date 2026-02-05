@@ -42,7 +42,7 @@ jobs:
             cross_pfx:  aarch64-linux-gnu
             host:       aarch64-generic-linux-gnu
             pcdir:      /usr/lib/aarch64-linux-gnu/pkgconfig
-            runner:     ubuntu-22.04-arm64
+            runner:     ubuntu-22.04-arm
 
     env:
       arch:          ${{matrix.platform.arch}}
