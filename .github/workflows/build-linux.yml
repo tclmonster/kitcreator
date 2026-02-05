@@ -9,6 +9,7 @@ env:
   TCL_TK_VERSION: 8.6.17
   KC_TLS_LINKSSLSTATIC: 0  # Linux generally has OpenSSL installed
   STATICTK: 0
+  STATICTKDND: 0
   STATICTKSVG: 0
   STATICTLS: 1
   STATICTDOM: 1
