@@ -273,6 +273,7 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 
 				if test "$host_os" = "mingw32msvc" -o "$host_os" = "mingw32"; then
 					AC_DEFINE(KITSH_NEED_WINMAIN, [1], [Define if you need WinMain (Windows)])
+					GO_BUILD_TAGS="${GO_BUILD_TAGS} needwinmain"
 					CFLAGS="${CFLAGS} -mwindows"
 				fi
 

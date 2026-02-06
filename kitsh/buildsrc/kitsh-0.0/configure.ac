@@ -39,6 +39,29 @@ AC_PROG_INSTALL
 AC_USE_SYSTEM_EXTENSIONS
 AC_USE_SYSTEM_EXTENSIONS
 
+dnl Check for Go compiler (optional, for Go entry points)
+AC_MSG_CHECKING([for Go compiler])
+AC_ARG_VAR([GO], [Path to Go compiler])
+if test -z "$GO"; then
+    AC_PATH_PROG([GO], [go], [no])
+fi
+if test "x$GO" != "xno"; then
+    go_version=`$GO version 2>/dev/null`
+    if test $? -eq 0; then
+        HAVE_GO=yes
+        AC_MSG_RESULT([$GO ($go_version)])
+    else
+        HAVE_GO=no
+        AC_MSG_RESULT([found $GO but it does not work])
+    fi
+else
+    HAVE_GO=no
+    AC_MSG_RESULT([not found, Go entry points disabled])
+fi
+AC_SUBST(GO)
+AC_SUBST(HAVE_GO)
+GO_BUILD_TAGS=""
+
 dnl Find out if we should build a DLL or an Executable
 TARGET="tclkit"
 EXTRA_KIT_DEPS=""
@@ -256,6 +279,8 @@ AC_SUBST(LDFLAGS_ADD)
 dnl Put correct Makefile template in place
 rm -f Makefile.in
 cp Makefile.${TARGET_BASE}.in Makefile.in
+
+AC_SUBST(GO_BUILD_TAGS)
 
 dnl Produce output
 AC_CONFIG_FILES([Makefile Makefile.common])

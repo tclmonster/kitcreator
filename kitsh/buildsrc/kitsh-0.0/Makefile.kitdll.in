@@ -48,11 +48,31 @@ libtclkit@KITDLL_LIB_VERSION@.a: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA
 
 # Test driver
 tclsh.o: tclsh.c
-tclsh: tclsh.o $(EXTRA_OBJS) @TARGET@
+tclsh: $(EXTRA_OBJS) @TARGET@
+ifeq ($(HAVE_GO),yes)
+	cd $(CURDIR)/gokit-tclsh && \
+	CGO_ENABLED=1 \
+	CC="$(CC)" \
+	CGO_CFLAGS="$(CPPFLAGS) $(CFLAGS)" \
+	CGO_LDFLAGS="$(abspath $(EXTRA_OBJS)) -L$(CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
+	$(GO) build -o $(CURDIR)/tclsh .
+else
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o tclsh.o tclsh.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o tclsh tclsh.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)
+endif
 
 wish.o: wish.c
-wish: wish.o $(EXTRA_OBJS) libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
+wish: $(EXTRA_OBJS) libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
+ifeq ($(HAVE_GO),yes)
+	cd $(CURDIR)/gokit-wish && \
+	CGO_ENABLED=1 \
+	CC="$(CC)" \
+	CGO_CFLAGS="$(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS)" \
+	CGO_LDFLAGS="$(abspath $(EXTRA_OBJS)) -L$(CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
+	$(GO) build -o $(CURDIR)/wish .
+else
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -c -o wish.o wish.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -o wish wish.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)
+endif
 
 .PHONY: kitdll kitdll-static

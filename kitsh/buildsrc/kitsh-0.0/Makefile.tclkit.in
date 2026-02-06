@@ -1,8 +1,21 @@
-OBJS = kitInit.o main.o pwb.o rechan.o zlib.o winMain.o
+OBJS_C = kitInit.o pwb.o rechan.o zlib.o
+OBJS_ENTRY = main.o winMain.o
 
 all: kit
 
 -include Makefile.common
 
-kit: $(OBJS) $(EXTRA_OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_VFS_OBJS) $(ARCHS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
+kit: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_VFS_OBJS) $(ARCHS)
+ifeq ($(HAVE_GO),yes)
+	cd $(CURDIR)/gokit && \
+	CGO_ENABLED=1 \
+	CC="$(CC)" \
+	CGO_CFLAGS="$(CPPFLAGS) $(CFLAGS)" \
+	CGO_LDFLAGS="$(abspath $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)) $(abspath $(ARCHS)) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
+	$(GO) build -o $(CURDIR)/kit $(if $(strip $(GO_BUILD_TAGS)),-tags '$(strip $(GO_BUILD_TAGS))',) .
+else
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS_ENTRY) $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
+endif
+
+$(OBJS_ENTRY):
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $(patsubst %.o,%.c,$@)
