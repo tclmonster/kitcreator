@@ -5,13 +5,16 @@ all: kit
 
 -include Makefile.common
 
-kit: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_VFS_OBJS) $(ARCHS)
+libkitsh.a: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
+	$(AR) cr $@ $^
+
+kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 ifeq ($(HAVE_GO),yes)
 	cd $(CURDIR)/gokit && \
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
-	CGO_CFLAGS="$(CPPFLAGS) $(CFLAGS)" \
-	CGO_LDFLAGS="$(abspath $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)) $(abspath $(ARCHS)) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
+	CGO_CFLAGS="$(CGO_CPPFLAGS) $(CFLAGS)" \
+	CGO_LDFLAGS="$(abspath libkitsh.a $(ARCHS)) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
 	$(GO) build -o $(CURDIR)/kit $(if $(strip $(GO_BUILD_TAGS)),-tags '$(strip $(GO_BUILD_TAGS))',) .
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS_ENTRY) $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)

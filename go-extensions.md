@@ -120,7 +120,7 @@ An extension can be:
 | Type | C archive (`inst/lib/*.a`) | Go package (`inst/go-pkg/`) | Notes |
 |------|---|----|-------|
 | **C-only** | Yes | No | Traditional path via `kitInit-libs.h` |
-| **Go-only** | No | Yes | Registered via Go `init()` |
+| **Go-only** | No | Yes | Auto-registered via `kitInit-register.go` |
 | **Hybrid** | Yes | Yes | Should register via one path only to avoid duplicates |
 
 ### Auto-Discovery (`DC_FIND_GOKIT_LIBS`)
@@ -178,8 +178,8 @@ extern int Anotherext_Init(Tcl_Interp *);
 import "C"
 
 func init() {
-	C.Tcl_StaticPackage(nil, C.CString("myext"), C.Myext_Init, nil)
-	C.Tcl_StaticPackage(nil, C.CString("anotherext"), C.Anotherext_Init, nil)
+	C.Tcl_StaticPackage(nil, C.CString("myext"), (*C.Tcl_PackageInitProc)(C.Myext_Init), nil)
+	C.Tcl_StaticPackage(nil, C.CString("anotherext"), (*C.Tcl_PackageInitProc)(C.Anotherext_Init), nil)
 }
 ```
 
@@ -223,19 +223,27 @@ package hello
 #include <tcl.h>
 #include <stdlib.h>
 
-extern int HelloCmd(void *, Tcl_Interp *, int, Tcl_Obj *const *);
+// Typedef for Tcl_Obj *const * -- Go cannot express const in pointer
+// types, so a typedef preserves the const qualifier through cgo.
+typedef Tcl_Obj *const *Tcl_ObjArgs;
+
+// Extern must match the cgo-generated types (using the typedef).
+extern int HelloCmd(ClientData, Tcl_Interp *, int, Tcl_ObjArgs);
 */
 import "C"
 import "unsafe"
 
 //export Hello_Init
 func Hello_Init(interp *C.Tcl_Interp) C.int {
-	C.Tcl_CreateObjCommand(interp, C.CString("hello"), C.HelloCmd, nil, nil)
+	// Cast required: cgo does nominal type checking on function pointers,
+	// so the //export function must be explicitly cast to *C.Tcl_ObjCmdProc.
+	C.Tcl_CreateObjCommand(interp, C.CString("hello"),
+		(*C.Tcl_ObjCmdProc)(C.HelloCmd), nil, nil)
 	return C.Tcl_PkgProvide(interp, C.CString("hello"), C.CString("1.0"))
 }
 
 //export HelloCmd
-func HelloCmd(clientData unsafe.Pointer, interp *C.Tcl_Interp, objc C.int, objv *unsafe.Pointer) C.int {
+func HelloCmd(clientData C.ClientData, interp *C.Tcl_Interp, objc C.int, objv C.Tcl_ObjArgs) C.int {
 	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(C.CString("Hello from Go!"), C.int(-1)))
 	return C.TCL_OK
 }
@@ -244,6 +252,27 @@ func HelloCmd(clientData unsafe.Pointer, interp *C.Tcl_Interp, objc C.int, objv 
 The build system auto-detects the `//export Hello_Init` function and generates
 a `Tcl_StaticPackage()` registration call in `gokit/kitInit-register.go`. No
 manual `register.go`, `register.c`, or `register.h` files are needed.
+
+### Cgo Patterns for Tcl Callbacks
+
+Go's cgo has two constraints that affect how `//export`ed functions interact
+with Tcl's C API:
+
+1. **`const` pointer types:** Go cannot express `const` in pointer types.
+   `Tcl_ObjCmdProc` requires `Tcl_Obj *const *objv`, but `**C.Tcl_Obj` maps
+   to `Tcl_Obj **`. The solution is a C typedef (e.g.,
+   `typedef Tcl_Obj *const *Tcl_ObjArgs`) in the preamble. Using
+   `C.Tcl_ObjArgs` in the Go function signature makes cgo generate the
+   correct const-qualified type.
+
+2. **Nominal function pointer checking:** cgo won't implicitly accept a
+   function pointer as `Tcl_ObjCmdProc *`, even if the signatures match.
+   An explicit cast is required: `(*C.Tcl_ObjCmdProc)(C.MyFunc)`.
+
+3. **Extern declarations for `//export` functions:** To reference an
+   `//export`ed function as `C.MyFunc` from Go code, you must provide a
+   matching `extern` declaration in the cgo preamble. The extern's parameter
+   types must exactly match what cgo generates (use the same typedef).
 
 After building, the extension is available in Tcl:
 ```tcl

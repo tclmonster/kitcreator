@@ -53,7 +53,7 @@ ifeq ($(HAVE_GO),yes)
 	cd $(CURDIR)/gokit-tclsh && \
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
-	CGO_CFLAGS="$(CPPFLAGS) $(CFLAGS)" \
+	CGO_CFLAGS="$(CGO_CPPFLAGS) $(CFLAGS)" \
 	CGO_LDFLAGS="$(abspath $(EXTRA_OBJS)) -L$(CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
 	$(GO) build -o $(CURDIR)/tclsh .
 else
@@ -67,7 +67,7 @@ ifeq ($(HAVE_GO),yes)
 	cd $(CURDIR)/gokit-wish && \
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
-	CGO_CFLAGS="$(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS)" \
+	CGO_CFLAGS="$(CGO_CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS)" \
 	CGO_LDFLAGS="$(abspath $(EXTRA_OBJS)) -L$(CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
 	$(GO) build -o $(CURDIR)/wish .
 else

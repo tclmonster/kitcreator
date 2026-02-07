@@ -196,12 +196,13 @@ AC_DEFUN(DC_FIND_GOKIT_LIBS, [
 "
 			gokit_found="${gokit_found} ${gopkg_ext}"
 
-			gopkg_initfunc="$(echo "${gopkg_ext}" | awk '{print toupper(substr($0,1,1)) substr($0,2) "_Init"}')"
+			gopkg_ext_ucase="`echo "${gopkg_ext}" | dd conv=ucase 2>/dev/null`"
+			gopkg_initfunc="`echo "${gopkg_ext_ucase}" | cut -c 1``echo "${gopkg_ext}" | cut -c 2-`_Init"
 
 			if grep -q "${gopkg_initfunc}" ${gopkgdir}/*.go 2>/dev/null; then
 				gokit_register_externs="${gokit_register_externs}extern int ${gopkg_initfunc}(Tcl_Interp *);
 "
-				gokit_register_calls="${gokit_register_calls}	C.Tcl_StaticPackage(nil, C.CString(\"${gopkg_ext}\"), C.${gopkg_initfunc}, nil)
+				gokit_register_calls="${gokit_register_calls}	C.Tcl_StaticPackage(nil, C.CString(\"${gopkg_ext}\"), (*C.Tcl_PackageInitProc)(C.${gopkg_initfunc}), nil)
 "
 			fi
 		done
