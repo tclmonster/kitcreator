@@ -41,23 +41,44 @@ AC_USE_SYSTEM_EXTENSIONS
 AC_USE_SYSTEM_EXTENSIONS
 
 dnl Check for Go compiler (optional, for Go entry points)
-AC_MSG_CHECKING([for Go compiler])
-AC_ARG_VAR([GO], [Path to Go compiler])
-if test -z "$GO"; then
-    AC_PATH_PROG([GO], [go], [no])
-fi
-if test "x$GO" != "xno"; then
-    go_version=`$GO version 2>/dev/null`
-    if test $? -eq 0; then
-        HAVE_GO=yes
-        AC_MSG_RESULT([$GO ($go_version)])
-    else
-        HAVE_GO=no
-        AC_MSG_RESULT([found $GO but it does not work])
-    fi
+AC_ARG_WITH(go, AS_HELP_STRING([--with-go], [enable Go entry points (default: auto-detect)]), [
+	with_go="${withval}"
+], [
+	with_go="auto"
+])
+
+if test "${with_go}" = "no"; then
+	HAVE_GO=no
+	AC_MSG_CHECKING([for Go compiler])
+	AC_MSG_RESULT([disabled by --without-go])
 else
-    HAVE_GO=no
-    AC_MSG_RESULT([not found, Go entry points disabled])
+	AC_MSG_CHECKING([for Go compiler])
+	AC_ARG_VAR([GO], [Path to Go compiler])
+	if test "${with_go}" != "yes" -a "${with_go}" != "auto"; then
+		GO="${with_go}"
+	fi
+	if test -z "$GO"; then
+	    AC_PATH_PROG([GO], [go], [no])
+	fi
+	if test "x$GO" != "xno"; then
+	    go_version=`$GO version 2>/dev/null`
+	    if test $? -eq 0; then
+	        HAVE_GO=yes
+	        AC_MSG_RESULT([$GO ($go_version)])
+	    else
+	        HAVE_GO=no
+	        if test "${with_go}" != "auto"; then
+	            AC_MSG_ERROR([Go compiler $GO does not work])
+	        fi
+	        AC_MSG_RESULT([found $GO but it does not work])
+	    fi
+	else
+	    HAVE_GO=no
+	    if test "${with_go}" != "auto"; then
+	        AC_MSG_ERROR([Go compiler not found (requested via --with-go)])
+	    fi
+	    AC_MSG_RESULT([not found, Go entry points disabled])
+	fi
 fi
 AC_SUBST(GO)
 AC_SUBST(HAVE_GO)
