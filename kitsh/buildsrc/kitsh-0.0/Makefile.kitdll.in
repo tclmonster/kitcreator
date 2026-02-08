@@ -54,8 +54,8 @@ ifeq ($(HAVE_GO),yes)
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
 	$(if $(GOROOT),GOROOT="$(GOROOT)",) \
-	CGO_CFLAGS="$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS))" \
-	CGO_LDFLAGS="$(abspath $(EXTRA_OBJS)) -L$(CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
+	CGO_CFLAGS="$(call cgo_iflags,$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS))) -I$(CGO_CURDIR)" \
+	CGO_LDFLAGS="$(call cgo_abspath,$(EXTRA_OBJS)) -L$(CGO_CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
 	$(GO) build -buildvcs=false -o $(CURDIR)/tclsh .
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o tclsh.o tclsh.c
@@ -69,8 +69,8 @@ ifeq ($(HAVE_GO),yes)
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
 	$(if $(GOROOT),GOROOT="$(GOROOT)",) \
-	CGO_CFLAGS="$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS))" \
-	CGO_LDFLAGS="$(abspath $(EXTRA_OBJS)) -L$(CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
+	CGO_CFLAGS="$(call cgo_iflags,$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS))) -I$(CGO_CURDIR)" \
+	CGO_LDFLAGS="$(call cgo_abspath,$(EXTRA_OBJS)) -L$(CGO_CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
 	$(GO) build -buildvcs=false -o $(CURDIR)/wish .
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -c -o wish.o wish.c

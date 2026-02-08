@@ -97,6 +97,22 @@ AC_SUBST(GOROOT)
 AC_SUBST(HAVE_GO)
 GO_BUILD_TAGS=""
 
+dnl Check for cygpath (MSYS2/Cygwin path conversion for cgo).
+dnl Go invokes the C linker as a native Windows process, bypassing
+dnl MSYS2 automatic path translation.  Use cygpath to convert.
+dnl Following TEA convention: CYGPATH is "cygpath -m" on Windows or
+dnl "echo" elsewhere, so it can always be used as a passthrough.
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [
+#ifdef _WIN32
+	#error win32
+#endif
+])], [
+	CYGPATH=echo
+], [
+	AC_CHECK_PROG(CYGPATH, cygpath, cygpath -m, echo)
+])
+AC_SUBST(CYGPATH)
+
 dnl Find out if we should build a DLL or an Executable
 TARGET="tclkit"
 EXTRA_KIT_DEPS=""
@@ -301,6 +317,30 @@ AS_CASE([$storage_mech],
 
 AC_SUBST(EXTRA_KIT_DEPS)
 AC_SUBST(LDFLAGS_ADD)
+
+dnl Build CGO_LDFLAGS_EXTRA: combined LDFLAGS + LIBS + LDFLAGS_ADD with
+dnl MSYS2/Cygwin paths converted to Windows mixed-mode for cgo.
+CGO_LDFLAGS_EXTRA=""
+for _f in $LDFLAGS $LIBS $LDFLAGS_ADD; do
+	case "$_f" in
+		/*)
+			CGO_LDFLAGS_EXTRA="$CGO_LDFLAGS_EXTRA `$CYGPATH "$_f"`"
+			;;
+		-L/*)
+			_path=`echo "$_f" | cut -c3-`
+			CGO_LDFLAGS_EXTRA="$CGO_LDFLAGS_EXTRA -L`$CYGPATH "$_path"`"
+			;;
+		*)
+			CGO_LDFLAGS_EXTRA="$CGO_LDFLAGS_EXTRA $_f"
+			;;
+	esac
+done
+AC_SUBST(CGO_LDFLAGS_EXTRA)
+
+dnl Save confdefs.h for cgo builds.  CGO_CFLAGS is an environment
+dnl variable so -D flags with spaces or quotes get mangled by Go's
+dnl field splitter.  Using -include avoids the issue.
+cp confdefs.h config.h
 
 dnl Put correct Makefile template in place
 rm -f Makefile.in
