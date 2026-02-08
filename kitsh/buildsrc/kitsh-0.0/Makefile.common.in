@@ -3,7 +3,6 @@ RC = @RC@
 OBJCOPY = @OBJCOPY@
 CFLAGS = @CFLAGS@ @SHOBJFLAGS@
 CPPFLAGS = @CPPFLAGS@ @DEFS@
-CGO_CPPFLAGS = @CPPFLAGS@
 WISH_CFLAGS = @WISH_CFLAGS@
 LDFLAGS = @LDFLAGS@
 SHOBJLDFLAGS = @SHOBJLDFLAGS@
@@ -23,13 +22,6 @@ GO = @GO@
 GOROOT = @GOROOT@
 HAVE_GO = @HAVE_GO@
 GO_BUILD_TAGS = @GO_BUILD_TAGS@
-CYGPATH = @CYGPATH@
-CGO_LDFLAGS_EXTRA = @CGO_LDFLAGS_EXTRA@
-
-# For cgo: convert paths via CYGPATH (cygpath -m on MSYS2, echo elsewhere)
-CGO_CURDIR := $(shell $(CYGPATH) '$(CURDIR)')
-cgo_abspath = $(shell $(CYGPATH) $(abspath $(1)))
-cgo_iflags = $(foreach f,$(1),$(if $(filter -I/%,$(f)),-I$(shell $(CYGPATH) '$(patsubst -I%,%,$(f))'),$(f)))
 
 # Build targets
 ## VFS Build

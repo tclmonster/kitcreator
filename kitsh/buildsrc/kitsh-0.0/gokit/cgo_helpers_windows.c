@@ -12,7 +12,6 @@
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  */
 
-#include "config.h"
 #include <tk.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

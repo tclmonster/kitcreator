@@ -1,4 +1,3 @@
-#include "config.h"
 #include <tcl.h>
 
 extern int TclKit_AppInit(Tcl_Interp *interp);

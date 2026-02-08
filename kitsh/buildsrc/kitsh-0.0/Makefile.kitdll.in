@@ -50,13 +50,11 @@ libtclkit@KITDLL_LIB_VERSION@.a: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA
 tclsh.o: tclsh.c
 tclsh: $(EXTRA_OBJS) @TARGET@
 ifeq ($(HAVE_GO),yes)
-	cd $(CURDIR)/gokit-tclsh && \
-	CGO_ENABLED=1 \
-	CC="$(CC)" \
-	$(if $(GOROOT),GOROOT="$(GOROOT)",) \
-	CGO_CFLAGS="$(call cgo_iflags,$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS))) -I$(CGO_CURDIR)" \
-	CGO_LDFLAGS="$(call cgo_abspath,$(EXTRA_OBJS)) -L$(CGO_CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
-	$(GO) build -buildvcs=false -o $(CURDIR)/tclsh .
+	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
+	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
+	LDFLAGS="$(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
+	GO_PKGDIR=gokit-tclsh GO_OUTPUT="$(CURDIR)/tclsh" \
+	"$(TCLSH_NATIVE)" gobuild.tcl
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o tclsh.o tclsh.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o tclsh tclsh.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)
@@ -65,13 +63,11 @@ endif
 wish.o: wish.c
 wish: $(EXTRA_OBJS) libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
 ifeq ($(HAVE_GO),yes)
-	cd $(CURDIR)/gokit-wish && \
-	CGO_ENABLED=1 \
-	CC="$(CC)" \
-	$(if $(GOROOT),GOROOT="$(GOROOT)",) \
-	CGO_CFLAGS="$(call cgo_iflags,$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS))) -I$(CGO_CURDIR)" \
-	CGO_LDFLAGS="$(call cgo_abspath,$(EXTRA_OBJS)) -L$(CGO_CURDIR) -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
-	$(GO) build -buildvcs=false -o $(CURDIR)/wish .
+	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
+	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" WISH_CFLAGS="$(WISH_CFLAGS)" \
+	LDFLAGS="$(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
+	GO_PKGDIR=gokit-wish GO_OUTPUT="$(CURDIR)/wish" \
+	"$(TCLSH_NATIVE)" gobuild.tcl
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -c -o wish.o wish.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -o wish wish.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)

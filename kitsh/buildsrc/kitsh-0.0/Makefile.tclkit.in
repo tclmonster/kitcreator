@@ -10,13 +10,12 @@ libkitsh.a: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 
 ifeq ($(HAVE_GO),yes)
 kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
-	cd $(CURDIR)/gokit && \
-	CGO_ENABLED=1 \
-	CC="$(CC)" \
-	$(if $(GOROOT),GOROOT="$(GOROOT)",) \
-	CGO_CFLAGS="$(call cgo_iflags,$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS))) -I$(CGO_CURDIR)" \
-	CGO_LDFLAGS="$(call cgo_abspath,libkitsh.a $(ARCHS)) $(CGO_LDFLAGS_EXTRA)" \
-	$(GO) build -buildvcs=false -o $(CURDIR)/kit $(if $(strip $(GO_BUILD_TAGS)),-tags '$(strip $(GO_BUILD_TAGS))',) .
+	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
+	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
+	LDFLAGS="libkitsh.a $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
+	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/kit" \
+	GO_BUILD_TAGS="$(GO_BUILD_TAGS)" \
+	"$(TCLSH_NATIVE)" gobuild.tcl
 else
 kit: $(OBJS_ENTRY) libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS_ENTRY) $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
