@@ -3,7 +3,7 @@ builtin(include,find-tclsh.m4)
 
 AC_DEFUN(DC_DO_TCL, [
 	AC_MSG_CHECKING([path to tcl])
-	AC_ARG_WITH(tcl, AC_HELP_STRING([--with-tcl], [directory containing tcl configuration (tclConfig.sh)]), [], [
+	AC_ARG_WITH(tcl, AS_HELP_STRING([--with-tcl], [directory containing tcl configuration (tclConfig.sh)]), [], [
 		with_tcl="auto"
 	])
 
@@ -54,7 +54,7 @@ AC_DEFUN(DC_DO_TCL, [
 
 AC_DEFUN(DC_DO_TK, [
 	AC_MSG_CHECKING([path to tk])
-	AC_ARG_WITH(tk, AC_HELP_STRING([--with-tk], [directory containing tk configuration (tkConfig.sh)]), [], [
+	AC_ARG_WITH(tk, AS_HELP_STRING([--with-tk], [directory containing tk configuration (tkConfig.sh)]), [], [
 		with_tk="auto"
 	])
 
@@ -130,7 +130,7 @@ AC_DEFUN(DC_DO_STATIC_LINK_LIB, [
 
 		LIBS="${SAVELIBS} ${trylink}"
 
-		AC_LINK_IFELSE(AC_LANG_PROGRAM([], []), [
+		AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [
 			staticlib="${trylink}"
 			found="1"
 
@@ -478,7 +478,7 @@ AC_DEFUN(DC_STATIC_LIBGCC, [
 	staticlibgcc=""
 	for trylink in "-static-libgcc"; do
 		LDFLAGS="${SAVELDFLAGS} ${trylink}"
-		AC_LINK_IFELSE(AC_LANG_PROGRAM([], []), [
+		AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])], [
 			staticlibgcc="${trylink}"
 
 			break
@@ -502,7 +502,7 @@ AC_DEFUN(DC_CHECK_FOR_ACCEPTABLE_DLADDR, [
 	AC_MSG_CHECKING([for acceptable dladdr])
 
 	AC_LINK_IFELSE(
-		AC_LANG_PROGRAM([[
+		[AC_LANG_PROGRAM([[
 #ifdef HAVE_DLFCN_H
 #include <dlfcn.h>
 #endif
@@ -511,8 +511,7 @@ char *x;
 Dl_info syminfo;
 dladdr((void *) 0, &syminfo);
 x = syminfo.dli_fname;
-			]]
-		),
+			]])],
 		[
 			AC_MSG_RESULT([found])
 			AC_DEFINE(HAVE_ACCEPTABLE_DLADDR, [1], [Define to 1 if you have an acceptable dladdr implementation with dli_fname])
@@ -534,8 +533,8 @@ AC_DEFUN(DC_TEST_SHOBJFLAGS, [
 
   LDFLAGS="$OLD_LDFLAGS $1 $2"
 
-  AC_TRY_LINK([#include <stdio.h>
-int unrestst(void);], [ printf("okay\n"); unrestst(); return(0); ], [ SHOBJFLAGS="$1"; SHOBJLDFLAGS="$2" ], [
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <stdio.h>
+int unrestst(void);]], [[ printf("okay\n"); unrestst(); return(0); ]])], [ SHOBJFLAGS="$1"; SHOBJLDFLAGS="$2" ], [
   LDFLAGS="$OLD_LDFLAGS"
   $3
 ])
@@ -618,10 +617,9 @@ AC_DEFUN(DC_TEST_WHOLE_ARCHIVE_SHARED_LIB, [
 
 	LIBS="${WHOLEARCHIVE} $1 ${NOWHOLEARCHIVE} ${SAVE_LIBS}"
 	AC_LINK_IFELSE(
-		AC_LANG_PROGRAM([[
+		[AC_LANG_PROGRAM([[
 			]], [[
-			]]
-		),
+			]])],
 		[
 			LIBS="${SAVE_LIBS}"
 
@@ -644,7 +642,7 @@ AC_DEFUN(DC_CHECK_FOR_WHOLE_ARCHIVE, [
 	for check in "-Wl,--whole-archive -Wl,--no-whole-archive" "-Wl,-z,allextract -Wl,-z,defaultextract"; do
 		CFLAGS="${SAVE_CFLAGS} ${check}"
 
-		AC_LINK_IFELSE(AC_LANG_PROGRAM([], []),
+		AC_LINK_IFELSE([AC_LANG_PROGRAM([], [])],
 			[
 				wholearchive="${check}"
 
@@ -674,7 +672,7 @@ AC_DEFUN(DC_SETLDRUNPATH, [
 
 	for testldflags in "-Wl,-rpath -Wl,$1" "-Wl,-R -Wl,$1"; do
 		LDFLAGS="${OLD_LDFLAGS} ${testldflags}"
-		AC_TRY_LINK([#include <stdio.h>], [ return(0); ], [
+		AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <stdio.h>]], [[ return(0); ]])], [
 			LDRUNPATH="$LDRUNPATH $testldflags"
 
 			break
@@ -689,7 +687,7 @@ AC_DEFUN(DC_SETLDRUNPATH, [
 AC_DEFUN(DC_SET_DIR2C_FLAGS, [
 	AC_MSG_CHECKING([if we should obsufcate the CVFS])
 
-	AC_ARG_WITH(obsfucated-cvfs, AC_HELP_STRING([--with-obsfucated-cvfs], [Obsfucate CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
+	AC_ARG_WITH(obsfucated-cvfs, AS_HELP_STRING([--with-obsfucated-cvfs], [Obsfucate CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
 		obsfucate_cvfs=$withval
 	], [
 		obsfucate_cvfs='no'
@@ -706,7 +704,7 @@ AC_DEFUN(DC_SET_DIR2C_FLAGS, [
 			;;
 	esac
 
-	AC_ARG_WITH(compressed-cvfs, AC_HELP_STRING([--with-compressed-cvfs], [Compress CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
+	AC_ARG_WITH(compressed-cvfs, AS_HELP_STRING([--with-compressed-cvfs], [Compress CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
 		compress_cvfs=$withval
 	], [
 		compress_cvfs='no'
