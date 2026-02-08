@@ -61,6 +61,18 @@ else
 	    AC_PATH_PROG([GO], [go], [no])
 	fi
 	if test "x$GO" != "xno"; then
+	    dnl Auto-detect GOROOT for distro-packaged Go (e.g. MSYS2) where the
+	    dnl binary is not at $GOROOT/bin/go and self-location is disabled.
+	    if test -z "$GOROOT"; then
+	        _go_bindir=`AS_DIRNAME(["$GO"])`
+	        for _try_goroot in "${_go_bindir}/../lib/go" "${_go_bindir}/.."; do
+	            if test -d "${_try_goroot}/src/runtime"; then
+	                GOROOT=`cd "${_try_goroot}" && pwd`
+	                export GOROOT
+	                break
+	            fi
+	        done
+	    fi
 	    go_version=`$GO version 2>&1`
 	    if test $? -eq 0; then
 	        HAVE_GO=yes
@@ -81,6 +93,7 @@ else
 	fi
 fi
 AC_SUBST(GO)
+AC_SUBST(GOROOT)
 AC_SUBST(HAVE_GO)
 GO_BUILD_TAGS=""
 

@@ -13,9 +13,10 @@ kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 	cd $(CURDIR)/gokit && \
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
-	CGO_CFLAGS="$(CGO_CPPFLAGS) $(CFLAGS)" \
+	$(if $(GOROOT),GOROOT="$(GOROOT)",) \
+	CGO_CFLAGS="$(filter-out -mwindows,$(CGO_CPPFLAGS) $(CFLAGS))" \
 	CGO_LDFLAGS="$(abspath libkitsh.a $(ARCHS)) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
-	$(GO) build -o $(CURDIR)/kit $(if $(strip $(GO_BUILD_TAGS)),-tags '$(strip $(GO_BUILD_TAGS))',) .
+	$(GO) build -buildvcs=false -o $(CURDIR)/kit $(if $(strip $(GO_BUILD_TAGS)),-tags '$(strip $(GO_BUILD_TAGS))',) .
 else
 kit: $(OBJS_ENTRY) libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS_ENTRY) $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
