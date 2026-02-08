@@ -8,8 +8,8 @@ all: kit
 libkitsh.a: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 	$(AR) cr $@ $^
 
-kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 ifeq ($(HAVE_GO),yes)
+kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 	cd $(CURDIR)/gokit && \
 	CGO_ENABLED=1 \
 	CC="$(CC)" \
@@ -17,6 +17,7 @@ ifeq ($(HAVE_GO),yes)
 	CGO_LDFLAGS="$(abspath libkitsh.a $(ARCHS)) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
 	$(GO) build -o $(CURDIR)/kit $(if $(strip $(GO_BUILD_TAGS)),-tags '$(strip $(GO_BUILD_TAGS))',) .
 else
+kit: $(OBJS_ENTRY) libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS_ENTRY) $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
 endif
 

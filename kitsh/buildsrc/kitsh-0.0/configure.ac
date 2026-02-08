@@ -61,16 +61,16 @@ else
 	    AC_PATH_PROG([GO], [go], [no])
 	fi
 	if test "x$GO" != "xno"; then
-	    go_version=`$GO version 2>/dev/null`
+	    go_version=`$GO version 2>&1`
 	    if test $? -eq 0; then
 	        HAVE_GO=yes
 	        AC_MSG_RESULT([$GO ($go_version)])
 	    else
 	        HAVE_GO=no
 	        if test "${with_go}" != "auto"; then
-	            AC_MSG_ERROR([Go compiler $GO does not work])
+	            AC_MSG_ERROR([Go compiler $GO does not work: $go_version])
 	        fi
-	        AC_MSG_RESULT([found $GO but it does not work])
+	        AC_MSG_RESULT([found $GO but it does not work: $go_version])
 	    fi
 	else
 	    HAVE_GO=no
