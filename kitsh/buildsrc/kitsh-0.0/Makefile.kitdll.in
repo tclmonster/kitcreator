@@ -53,7 +53,7 @@ ifeq ($(HAVE_GO),yes)
 	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
 	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
 	LDFLAGS="$(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
-	GO_PKGDIR=gokit-tclsh GO_OUTPUT="$(CURDIR)/tclsh" \
+	GO_PKGDIR=gokit-tclsh GO_OUTPUT="$(CURDIR)/tclsh@EXEEXT@" \
 	"$(TCLSH_NATIVE)" gobuild.tcl
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o tclsh.o tclsh.c
@@ -66,7 +66,7 @@ ifeq ($(HAVE_GO),yes)
 	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
 	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" WISH_CFLAGS="$(WISH_CFLAGS)" \
 	LDFLAGS="$(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
-	GO_PKGDIR=gokit-wish GO_OUTPUT="$(CURDIR)/wish" \
+	GO_PKGDIR=gokit-wish GO_OUTPUT="$(CURDIR)/wish@EXEEXT@" \
 	"$(TCLSH_NATIVE)" gobuild.tcl
 else
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -c -o wish.o wish.c

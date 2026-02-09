@@ -12,8 +12,8 @@ ifeq ($(HAVE_GO),yes)
 kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
 	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
 	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
-	LDFLAGS="libkitsh.a $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
-	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/kit" \
+	LDFLAGS="$(EXTRA_OBJS) libkitsh.a $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
+	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/kit@EXEEXT@" \
 	GO_BUILD_TAGS="$(GO_BUILD_TAGS)" \
 	"$(TCLSH_NATIVE)" gobuild.tcl
 else
