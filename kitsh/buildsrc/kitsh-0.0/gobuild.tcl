@@ -105,7 +105,11 @@ foreach flag [getenv LDFLAGS] {
             append ::env(CGO_LDFLAGS) " [cvtpath $flag]"
         }
         "-L*" {
-            append ::env(CGO_LDFLAGS) " [cvtflag $flag]"
+            set lpath [string range $flag 2 end]
+            if {[file pathtype $lpath] ne "absolute"} {
+                set lpath [file normalize $lpath]
+            }
+            append ::env(CGO_LDFLAGS) " -L[cvtpath $lpath]"
         }
         "-*" {
             # Pass through other linker flags
