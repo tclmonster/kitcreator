@@ -45,9 +45,13 @@ if {$goroot ne ""} {
     set ::env(GOROOT) [cvtpath $goroot]
 }
 
+set mwindows 0
 set ::env(CGO_CFLAGS) "-I[cvtpath [pwd]]"
 foreach flag [concat [getenv CFLAGS] [getenv WISH_CFLAGS]] {
     if {$flag eq "-mwindows"} {
+        # Linker flag, not a compiler flag — redirect to CGO_LDFLAGS
+        # so Go produces a Windows GUI subsystem binary.
+        set mwindows 1
         continue
     }
     switch -glob -- $flag {
@@ -60,14 +64,36 @@ foreach flag [concat [getenv CFLAGS] [getenv WISH_CFLAGS]] {
     }
 }
 
-foreach flag [getenv CPPFLAGS] {
-    switch -glob -- $flag {
-        -I* {
-            append ::env(CGO_CFLAGS) " [cvtflag $flag]"
-        }
-        default {
-            # Skip other CPPFLAGS
-        }
+# Process CPPFLAGS: convert -I paths and pass -D defines through.
+# Use the raw env value and regexp (not Tcl list parsing via foreach)
+# because -D values may contain backslash-escaped quotes and spaces
+# (e.g. -DPACKAGE_STRING=\"kitsh 0.0\") that would be corrupted.
+if {[info exists ::env(CPPFLAGS)]} {
+    set raw $::env(CPPFLAGS)
+
+    # Convert -I paths via cygpath
+    foreach {match path} [regexp -all -inline -- {-I(\S+)} [string map {\\ /} $raw]] {
+        append ::env(CGO_CFLAGS) " -I[cvtpath $path]"
+    }
+
+    # Extract non-I flags (primarily -D defines from @DEFS@).
+    set defs [regsub -all -- {-I\S+} $raw {}]
+
+    # Remove backslash before space — a shell escape artifact.
+    # @DEFS@ uses \"  and \<space> for shell escaping.  The Makefile
+    # recipe wraps $(CPPFLAGS) in double quotes for the env-var
+    # assignment, so the shell converts \" -> " but leaves \<space>
+    # as literal backslash + space.
+    set defs [string map [list "\\ " " "] $defs]
+
+    # Wrap -D flags whose values contain double quotes in single
+    # quotes so that Go's quoted.Split (which only recognises quotes
+    # at the START of a token) keeps them as single tokens.
+    set defs [regsub -all -- {-D\w+="[^"]*"} $defs {'&'}]
+
+    set defs [string trim $defs]
+    if {$defs ne ""} {
+        append ::env(CGO_CFLAGS) " $defs"
     }
 }
 
@@ -90,6 +116,9 @@ foreach flag [getenv LDFLAGS] {
             append ::env(CGO_LDFLAGS) " [cvtpath [file join [pwd] $flag]]"
         }
     }
+}
+if {$mwindows} {
+    append ::env(CGO_LDFLAGS) " -mwindows"
 }
 
 set go [cvtpath [getenv GO go]]
