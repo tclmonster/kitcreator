@@ -7,6 +7,7 @@ all: kit
 
 libkitsh.a: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 	$(AR) cr $@ $^
+	$(RANLIB) $@
 
 ifeq ($(HAVE_GO),yes)
 kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
