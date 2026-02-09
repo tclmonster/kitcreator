@@ -1,4 +1,5 @@
 #ifdef _WIN32
+#ifndef TCLKIT_DLL
 /*
  * cgo_helpers_windows.c --
  *
@@ -220,4 +221,8 @@ void cgo_call_winmain(void)
 
     Tk_Main(argc, argv, TclKit_AppInit);
 }
+#else
+/* Stub for KitDLL c-shared build -- never called. */
+void cgo_call_winmain(void) {}
+#endif /* !TCLKIT_DLL */
 #endif /* _WIN32 */

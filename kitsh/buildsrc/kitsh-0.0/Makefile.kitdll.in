@@ -9,6 +9,16 @@ kitdll: libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
 kitdll-static: libtclkit@KITDLL_LIB_VERSION@.a
 
 ## DLL Build
+ifeq ($(HAVE_GO),yes)
+libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
+	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
+	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
+	LDFLAGS="$(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(LDFLAGS) $(SHOBJLDFLAGS) @WHOLEARCHIVE@ $(ARCHS) @NOWHOLEARCHIVE@ $(LIBS) $(LDFLAGS_ADD)" \
+	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@" \
+	GO_BUILDMODE=c-shared \
+	GO_BUILD_TAGS="$(GO_BUILD_TAGS)" \
+	"$(TCLSH_NATIVE)" gobuild.tcl
+else
 libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@ $(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(LDFLAGS) $(SHOBJLDFLAGS) @WHOLEARCHIVE@ $(ARCHS) @NOWHOLEARCHIVE@ $(LIBS) $(LDFLAGS_ADD)
 	-case "@host_os@" in \
@@ -33,6 +43,7 @@ libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS
 		$(CC) $(CPPFLAGS) $(CFLAGS) -o libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@ $(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(LDFLAGS) $(SHOBJLDFLAGS) @WHOLEARCHIVE@ $(ARCHS) @NOWHOLEARCHIVE@ $(LIBS) || \
 			mv libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@.safe libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
 	-rm -f libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@.safe
+endif
 
 ## Static archive build
 libtclkit@KITDLL_LIB_VERSION@.a: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
@@ -49,28 +60,12 @@ libtclkit@KITDLL_LIB_VERSION@.a: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA
 # Test driver
 tclsh.o: tclsh.c
 tclsh: $(EXTRA_OBJS) @TARGET@
-ifeq ($(HAVE_GO),yes)
-	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
-	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
-	LDFLAGS="$(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
-	GO_PKGDIR=gokit-tclsh GO_OUTPUT="$(CURDIR)/tclsh@EXEEXT@" \
-	"$(TCLSH_NATIVE)" gobuild.tcl
-else
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o tclsh.o tclsh.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o tclsh tclsh.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)
-endif
 
 wish.o: wish.c
 wish: $(EXTRA_OBJS) libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
-ifeq ($(HAVE_GO),yes)
-	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
-	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" WISH_CFLAGS="$(WISH_CFLAGS)" \
-	LDFLAGS="$(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)" \
-	GO_PKGDIR=gokit-wish GO_OUTPUT="$(CURDIR)/wish@EXEEXT@" \
-	"$(TCLSH_NATIVE)" gobuild.tcl
-else
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -c -o wish.o wish.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -o wish wish.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)
-endif
 
 .PHONY: kitdll kitdll-static

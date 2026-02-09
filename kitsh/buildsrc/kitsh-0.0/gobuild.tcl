@@ -129,6 +129,10 @@ set go [cvtpath [getenv GO go]]
 set go_output [cvtpath [getenv GO_OUTPUT]]
 
 set cmd [list $go build -buildvcs=false -o $go_output]
+set buildmode [getenv GO_BUILDMODE ""]
+if {$buildmode ne ""} {
+    lappend cmd -buildmode $buildmode
+}
 set tags [string trim [getenv GO_BUILD_TAGS]]
 if {$tags ne ""} {
     lappend cmd -tags $tags
