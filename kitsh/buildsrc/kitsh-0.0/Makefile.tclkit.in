@@ -1,8 +1,26 @@
-OBJS = kitInit.o main.o pwb.o rechan.o zlib.o winMain.o
+OBJS_C = kitInit.o pwb.o rechan.o zlib.o
+OBJS_ENTRY = main.o winMain.o
 
 all: kit
 
 -include Makefile.common
 
-kit: $(OBJS) $(EXTRA_OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_VFS_OBJS) $(ARCHS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
+libkitsh.a: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
+	$(AR) cr $@ $^
+	$(RANLIB) $@
+
+ifeq ($(HAVE_GO),yes)
+kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
+	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
+	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
+	LDFLAGS="$(EXTRA_OBJS) libkitsh.a $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
+	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/kit@EXEEXT@" \
+	GO_BUILD_TAGS="$(GO_BUILD_TAGS)" \
+	"$(TCLSH_NATIVE)" gobuild.tcl
+else
+kit: $(OBJS_ENTRY) libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o kit $(OBJS_ENTRY) $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(ARCHS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)
+endif
+
+$(OBJS_ENTRY):
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $(patsubst %.o,%.c,$@)

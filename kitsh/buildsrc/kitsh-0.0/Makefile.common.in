@@ -18,6 +18,10 @@ LDFLAGS_ADD = @LDFLAGS_ADD@
 DIR2C_FLAGS = @DIR2C_FLAGS@
 AR = @AR@
 RANLIB = @RANLIB@
+GO = @GO@
+GOROOT = @GOROOT@
+HAVE_GO = @HAVE_GO@
+GO_BUILD_TAGS = @GO_BUILD_TAGS@
 
 # Build targets
 ## VFS Build
@@ -45,7 +49,7 @@ kit.res.o: kit.rc tclkit.ico
 # Cleanup routines
 clean:
 	rm -rf __TMP__
-	rm -f kit kit.res.o
+	rm -f kit kit.res.o libkitsh.a
 	rm -f libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
 	rm -f $(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 	rm -f cvfs_data_tcl.c cvfs_data_tcl.o
@@ -54,9 +58,9 @@ clean:
 	rm -f wish.o wish wish.exe
 
 distclean: clean
-	rm -f kitInit-libs.h
+	rm -f kitInit-libs.h gokit/kitInit-libs.go gokit/kitInit-register.go
 	rm -f Makefile Makefile.in Makefile.common
-	rm -f config.status config.log
+	rm -f config.status config.log config.h
 	rm -f *~
 	rm -rf starpack.vfs
 	rm -rf autom4te.cache

@@ -36,8 +36,67 @@ dnl Checks for programs.
 AC_PROG_CC
 AC_PROG_MAKE_SET
 AC_PROG_INSTALL
+AC_CHECK_TOOL(AR, ar, ar)
+AC_PROG_RANLIB
 AC_USE_SYSTEM_EXTENSIONS
 AC_USE_SYSTEM_EXTENSIONS
+
+dnl Check for Go compiler (optional, for Go entry points)
+AC_ARG_WITH(go, AS_HELP_STRING([--with-go], [enable Go entry points (default: auto-detect)]), [
+	with_go="${withval}"
+], [
+	with_go="auto"
+])
+
+if test "${with_go}" = "no"; then
+	HAVE_GO=no
+	AC_MSG_CHECKING([for Go compiler])
+	AC_MSG_RESULT([disabled by --without-go])
+else
+	AC_MSG_CHECKING([for Go compiler])
+	AC_ARG_VAR([GO], [Path to Go compiler])
+	if test "${with_go}" != "yes" -a "${with_go}" != "auto"; then
+		GO="${with_go}"
+	fi
+	if test -z "$GO"; then
+	    AC_PATH_PROG([GO], [go], [no])
+	fi
+	if test "x$GO" != "xno"; then
+	    dnl Auto-detect GOROOT for distro-packaged Go (e.g. MSYS2) where the
+	    dnl binary is not at $GOROOT/bin/go and self-location is disabled.
+	    if test -z "$GOROOT"; then
+	        _go_bindir=`AS_DIRNAME(["$GO"])`
+	        for _try_goroot in "${_go_bindir}/../lib/go" "${_go_bindir}/.."; do
+	            if test -d "${_try_goroot}/src/runtime"; then
+	                GOROOT=`cd "${_try_goroot}" && pwd`
+	                export GOROOT
+	                break
+	            fi
+	        done
+	    fi
+	    go_version=`$GO version 2>&1`
+	    if test $? -eq 0; then
+	        HAVE_GO=yes
+	        AC_MSG_RESULT([$GO ($go_version)])
+	    else
+	        HAVE_GO=no
+	        if test "${with_go}" != "auto"; then
+	            AC_MSG_ERROR([Go compiler $GO does not work: $go_version])
+	        fi
+	        AC_MSG_RESULT([found $GO but it does not work: $go_version])
+	    fi
+	else
+	    HAVE_GO=no
+	    if test "${with_go}" != "auto"; then
+	        AC_MSG_ERROR([Go compiler not found (requested via --with-go)])
+	    fi
+	    AC_MSG_RESULT([not found, Go entry points disabled])
+	fi
+fi
+AC_SUBST(GO)
+AC_SUBST(GOROOT)
+AC_SUBST(HAVE_GO)
+GO_BUILD_TAGS=""
 
 dnl Find out if we should build a DLL or an Executable
 TARGET="tclkit"
@@ -140,15 +199,6 @@ AC_CHECK_FUNCS(Tcl_GetEncodingNameFromEnvironment Tcl_SetSystemEncoding)
 LIBS="${SAVE_LIBS}"
 
 dnl Check for optional headers
-m4_warn([obsolete],
-[The preprocessor macro `STDC_HEADERS' is obsolete.
-  Except in unusual embedded environments, you can safely include all
-  ISO C90 headers unconditionally.])dnl
-# Autoupdate added the next two lines to ensure that your configure
-# script's behavior did not change.  They are probably safe to remove.
-AC_CHECK_INCLUDES_DEFAULT
-AC_PROG_EGREP
-
 AC_CHECK_HEADERS(unistd.h string.h strings.h)
 
 dnl Check for optional system calls
@@ -256,6 +306,8 @@ AC_SUBST(LDFLAGS_ADD)
 dnl Put correct Makefile template in place
 rm -f Makefile.in
 cp Makefile.${TARGET_BASE}.in Makefile.in
+
+AC_SUBST(GO_BUILD_TAGS)
 
 dnl Produce output
 AC_CONFIG_FILES([Makefile Makefile.common])
