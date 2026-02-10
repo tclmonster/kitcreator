@@ -13,7 +13,11 @@
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  */
 
+#ifdef KIT_INCLUDES_TK
 #include <tk.h>
+#else
+#include <tcl.h>
+#endif
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #undef WIN32_LEAN_AND_MEAN
@@ -219,7 +223,11 @@ void cgo_call_winmain(void)
     TK_LOCAL_MAIN_HOOK(&argc, &argv);
 #endif
 
+#ifdef KIT_INCLUDES_TK
     Tk_Main(argc, argv, TclKit_AppInit);
+#else
+    Tcl_Main(argc, argv, TclKit_AppInit);
+#endif
 }
 #else
 /* Stub for KitDLL c-shared build -- never called. */
