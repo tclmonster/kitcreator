@@ -98,7 +98,9 @@ if {[info exists ::env(CPPFLAGS)]} {
 }
 
 set ::env(CGO_LDFLAGS) ""
-foreach flag [getenv LDFLAGS] {
+set ldflags [getenv LDFLAGS]
+for {set i 0} {$i < [llength $ldflags]} {incr i} {
+    set flag [lindex $ldflags $i]
     switch -glob -- $flag {
         "/*" {
             # Bare absolute path (e.g. /clang64/lib/libdl.a)
@@ -110,6 +112,14 @@ foreach flag [getenv LDFLAGS] {
                 set lpath [file normalize $lpath]
             }
             append ::env(CGO_LDFLAGS) " -L[cvtpath $lpath]"
+        }
+        "-framework" {
+            # macOS: -framework takes the next word as its argument
+            append ::env(CGO_LDFLAGS) " $flag"
+            incr i
+            if {$i < [llength $ldflags]} {
+                append ::env(CGO_LDFLAGS) " [lindex $ldflags $i]"
+            }
         }
         "-*" {
             # Pass through other linker flags
