@@ -97,43 +97,49 @@ if {[info exists ::env(CPPFLAGS)]} {
     }
 }
 
-set ::env(CGO_LDFLAGS) ""
+# Build linker flags for -extldflags instead of CGO_LDFLAGS.
+# Go collects CGO_LDFLAGS per cgo-using package and combines them
+# at link time, so archives appear once per package — causing
+# "multiple definition" errors with --whole-archive on GNU ld.
+# Using -extldflags passes flags once to the external linker.
+set extldflags ""
 set ldflags [getenv LDFLAGS]
 for {set i 0} {$i < [llength $ldflags]} {incr i} {
     set flag [lindex $ldflags $i]
     switch -glob -- $flag {
         "/*" {
             # Bare absolute path (e.g. /clang64/lib/libdl.a)
-            append ::env(CGO_LDFLAGS) " [cvtpath $flag]"
+            append extldflags " [cvtpath $flag]"
         }
         "-L*" {
             set lpath [string range $flag 2 end]
             if {[file pathtype $lpath] ne "absolute"} {
                 set lpath [file normalize $lpath]
             }
-            append ::env(CGO_LDFLAGS) " -L[cvtpath $lpath]"
+            append extldflags " -L[cvtpath $lpath]"
         }
         "-framework" {
             # macOS: -framework takes the next word as its argument
-            append ::env(CGO_LDFLAGS) " $flag"
+            append extldflags " $flag"
             incr i
             if {$i < [llength $ldflags]} {
-                append ::env(CGO_LDFLAGS) " [lindex $ldflags $i]"
+                append extldflags " [lindex $ldflags $i]"
             }
         }
         "-*" {
             # Pass through other linker flags
-            append ::env(CGO_LDFLAGS) " $flag"
+            append extldflags " $flag"
         }
         default {
             # Bare relative path — resolve against builddir
-            append ::env(CGO_LDFLAGS) " [cvtpath [file join [pwd] $flag]]"
+            append extldflags " [cvtpath [file join [pwd] $flag]]"
         }
     }
 }
 if {$mwindows} {
-    append ::env(CGO_LDFLAGS) " -mwindows"
+    append extldflags " -mwindows"
 }
+set ::env(CGO_LDFLAGS) ""
 
 set go [cvtpath [getenv GO go]]
 set go_output [cvtpath [getenv GO_OUTPUT]]
@@ -142,6 +148,10 @@ set cmd [list $go build -buildvcs=false -o $go_output]
 set buildmode [getenv GO_BUILDMODE ""]
 if {$buildmode ne ""} {
     lappend cmd -buildmode $buildmode
+}
+set extldflags [string trim $extldflags]
+if {$extldflags ne ""} {
+    lappend cmd -ldflags "-extldflags \"$extldflags\""
 }
 set tags [string trim [getenv GO_BUILD_TAGS]]
 if {$tags ne ""} {
@@ -152,6 +162,6 @@ lappend cmd .
 cd [getenv GO_PKGDIR]
 puts "gobuild.tcl: cd [pwd]"
 puts "gobuild.tcl: CGO_CFLAGS=$::env(CGO_CFLAGS)"
-puts "gobuild.tcl: CGO_LDFLAGS=$::env(CGO_LDFLAGS)"
+puts "gobuild.tcl: extldflags=$extldflags"
 puts "gobuild.tcl: exec $cmd"
 exec {*}$cmd >@ stdout 2>@ stderr
