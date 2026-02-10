@@ -42,10 +42,10 @@ AC_USE_SYSTEM_EXTENSIONS
 AC_USE_SYSTEM_EXTENSIONS
 
 dnl Check for Go compiler (optional, for Go entry points)
-AC_ARG_WITH(go, AS_HELP_STRING([--with-go], [enable Go entry points (default: auto-detect)]), [
+AC_ARG_WITH(go, AS_HELP_STRING([--with-go], [enable Go entry points (default: disabled)]), [
 	with_go="${withval}"
 ], [
-	with_go="auto"
+	with_go="no"
 ])
 
 if test "${with_go}" = "no"; then
