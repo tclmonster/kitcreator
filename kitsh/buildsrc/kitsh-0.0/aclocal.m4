@@ -172,6 +172,7 @@ AC_DEFUN(DC_FIND_GOKIT_LIBS, [
 		gokit_replaces=""
 		gokit_register_externs=""
 		gokit_register_calls=""
+		gokit_cflags=""
 		gokit_found=""
 
 		for gopkgdir in ../../../*/inst/go-pkg/; do
@@ -194,6 +195,7 @@ AC_DEFUN(DC_FIND_GOKIT_LIBS, [
 "
 			gokit_replaces="${gokit_replaces}	${gopkg_mod} => ../../../../${gopkg_ext}/inst/go-pkg
 "
+			gokit_cflags="${gokit_cflags} -I`cd "${gopkgdir}" && pwd`"
 			gokit_found="${gokit_found} ${gopkg_ext}"
 
 			gopkg_ext_ucase="`echo "${gopkg_ext}" | dd conv=ucase 2>/dev/null`"
@@ -212,6 +214,9 @@ AC_DEFUN(DC_FIND_GOKIT_LIBS, [
 		else
 			AC_MSG_RESULT([none])
 		fi
+
+		GOKIT_CFLAGS="${gokit_cflags}"
+		AC_SUBST(GOKIT_CFLAGS)
 
 		dnl Generate gokit/kitInit-libs.go
 		cat > gokit/kitInit-libs.go << 'GOEOF'

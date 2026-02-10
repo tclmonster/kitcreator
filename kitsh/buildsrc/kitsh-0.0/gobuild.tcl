@@ -47,7 +47,7 @@ if {$goroot ne ""} {
 
 set mwindows 0
 set ::env(CGO_CFLAGS) "-I[cvtpath [pwd]]"
-foreach flag [concat [getenv CFLAGS] [getenv WISH_CFLAGS]] {
+foreach flag [concat [getenv CFLAGS] [getenv WISH_CFLAGS] [getenv GOKIT_CFLAGS]] {
     if {$flag eq "-mwindows"} {
         # Linker flag, not a compiler flag — redirect to CGO_LDFLAGS
         # so Go produces a Windows GUI subsystem binary.

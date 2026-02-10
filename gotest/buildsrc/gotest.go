@@ -1,12 +1,7 @@
 package gotest
 
 /*
-#include <tcl.h>
-#include <stdlib.h>
-
-typedef Tcl_Obj *const *Tcl_ObjArgs;
-
-extern int GotestHelloObjCmd(ClientData, Tcl_Interp *, int, Tcl_ObjArgs);
+#include "gotest.h"
 */
 import "C"
 import (

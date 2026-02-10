@@ -7,7 +7,7 @@ runtimedir="${pkgdir}/out"
 
 rm -rf "${installdir}" "${runtimedir}"
 mkdir -p "${installdir}" || exit 1
-cp "${buildsrcdir}"/*.go "${buildsrcdir}"/go.mod "${installdir}/" || exit 1
+cp "${buildsrcdir}"/*.go "${buildsrcdir}"/*.h "${buildsrcdir}"/go.mod "${installdir}/" || exit 1
 
 runtimepkgdir="${runtimedir}/lib/gotest"
 mkdir -p "${runtimepkgdir}" || exit 1
