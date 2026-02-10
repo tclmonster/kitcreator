@@ -65,7 +65,7 @@ tclsh: $(EXTRA_OBJS) @TARGET@
 
 wish.o: wish.c
 wish: $(EXTRA_OBJS) libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -c -o wish.o wish.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o wish.o wish.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(WISH_CFLAGS) -o wish wish.o $(EXTRA_OBJS) -L. -ltclkit@KITDLL_LIB_VERSION@ $(LDRUNPATH)
 
 .PHONY: kitdll kitdll-static
