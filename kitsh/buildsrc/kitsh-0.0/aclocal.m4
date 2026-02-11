@@ -242,6 +242,10 @@ ${gokit_requires})
 replace (
 ${gokit_replaces})
 GOEOF
+			dnl Resolve transitive dependencies from extensions
+			AC_MSG_CHECKING([resolving Go module dependencies])
+			(cd gokit && ${GO} mod tidy 2>&1) || AC_MSG_ERROR([go mod tidy failed])
+			AC_MSG_RESULT([ok])
 		fi
 
 		dnl Generate gokit/kitInit-register.go for auto-detected init functions
