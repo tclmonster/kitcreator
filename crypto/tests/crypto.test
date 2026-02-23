@@ -1,0 +1,136 @@
+package require tcltest
+namespace import ::tcltest::*
+
+package require crypto
+
+# Known test vectors for "abc"
+test md5-1 {md5 of abc} {
+    crypto::md5 abc
+} {900150983cd24fb0d6963f7d28e17f72}
+
+test sha1-1 {sha1 of abc} {
+    crypto::sha1 abc
+} {a9993e364706816aba3e25717850c26c9cd0d89d}
+
+test sha224-1 {sha224 of abc} {
+    crypto::sha224 abc
+} {23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7}
+
+test sha256-1 {sha256 of abc} {
+    crypto::sha256 abc
+} {ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad}
+
+test sha384-1 {sha384 of abc} {
+    crypto::sha384 abc
+} {cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7}
+
+test sha512-1 {sha512 of abc} {
+    crypto::sha512 abc
+} {ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f}
+
+# Empty string
+test md5-empty {md5 of empty string} {
+    crypto::md5 {}
+} {d41d8cd98f00b204e9800998ecf8427e}
+
+test sha256-empty {sha256 of empty string} {
+    crypto::sha256 {}
+} {e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855}
+
+# HMAC test vectors (RFC 4231 / RFC 2104)
+test hmac-sha256-1 {hmac-sha256 key+message} {
+    crypto::hmac sha256 key message
+} {6e9ef29b75fffc5b7abae527d58fdadb2fe42e7219011976917343065f58ed4a}
+
+test hmac-md5-1 {hmac-md5 key+message} {
+    crypto::hmac md5 key message
+} {4e4748e62b463521f6775fbf921234b5}
+
+test hmac-sha1-1 {hmac-sha1 key+message} {
+    crypto::hmac sha1 key message
+} {2088df74d5f2146b48146caf4965377e9d0be3a4}
+
+# -file mode
+test sha256-file-1 {sha256 -file} -setup {
+    set tmpfile [file join [tcltest::configure -tmpdir] crypto_test.tmp]
+    set f [open $tmpfile wb]
+    puts -nonewline $f abc
+    close $f
+} -body {
+    crypto::sha256 -file $tmpfile
+} -cleanup {
+    file delete $tmpfile
+} -result {ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad}
+
+# -channel mode
+test sha256-channel-1 {sha256 -channel} -setup {
+    set tmpfile [file join [tcltest::configure -tmpdir] crypto_test.tmp]
+    set f [open $tmpfile wb]
+    puts -nonewline $f abc
+    close $f
+} -body {
+    set f [open $tmpfile rb]
+    set result [crypto::sha256 -channel $f]
+    close $f
+    set result
+} -cleanup {
+    file delete $tmpfile
+} -result {ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad}
+
+# -file and -channel produce the same result
+test file-channel-match {file and channel modes match} -setup {
+    set tmpfile [file join [tcltest::configure -tmpdir] crypto_test.tmp]
+    set f [open $tmpfile wb]
+    puts -nonewline $f "The quick brown fox jumps over the lazy dog"
+    close $f
+} -body {
+    set a [crypto::sha256 -file $tmpfile]
+    set f [open $tmpfile rb]
+    set b [crypto::sha256 -channel $f]
+    close $f
+    expr {$a eq $b}
+} -cleanup {
+    file delete $tmpfile
+} -result {1}
+
+# HMAC with -file
+test hmac-sha256-file-1 {hmac-sha256 -file} -setup {
+    set tmpfile [file join [tcltest::configure -tmpdir] crypto_test.tmp]
+    set f [open $tmpfile wb]
+    puts -nonewline $f message
+    close $f
+} -body {
+    crypto::hmac sha256 key -file $tmpfile
+} -cleanup {
+    file delete $tmpfile
+} -result {6e9ef29b75fffc5b7abae527d58fdadb2fe42e7219011976917343065f58ed4a}
+
+# HMAC with -channel
+test hmac-sha256-channel-1 {hmac-sha256 -channel} -setup {
+    set tmpfile [file join [tcltest::configure -tmpdir] crypto_test.tmp]
+    set f [open $tmpfile wb]
+    puts -nonewline $f message
+    close $f
+} -body {
+    set f [open $tmpfile rb]
+    set result [crypto::hmac sha256 key -channel $f]
+    close $f
+    set result
+} -cleanup {
+    file delete $tmpfile
+} -result {6e9ef29b75fffc5b7abae527d58fdadb2fe42e7219011976917343065f58ed4a}
+
+# Error cases
+test hash-wrong-args {hash with no args} -body {
+    crypto::sha256
+} -returnCodes error -match glob -result {wrong # args*}
+
+test hmac-wrong-args {hmac with too few args} -body {
+    crypto::hmac sha256
+} -returnCodes error -match glob -result {wrong # args*}
+
+test hmac-bad-algo {hmac with unknown algorithm} -body {
+    crypto::hmac bogus key data
+} -returnCodes error -match glob -result {unknown algorithm*}
+
+cleanupTests
