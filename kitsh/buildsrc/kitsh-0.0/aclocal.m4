@@ -429,7 +429,7 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 			fi
 		fi
 
-		ARCHS="${ARCHS} ${projlibfiles}"
+		ARCHS="${ARCHS} ${projlibfilesnostub}"
 		LIBS="${LIBS} ${projlibextra}"
 	done
 
