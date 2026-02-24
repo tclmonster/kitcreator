@@ -311,11 +311,16 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 		fi
 
 		projlibfilesnostub="`echo "$projlibfiles" | grep -v 'stub' | tr "\n" ' '`"
+		projlibfilesstubonly="`echo "$projlibfiles" | grep 'stub' | tr "\n" ' '`"
 		projlibfiles="`echo "$projlibfiles" | tr "\n" ' '`"
 		projlibextra=""
 
 		if test "$projlibfilesnostub" = ' '; then
 			projlibfilesnostub=''
+		fi
+
+		if test "$projlibfilesstubonly" = ' '; then
+			projlibfilesstubonly=''
 		fi
 
 		if test "$projlibfiles" = ' '; then
@@ -430,6 +435,7 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 		fi
 
 		ARCHS="${ARCHS} ${projlibfilesnostub}"
+		ARCHS_STUBS="${ARCHS_STUBS} ${projlibfilesstubonly}"
 		LIBS="${LIBS} ${projlibextra}"
 	done
 
@@ -449,6 +455,7 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 	DC_FIND_GOKIT_LIBS
 
 	AC_SUBST(ARCHS)
+	AC_SUBST(ARCHS_STUBS)
 	AC_SUBST(STRIPLIBS)
 	AC_SUBST(LIBS)
 ])

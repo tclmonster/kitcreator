@@ -118,8 +118,9 @@ for {set i 0} {$i < [llength $ldflags]} {incr i} {
             }
             append extldflags " -L[cvtpath $lpath]"
         }
-        "-framework" {
-            # macOS: -framework takes the next word as its argument
+        "-framework" - "-weak_framework" - "-weak_library" -
+        "-undefined" {
+            # macOS: these flags take the next word as their argument
             append extldflags " $flag"
             incr i
             if {$i < [llength $ldflags]} {
