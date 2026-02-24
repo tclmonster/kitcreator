@@ -7,3 +7,4 @@ tksvg
 tcllib
 kitdll
 tkdnd
+crypto
