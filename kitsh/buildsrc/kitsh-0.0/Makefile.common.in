@@ -40,7 +40,6 @@ zipvfs.tcl.h: zipvfs.tcl
 
 ## Objects
 kitInit.o: kitInit.c $(EXTRA_KIT_DEPS)
-rechan.o: rechan.c
 pwb.o: pwb.c
 zlib.o: zlib.c
 

@@ -66,7 +66,7 @@
 #ifdef KIT_INCLUDES_MK4TCL
 Tcl_AppInitProc	Mk4tcl_Init;
 #endif
-Tcl_AppInitProc Vfs_Init, Rechan_Init;
+Tcl_AppInitProc Vfs_Init;
 #ifdef KIT_INCLUDES_PWB
 Tcl_AppInitProc	Pwb_Init;
 #endif
@@ -191,7 +191,6 @@ static char *preInitCmd =
 #endif /* KIT_STORAGE_ZIP */
 #ifdef KIT_STORAGE_CVFS
 	"set ::tclKitStorage \"cvfs\"\n"
-	"load {} rechan\n"
 	"load {} cvfs_data_tcl\n"
 #include "cvfs.tcl.h"
 	"if {![info exists s]} {\n"
@@ -345,7 +344,6 @@ static void _Tclkit_Generic_Init(void) {
 #ifdef KIT_INCLUDES_PWB
 	Tcl_StaticPackage(0, "pwb", Pwb_Init, NULL);
 #endif 
-	Tcl_StaticPackage(0, "rechan", Rechan_Init, NULL);
 	Tcl_StaticPackage(0, "vfs", Vfs_Init, NULL);
 #ifdef KIT_INCLUDES_ZLIB
 	Tcl_StaticPackage(0, "zlib", Zlib_Init, NULL);
