@@ -1,4 +1,4 @@
-OBJS_C = kitInit.o pwb.o zlib.o
+OBJS_C = kitInit.o
 OBJS_ENTRY = main.o winMain.o
 
 all: kit
