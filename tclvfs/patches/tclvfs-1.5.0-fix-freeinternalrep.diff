@@ -1,0 +1,12 @@
+diff -uNr a/generic/vfs.c b/generic/vfs.c
+--- a/generic/vfs.c
++++ b/generic/vfs.c
+@@ -189,7 +189,7 @@
+
+ static void
+ VfsFreeInternalRep(
+-#if TCL_MAJOR_VERSION < 9
++#if TCL_MAJOR_VERSION < 8 || (TCL_MAJOR_VERSION == 8 && TCL_MINOR_VERSION < 6)
+ 		   char* clientData
+ #else
+ 		   ClientData clientData

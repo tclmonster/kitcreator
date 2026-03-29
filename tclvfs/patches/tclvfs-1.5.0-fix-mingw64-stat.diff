@@ -1,0 +1,18 @@
+diff -uNr a/generic/vfs.c b/generic/vfs.c
+--- a/generic/vfs.c
++++ b/generic/vfs.c
+@@ -27,6 +27,14 @@
+ #ifdef HAVE_SYS_STAT_H
+ #  include <sys/stat.h>
+ #endif
++
++/*
++ * mingw-w64 defines struct _stat64 (single underscore) but Tcl 8.6's tcl.h
++ * typedefs Tcl_StatBuf as struct __stat64 (double underscore, an MSVC-ism).
++ */
++#if defined(__MINGW32__) && !defined(__stat64)
++#define __stat64 _stat64
++#endif
+
+ /*
+  * Windows needs to know which symbols to export.  Unix does not.
