@@ -382,9 +382,14 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 				fi
 
 				if test "$host_os" = "mingw32msvc" -o "$host_os" = "mingw32"; then
-					AC_DEFINE(KITSH_NEED_WINMAIN, [1], [Define if you need WinMain (Windows)])
-					GO_BUILD_TAGS="${GO_BUILD_TAGS} needwinmain"
-					CFLAGS="${CFLAGS} -mwindows"
+					AC_ARG_ENABLE(winmain, AS_HELP_STRING([--enable-winmain],
+						[Use WinMain GUI subsystem entry point instead of console subsystem]),
+						[], [enable_winmain=no])
+					if test "$enable_winmain" = "yes"; then
+						AC_DEFINE(KITSH_NEED_WINMAIN, [1], [Define if you need WinMain (Windows)])
+						GO_BUILD_TAGS="${GO_BUILD_TAGS} needwinmain"
+						CFLAGS="${CFLAGS} -mwindows"
+					fi
 				fi
 
 				DC_TEST_WHOLE_ARCHIVE_SHARED_LIB([$ARCHS $projlibfilesnostub], [
