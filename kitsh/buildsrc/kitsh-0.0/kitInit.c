@@ -172,6 +172,7 @@ static char *preInitCmd =
 #if defined(KIT_INCLUDES_TK) && defined(KIT_TK_VERSION)
 	"package ifneeded Tk " KIT_TK_VERSION " {\n"
 		"load {} Tk\n"
+		"rename send {}\n"
 	"}\n"
 #endif
 #ifdef _WIN32
@@ -363,16 +364,20 @@ int TclKit_AppInit(Tcl_Interp *interp) {
 		goto error;
 	}
 
-#ifdef KIT_INCLUDES_TK
-#  ifdef _WIN32
+#if defined(KIT_INCLUDES_TK) && defined(_WIN32)
+	/* Insert "--" at front of argv to prevent Tk_Init from consuming
+	 * script arguments (e.g. -help, -geometry) meant for the application */
+	Tcl_Eval(interp, "set argv [linsert $argv 0 --]");
 	if (Tk_Init(interp) == TCL_ERROR) {
 		goto error;
 	}
 	if (Tk_CreateConsoleWindow(interp) == TCL_ERROR) {
 		goto error;
 	}
-#  endif /* _WIN32 */
-#endif /* KIT_INCLUDES_TK */
+	/* Disable Tk's "send" command to prevent other Tk applications
+	 * from executing arbitrary commands in this interpreter */
+	Tcl_DeleteCommand(interp, "send");
+#endif /* KIT_INCLUDES_TK && _WIN32 */
 
 	/* messy because Tcl_SetStartupScript is called slightly too late */
 	if (Tcl_Eval(interp, initScript) == TCL_OK) {
