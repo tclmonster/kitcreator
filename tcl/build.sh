@@ -354,8 +354,17 @@ EOF
 		# Remove broken pre-generated Makfiles
 		rm -f GNUmakefile Makefile makefile
 
-		echo "Running: ./configure --disable-shared --with-encoding=utf-8 --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" ${CONFIGUREEXTRA}"
-		./configure --disable-shared --with-encoding=utf-8 --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" ${CONFIGUREEXTRA}
+		# Tcl 9+ embeds library scripts via zipfs by default;
+		# disable this so files are installed normally for KitCreator's VFS.
+		tcl_zipfs_flag=''
+		case "${TCLVERS}" in
+			9.*|[1-9][0-9].*)
+				tcl_zipfs_flag='--disable-zipfs'
+				;;
+		esac
+
+		echo "Running: ./configure --disable-shared --with-encoding=utf-8 --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" ${tcl_zipfs_flag} ${CONFIGUREEXTRA}"
+		./configure --disable-shared --with-encoding=utf-8 --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" ${tcl_zipfs_flag} ${CONFIGUREEXTRA}
 
 		echo "Running: ${MAKE:-make}"
 		${MAKE:-make} || continue

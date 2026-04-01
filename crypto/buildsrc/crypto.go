@@ -54,14 +54,14 @@ var algoNames = map[string]int{
 func tclError(interp *C.Tcl_Interp, msg string) C.int {
 	cMsg := C.CString(msg)
 	defer C.free(unsafe.Pointer(cMsg))
-	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(cMsg, C.int(-1)))
+	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(cMsg, C.Tcl_Size(-1)))
 	return C.TCL_ERROR
 }
 
 func tclOk(interp *C.Tcl_Interp, result string) C.int {
 	cResult := C.CString(result)
 	defer C.free(unsafe.Pointer(cResult))
-	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(cResult, C.int(-1)))
+	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(cResult, C.Tcl_Size(-1)))
 	return C.TCL_OK
 }
 
@@ -73,14 +73,14 @@ func hashBytes(h hash.Hash, data []byte) string {
 func hashChannel(h hash.Hash, interp *C.Tcl_Interp, channel C.Tcl_Channel) (string, bool) {
 	var buf [4096]C.char
 	for {
-		n := C.Tcl_Read(channel, &buf[0], C.int(len(buf)))
+		n := C.Tcl_Read(channel, &buf[0], C.Tcl_Size(len(buf)))
 		if n < 0 {
 			return "", false
 		}
 		if n == 0 {
 			break
 		}
-		h.Write(C.GoBytes(unsafe.Pointer(&buf[0]), n))
+		h.Write(C.GoBytes(unsafe.Pointer(&buf[0]), C.int(n)))
 	}
 	return hex.EncodeToString(h.Sum(nil)), true
 }
@@ -105,9 +105,9 @@ func computeHash(h hash.Hash, interp *C.Tcl_Interp, objc C.int, objv C.Tcl_ObjAr
 
 	if argc == 1 {
 		// Positional data
-		var dataLen C.int
-		dataPtr := C.Tcl_GetByteArrayFromObj(args[offset], &dataLen)
-		data := C.GoBytes(unsafe.Pointer(dataPtr), dataLen)
+		var dataLen C.Tcl_Size
+		dataPtr := C.Crypto_GetBytesFromObj(nil, args[offset], &dataLen)
+		data := C.GoBytes(unsafe.Pointer(dataPtr), C.int(dataLen))
 		return tclOk(interp, hashBytes(h, data))
 	}
 
@@ -155,13 +155,13 @@ func Crypto_Init(interp *C.Tcl_Interp) C.int {
 	}
 	for _, cmd := range cmds {
 		cName := C.CString(cmd.name)
-		C.Tcl_CreateObjCommand(interp, cName, (*C.Tcl_ObjCmdProc)(C.CryptoHashCmd), C.ClientData(unsafe.Pointer(uintptr(cmd.algo))), nil)
+		C.Crypto_CreateObjCommand(interp, cName, (*C.Tcl_ObjCmdProc)(C.CryptoHashCmd), unsafe.Pointer(uintptr(cmd.algo)), nil)
 	}
 
 	cHmacName := C.CString("crypto::hmac")
-	C.Tcl_CreateObjCommand(interp, cHmacName, (*C.Tcl_ObjCmdProc)(C.CryptoHmacCmd), nil, nil)
+	C.Crypto_CreateObjCommand(interp, cHmacName, (*C.Tcl_ObjCmdProc)(C.CryptoHmacCmd), nil, nil)
 
-	return C.Tcl_PkgProvide(interp, C.CString("crypto"), C.CString("1.0"))
+	return C.Tcl_PkgProvideEx(interp, C.CString("crypto"), C.CString("1.0"), nil)
 }
 
 //export CryptoHashCmd
@@ -190,9 +190,9 @@ func CryptoHmacCmd(clientData C.ClientData, interp *C.Tcl_Interp, objc C.int, ob
 		return tclError(interp, "unknown algorithm \""+algoName+"\": must be md5, sha1, sha224, sha256, sha384, or sha512")
 	}
 
-	var keyLen C.int
-	keyPtr := C.Tcl_GetByteArrayFromObj(args[2], &keyLen)
-	key := C.GoBytes(unsafe.Pointer(keyPtr), keyLen)
+	var keyLen C.Tcl_Size
+	keyPtr := C.Crypto_GetBytesFromObj(nil, args[2], &keyLen)
+	key := C.GoBytes(unsafe.Pointer(keyPtr), C.int(keyLen))
 
 	h := hmac.New(func() hash.Hash { return newHash(algo) }, key)
 

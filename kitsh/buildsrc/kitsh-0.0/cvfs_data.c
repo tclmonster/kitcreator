@@ -4,6 +4,15 @@
 #  include <stdlib.h>
 #endif
 
+/* Tcl 8.6 compatibility for Tcl 9 Tcl_Size type */
+#ifndef TCL_SIZE_MAX
+#  ifndef Tcl_Size
+     typedef int Tcl_Size;
+#  endif
+#  define TCL_SIZE_MAX INT_MAX
+#  define TCL_SIZE_MODIFIER ""
+#endif
+
 typedef struct cvfs_data *(cmd_getData_t)(const char *, unsigned long);
 typedef unsigned long (cmd_getChildren_t)(const char *, unsigned long *, unsigned long);
 typedef void (cmd_decryptFile_t)(const char *, struct cvfs_data *); 
@@ -14,7 +23,7 @@ static cmd_getChildren_t *getCmdChildren(const char *hashkey);
 static cmd_decryptFile_t *getCmdDecryptFile(const char *hashkey);
 
 /* Tcl Commands */
-static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {
+static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	cmd_getData_t *cmd_getData;
 	cmd_getChildren_t *cmd_getChildren;
 	struct cvfs_data *finfo = NULL;
@@ -59,19 +68,19 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CON
 		num_children = cmd_getChildren(file, NULL, 0);
 
 		ret_list_items[1] = Tcl_NewStringObj("directory", 9);
-		ret_list_items[3] = Tcl_NewLongObj(040555);
-		ret_list_items[5] = Tcl_NewLongObj(num_children);
+		ret_list_items[3] = Tcl_NewWideIntObj(040555);
+		ret_list_items[5] = Tcl_NewWideIntObj(num_children);
 	} else {
 		ret_list_items[1] = Tcl_NewStringObj("file", 4);
-		ret_list_items[3] = Tcl_NewLongObj(0444);
-		ret_list_items[5] = Tcl_NewLongObj(1);
+		ret_list_items[3] = Tcl_NewWideIntObj(0444);
+		ret_list_items[5] = Tcl_NewWideIntObj(1);
 	}
 
 	ret_list_items[6] = Tcl_NewStringObj("ino", 3);
-	ret_list_items[7] = Tcl_NewLongObj(finfo->index);
+	ret_list_items[7] = Tcl_NewWideIntObj(finfo->index);
 
 	ret_list_items[8] = Tcl_NewStringObj("size", 4);
-	ret_list_items[9] = Tcl_NewLongObj(finfo->size_inflated);
+	ret_list_items[9] = Tcl_NewWideIntObj(finfo->size_inflated);
 
 	/* Dummy values */
 	ret_list_items[10] = Tcl_NewStringObj("uid", 3);
@@ -108,7 +117,7 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CON
 	return(TCL_OK);
 }
 
-static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {
+static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	struct cvfs_data *finfo = NULL;
 	cmd_getData_t *cmd_getData;
 	cmd_decryptFile_t *cmd_decryptFile;
@@ -120,7 +129,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 	long end = -1;
 	int tclGetLFO_ret;
 	Tcl_Obj *decompressed;
-	int decompressed_len = 0;
+	Tcl_Size decompressed_len = 0;
 	unsigned char *decompressed_bytes;
 
 	if (objc < 3 || objc > 5) {
@@ -250,7 +259,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST o
 	return(TCL_OK);
 }
 
-static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {
+static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	struct cvfs_data *finfo = NULL;
 	cmd_getChildren_t *cmd_getChildren;
 	cmd_getData_t *cmd_getData;

@@ -251,19 +251,28 @@ fi
 			fi
 		fi
 
+		# Tk 9+ embeds library scripts via zipfs by default;
+		# disable this so files are installed normally for KitCreator's VFS.
+		tk_zipfs_flag=''
+		case "${TCLVERS}" in
+			9.*|[1-9][0-9].*)
+				tk_zipfs_flag='--disable-zipfs'
+				;;
+		esac
+
 		if [ "${STATICTK}" = "1" ]; then
-			echo "Running: ./configure --disable-shared --disable-symbols --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" --with-tcl=\"${TCLCONFIGDIR}\" ${CONFIGUREEXTRA}"
-			./configure --disable-shared --disable-symbols --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" --with-tcl="${TCLCONFIGDIR}" ${CONFIGUREEXTRA} || continue
+			echo "Running: ./configure --disable-shared --disable-symbols --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" --with-tcl=\"${TCLCONFIGDIR}\" ${tk_zipfs_flag} ${CONFIGUREEXTRA}"
+			./configure --disable-shared --disable-symbols --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" --with-tcl="${TCLCONFIGDIR}" ${tk_zipfs_flag} ${CONFIGUREEXTRA} || continue
 		else
-			echo "Running: ./configure --enable-shared --disable-symbols --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" --with-tcl=\"${TCLCONFIGDIR}\" ${CONFIGUREEXTRA}"
-			./configure --enable-shared --disable-symbols --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" --with-tcl="${TCLCONFIGDIR}" ${CONFIGUREEXTRA} || continue
+			echo "Running: ./configure --enable-shared --disable-symbols --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" --with-tcl=\"${TCLCONFIGDIR}\" ${tk_zipfs_flag} ${CONFIGUREEXTRA}"
+			./configure --enable-shared --disable-symbols --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" --with-tcl="${TCLCONFIGDIR}" ${tk_zipfs_flag} ${CONFIGUREEXTRA} || continue
 		fi
 
 		echo "Running: ${MAKE:-make}"
 		${MAKE:-make} || (
 			# Workaround a bug in Tk on FreeBSD 8.1:
 			#   https://sourceforge.net/tracker/?func=detail&atid=112997&aid=3107390&group_id=12997
-			LIBTKFILE="$(ls libtk*.so.1 2>/dev/null | head -1)"
+			LIBTKFILE="$(ls libtk*.so.1 libtcl9tk*.so.1 2>/dev/null | head -1)"
 			if [ -f "${LIBTKFILE}" ]; then
 				NEWLIBTKFILE="$(echo "${LIBTKFILE}" | sed 's@\.so\.1@.so@')"
 				cp "${LIBTKFILE}" "${NEWLIBTKFILE}"
@@ -315,15 +324,15 @@ fi
 			# Update pkgIndex to load libtk from the local directory rather
 			# than the parent directory
 			for pkgIndex in "${INSTDIR}"/lib/tk*/pkgIndex.tcl; do
-				sed 's@ \.\. bin @ @g;s@ \.\. @ @;s@ lib\(tk.*\.dll\)@ \1@' "${pkgIndex}" > "${pkgIndex}.new"
+				sed 's@ \.\. bin @ @g;s@ \.\. @ @;s@ lib\(tcl9\)\{0,1\}\(tk.*\.dll\)@ \1\2@' "${pkgIndex}" > "${pkgIndex}.new"
 				mv "${pkgIndex}.new" "${pkgIndex}"
 			done
 		fi
 
 		mkdir "${OUTDIR}/lib" || exit 1
 		cp -r "${INSTDIR}/lib"/tk* "${OUTDIR}/lib/"
-		cp -r "${INSTDIR}/bin"/tk*.dll "${OUTDIR}/lib/"/tk*/
-		cp -r "${INSTDIR}/lib"/libtk* "${OUTDIR}/lib"/tk*/
+		cp -r "${INSTDIR}/bin"/tk*.dll "${INSTDIR}/bin"/tcl9tk*.dll "${OUTDIR}/lib/"/tk*/ 2>/dev/null
+		cp -r "${INSTDIR}/lib"/libtk* "${INSTDIR}/lib"/libtcl9tk* "${OUTDIR}/lib"/tk*/ 2>/dev/null
 		rm -rf "${OUTDIR}/lib"/tk*/demos
 
 		"${STRIP:-strip}" -g "${OUTDIR}"/lib/tk*/*.{so,dll,dylib,shlib} >/dev/null 2>/dev/null

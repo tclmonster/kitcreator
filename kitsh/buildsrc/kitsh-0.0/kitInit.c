@@ -32,6 +32,15 @@
 
 #include "tclInt.h"
 
+/* Tcl 8.6 compatibility for Tcl 9 Tcl_Size type */
+#ifndef TCL_SIZE_MAX
+#  ifndef Tcl_Size
+     typedef int Tcl_Size;
+#  endif
+#  define TCL_SIZE_MAX INT_MAX
+#  define TCL_SIZE_MODIFIER ""
+#endif
+
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>
 #endif
@@ -60,7 +69,7 @@ Tcl_AppInitProc Vfs_Init;
 #ifdef KIT_STORAGE_CVFS
 Tcl_AppInitProc Cvfs_data_tcl_Init;
 #endif
-#ifdef TCL_THREADS
+#if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
 Tcl_AppInitProc	Thread_Init;
 #endif
 #ifdef _WIN32
@@ -203,7 +212,7 @@ static void SetExecName(Tcl_Interp *interp, const char *path) {
 }
 
 static void FindAndSetExecName(Tcl_Interp *interp) {
-	int len = 0;
+	Tcl_Size len = 0;
 	Tcl_Obj *execNameObj;
 	Tcl_Obj *lobjv[1];
 #ifdef HAVE_READLINK
@@ -296,7 +305,7 @@ static void _Tclkit_Generic_Init(void) {
 #ifdef KIT_STORAGE_CVFS
 	Tcl_StaticPackage(0, "cvfs_data_tcl", Cvfs_data_tcl_Init, NULL);
 #endif
-#ifdef TCL_THREADS
+#if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
 	Tcl_StaticPackage(0, "Thread", Thread_Init, NULL);
 #endif
 #ifdef _WIN32
@@ -309,7 +318,11 @@ static void _Tclkit_Generic_Init(void) {
 
 	_Tclkit_GenericLib_Init();
 
+#if TCL_MAJOR_VERSION >= 9
+	Tcl_SetPreInitScript(preInitCmd);
+#else
 	TclSetPreInitScript(preInitCmd);
+#endif
 
 	return;
 }
@@ -461,7 +474,7 @@ static char *find_tclkit_dll_path(void) {
  * This function exists to allow C code to initialize a particular
  * interpreter.
  */
-static int tclkit_init_initinterp(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {
+static int tclkit_init_initinterp(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	char *kitdll_path;
 
 	kitdll_path = find_tclkit_dll_path();
