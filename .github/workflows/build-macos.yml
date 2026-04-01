@@ -16,7 +16,7 @@ on:
     branches: [main]
 
 env:
-  TCL_TK_VERSION: 8.6.17
+  TCL_TK_VERSION: 9.0.3
   CC: /usr/bin/clang
   CXX: /usr/bin/clang++
   KC_TLS_LINKSSLSTATIC: 1

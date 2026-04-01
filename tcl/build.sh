@@ -73,6 +73,9 @@ case "${TCLVERS}" in
 	8.6.17)
 		SRCHASH='a3903371efcce8a405c5c245d029e9f6850258a60fa3761c4d58995610949b31'
 		;;
+	9.0.3)
+		SRCHASH='2537ba0c86112c8c953f7c09d33f134dd45c0fb3a71f2d7f7691fd301d2c33a6'
+		;;
 esac
 
 KC_TCL_SQLITE_VEC="${KC_TCL_SQLITE_VEC:-0}"
@@ -351,8 +354,17 @@ EOF
 		# Remove broken pre-generated Makfiles
 		rm -f GNUmakefile Makefile makefile
 
-		echo "Running: ./configure --disable-shared --with-encoding=utf-8 --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" ${CONFIGUREEXTRA}"
-		./configure --disable-shared --with-encoding=utf-8 --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" ${CONFIGUREEXTRA}
+		# Tcl 9+ embeds library scripts via zipfs by default;
+		# disable this so files are installed normally for KitCreator's VFS.
+		tcl_zipfs_flag=''
+		case "${TCLVERS}" in
+			9.*|[1-9][0-9].*)
+				tcl_zipfs_flag='--disable-zipfs'
+				;;
+		esac
+
+		echo "Running: ./configure --disable-shared --with-encoding=utf-8 --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" ${tcl_zipfs_flag} ${CONFIGUREEXTRA}"
+		./configure --disable-shared --with-encoding=utf-8 --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" ${tcl_zipfs_flag} ${CONFIGUREEXTRA}
 
 		echo "Running: ${MAKE:-make}"
 		${MAKE:-make} || continue
