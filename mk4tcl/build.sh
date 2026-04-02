@@ -11,10 +11,10 @@ if [ -z "${TCLVERS}" ]; then
 	exit 1
 fi
 
-MK4VERS="2.4.9.8"
+MK4VERS="2.5.0.0"
 SRC="src/metakit-${MK4VERS}.tar.gz"
-SRCURL="https://github.com/TclMonster/metakit/archive/refs/tags/${MK4VERS}.tar.gz"
-SRCHASH='9e7579d3f4750e7e014a4ea6bf8d715bbd043f39'
+SRCURL="https://github.com/tclmonster/metakit/archive/refs/tags/${MK4VERS}.tar.gz"
+SRCHASH='aed19ff4b7bb2d75dca27c5a7c9484d0336ba895246951cb656513b3674160b8'
 BUILDDIR="$(pwd)/build/metakit-${MK4VERS}"
 OUTDIR="$(pwd)/out"
 INSTDIR="$(pwd)/inst"
