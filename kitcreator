@@ -72,7 +72,7 @@ fi
 
 # Add packages implied by the additional arguments
 if [ -z "${KITCREATOR_PKGS}" ]; then
-	KITCREATOR_PKGS="tk itcl mk4tcl"
+	KITCREATOR_PKGS="tk mk4tcl"
 fi
 
 CONFIGUREEXTRA="$@"
@@ -110,7 +110,6 @@ export KC_KITSTORAGE
 
 if echo " ${CONFIGUREEXTRA} " | grep ' --enable-threads ' >/dev/null 2>/dev/null; then
 	KITCREATOR_ADD_ENABLE_THREADS='1'
-	KITCREATOR_PKGS="${KITCREATOR_PKGS} thread"
 elif echo " ${CONFIGUREEXTRA} " | grep ' --disable-threads ' >/dev/null 2>/dev/null; then
 	KITCREATOR_ADD_ENABLE_THREADS='0'
 fi

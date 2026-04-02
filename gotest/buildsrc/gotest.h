@@ -4,6 +4,15 @@
 #include <tcl.h>
 #include <stdlib.h>
 
+/* Tcl 9 compatibility: Tcl_Size type for 64-bit lengths */
+#ifndef TCL_SIZE_MAX
+#  ifndef Tcl_Size
+     typedef int Tcl_Size;
+#  endif
+#  define TCL_SIZE_MAX INT_MAX
+#  define TCL_SIZE_MODIFIER ""
+#endif
+
 typedef Tcl_Obj *const *Tcl_ObjArgs;
 
 DLLEXPORT int GotestHelloObjCmd(ClientData, Tcl_Interp *, int, Tcl_ObjArgs);

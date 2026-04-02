@@ -1,6 +1,6 @@
 #! /bin/bash
 
-VERSIONS="8.5.19 9.0.3 fossil_trunk"
+VERSIONS="8.6.17 9.0.3 fossil_trunk"
 
 # Find the base directory
 for x in 1 2 3 4 __fail__; do
@@ -225,13 +225,9 @@ for kit in $kits; do
 	fi
 
 	for version in ${VERSIONS}; do
-		# Work around changes in default behaviour
-		case "${version}" in
-			8.6.*|cvs_HEAD)
-				kit="$(echo "${kit}" | sed 's@-threaded@-unthreaded@')"
-				args="$(echo "${args}" | sed 's@ --enable-threads@ --disable-threads@')"
-				;;
-		esac
+		# Tcl 8.6+ defaults to threaded, so flip threaded to unthreaded
+		kit="$(echo "${kit}" | sed 's@-threaded@-unthreaded@')"
+		args="$(echo "${args}" | sed 's@ --enable-threads@ --disable-threads@')"
 
 		# Create Tclkit
 		if [ "${kitdll}" = "1" ]; then
@@ -269,12 +265,12 @@ for kit in $kits; do
 			echo " *** Build Script" >> "${buildlog}"
 
 			if [ "${notk}" = "1" ]; then
-				KITCREATOR_PKGS='itcl mk4tcl'
+				KITCREATOR_PKGS='mk4tcl'
 			fi
 
 			if [ "${nomk4}" = "1" ]; then
 				if [ -z "${KITCREATOR_PKGS}" ]; then
-					KITCREATOR_PKGS='itcl tk'
+					KITCREATOR_PKGS='tk'
 				else
 					KITCREATOR_PKGS="$(echo "${KITCREATOR_PKGS}" | sed 's@mk4tcl@@')"
 				fi
@@ -282,7 +278,7 @@ for kit in $kits; do
 
 			if [ "${kitdll}" = "1" ]; then
 				if [ -z "${KITCREATOR_PKGS}" ]; then
-					KITCREATOR_PKGS='tk itcl mk4tcl kitdll'
+					KITCREATOR_PKGS='tk mk4tcl kitdll'
 				else
 					KITCREATOR_PKGS="${KITCREATOR_PKGS} kitdll"
 				fi
