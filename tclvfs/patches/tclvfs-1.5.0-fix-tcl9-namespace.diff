@@ -1,0 +1,30 @@
+diff -uNr a/library/mk4vfs.tcl b/library/mk4vfs.tcl
+--- a/library/mk4vfs.tcl
++++ b/library/mk4vfs.tcl
+@@ -206,7 +206,7 @@
+ 		    set sb(ino) [mk::row append $fview \
+ 			    name $tail size 0 date $now ]
+
+-		    if { [string match *z* $mode] || $mk4vfs::compress } {
++		    if { [string match *z* $mode] || $::mk4vfs::compress } {
+ 			set sb(csize) -1  ;# HACK - force compression
+ 		    } else {
+ 			set sb(csize) 0
+@@ -221,7 +221,7 @@
+ 		    append mode z
+ 		    puts -nonewline $fd [vfs::zip -mode decompress $s]
+ 		} else {
+-		    if { $mk4vfs::compress } { append mode z }
++		    if { $::mk4vfs::compress } { append mode z }
+ 		    puts -nonewline $fd $s
+ 		    #set fd [mk::channel $sb(ino) contents a]
+ 		}
+@@ -246,7 +246,7 @@
+ 			    name $tail size 0 date $now ]
+ 		}
+
+-		if { [string match *z* $mode] || $mk4vfs::compress } {
++		if { [string match *z* $mode] || $::mk4vfs::compress } {
+ 		    append mode z
+ 		    set fd [vfs::memchan]
+ 		} else {
