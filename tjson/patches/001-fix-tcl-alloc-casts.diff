@@ -1,0 +1,28 @@
+diff -ruN A/src/jsonpath/jsonpath.c B/src/jsonpath/jsonpath.c
+--- A/src/jsonpath/jsonpath.c	2024-08-05 05:21:26.000000000 -0300
++++ B/src/jsonpath/jsonpath.c	2026-04-02 12:00:00.000000000 -0300
+@@ -97,7 +97,7 @@
+     jsonpath_node_t *curr = node;
+     while (curr != NULL) {
+         jsonpath_node_t *next = curr->next;
+-        Tcl_Free(curr);
++        Tcl_Free((char *)curr);
+         curr = next;
+     }
+ }
+@@ -297,14 +297,14 @@
+                             indices[indices_length++] = strtoll(p, (char **) &p, 10);
+                             if (p[0] != ',' && p[0] != ']') {
+-                                Tcl_Free(indices);
++                                Tcl_Free((char *)indices);
+                                 jsonpath_free_list(*nodes);
+                                 Tcl_SetObjResult(interp, Tcl_NewStringObj("Invalid JSONPath: ',' or ']' expected", -1));
+                                 return TCL_ERROR;
+                             }
+                             if (indices_length == k) {
+                                 k *= 2;
+-                                indices = Tcl_Realloc(indices, sizeof(int) * k);
++                                indices = (int *)Tcl_Realloc((char *)indices, sizeof(int) * k);
+                             }
+                         }
+                         jsonpath_node_t *node = jsonpath_node_new(INDICES_SET);
