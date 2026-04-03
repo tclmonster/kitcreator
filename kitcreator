@@ -70,11 +70,6 @@ if [ "${mode}" = "clean" -o "${mode}" = "distclean" ]; then
 	exit 0
 fi
 
-# Add packages implied by the additional arguments
-if [ -z "${KITCREATOR_PKGS}" ]; then
-	KITCREATOR_PKGS="tk"
-fi
-
 CONFIGUREEXTRA="$@"
 export CONFIGUREEXTRA
 
