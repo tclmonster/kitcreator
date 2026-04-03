@@ -72,7 +72,7 @@ fi
 
 # Add packages implied by the additional arguments
 if [ -z "${KITCREATOR_PKGS}" ]; then
-	KITCREATOR_PKGS="tk mk4tcl"
+	KITCREATOR_PKGS="tk"
 fi
 
 CONFIGUREEXTRA="$@"
