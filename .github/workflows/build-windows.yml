@@ -32,7 +32,7 @@ env:
   KC_TLS_LINKSSLSTATIC: 1
   STATICTWAPI: 1
   STATICCFFI: 1
-  STATICTK: 0
+  STATICTK: 1  # Wish build fails with static Tcl + shared Tk
   STATICTKDND: 0
   STATICTKSVG: 0
   STATICTLS: 1
@@ -118,8 +118,12 @@ jobs:
 
       - name: Full kit (with GUI)
         run: |
-          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui.txt)"
-          ./kitcreator retry ${{matrix.tcl_tk_version}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go
+          case "${{matrix.tcl_tk_version}}" in
+            9.*) gui_pkgs=.github/workflows/pkgs-gui-tcl9.txt ;;
+            *)   gui_pkgs=.github/workflows/pkgs-gui.txt ;;
+          esac
+          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' "${gui_pkgs}")"
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go --enable-winmain
           mv tclkit-${{matrix.tcl_tk_version}}.exe tclkit-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe
           echo "$KITCREATOR_PKGS" > tclkit-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe.kc_packages
 
