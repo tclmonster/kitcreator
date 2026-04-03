@@ -3,8 +3,11 @@
 # BuildCompatible: KitCreator
 
 version='5.2.0'
-url="https://github.com/apnadkarni/twapi/archive/refs/tags/v${version}.tar.gz"
+url="https://github.com/apnadkarni/twapi/archive/refs/tags/v5.2.tar.gz"
 sha256='946e5bb7433aad14def33b56ce66a9d9423f00de775fa19fc9f71e134cfa7198'
+
+configure_extra=(--with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include
+                 --with-tcl=${KITCREATOR_DIR}/tcl/inst/lib)
 
 function postinstall() {
 
