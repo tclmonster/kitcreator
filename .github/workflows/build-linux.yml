@@ -14,9 +14,7 @@ env:
   STATICTDOM: 1
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
-  STATICMK4: 1
   STATICCFFI: 1
-  KC_MK4TCL_CXXFLAGS: '-fPIC'
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -97,7 +95,6 @@ jobs:
 
       - name: Base kit
         env:
-          KITCREATOR_PKGS: mk4tcl
           CC:  ${{matrix.platform.cross_pfx}}-gcc
           CXX: ${{matrix.platform.cross_pfx}}-g++
           AR:  ${{matrix.platform.cross_pfx}}-ar

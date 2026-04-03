@@ -26,7 +26,6 @@ env:
   STATICTDOM: 1
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
-  STATICMK4: 1
   STATICCFFI: 1
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -90,9 +89,8 @@ jobs:
       - name: Basekit
         run: |
           unset CODESIGN_SIGNATURE
-          export KITCREATOR_PKGS="mk4tcl"
           ./build/pre.sh
-          ./kitcreator build ${{matrix.tcl_tk_version}} --enable-kit-storage=mk4
+          ./kitcreator build ${{matrix.tcl_tk_version}}
           mv tclkit-${{matrix.tcl_tk_version}} tclkit-local
           cat <<EOF > $GITHUB_ENV
           TCLKIT=$(pwd)/tclkit-local
