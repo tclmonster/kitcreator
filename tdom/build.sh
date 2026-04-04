@@ -2,6 +2,6 @@
 
 # BuildCompatible: KitCreator
 
-version='0.9.5'
-url="http://tdom.org/downloads/tdom-${version}-src.tgz"
-sha256='ce22e3f42da9f89718688bf413b82fbf079b40252ba4dd7f2a0e752232bb67e8'
+version='0.9.6'
+url="https://core.tcl-lang.org/tdom/tarball/tdom-20250622115755-7db06f6e96.tar.gz"
+sha256='53351815425ebf3f9a7cd11359b9f48a005a9a0d1773dcc817561e86718e33af'
