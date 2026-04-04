@@ -103,6 +103,18 @@ case "$CONFIGUREEXTRA" in
 esac
 export KC_KITSTORAGE
 
+# mk4tcl does not support Tcl 9
+case "${TCLVERS}" in
+	9.*)
+		case " ${KITCREATOR_PKGS} " in
+			*mk4tcl*)
+				echo 'ERROR: mk4tcl does not support Tcl 9' >&2
+				exit 1
+				;;
+		esac
+		;;
+esac
+
 if echo " ${CONFIGUREEXTRA} " | grep ' --enable-threads ' >/dev/null 2>/dev/null; then
 	KITCREATOR_ADD_ENABLE_THREADS='1'
 elif echo " ${CONFIGUREEXTRA} " | grep ' --disable-threads ' >/dev/null 2>/dev/null; then
