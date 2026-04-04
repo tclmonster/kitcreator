@@ -322,9 +322,9 @@ function createruntime() {
 
 	# Create pkgIndex files if needed
 	if [ -z "${tclpkg}" ]; then
-		tclpkg="$(totitle "${pkg}")" # Tcl 9 load is case-sensitive
+		tclpkg="${pkg}"
 	fi
-	echo "${tclpkg}" > "${installdir}/tcl-pkg-name"
+	echo "$(totitle "${tclpkg}")" > "${installdir}/tcl-pkg-name" # Tcl 9 load is case-sensitive
 	if [ -n "${tclpkg_initfunc}" ]; then
 		echo "${tclpkg_initfunc}" > "${installdir}/tcl-init-func"
 	fi
@@ -339,7 +339,7 @@ function createruntime() {
 		find "${runtimelibdir}" -name '*.a' | sed 's@/[^/]*\.a$@@' | head -n 1 | while IFS='' read -r runtimepkgdir; do
 			if [ ! -e "${runtimepkgdir}/pkgIndex.tcl" ]; then
 				cat << _EOF_ > "${runtimepkgdir}/pkgIndex.tcl"
-package ifneeded ${tclpkg} ${tclpkgversion} [list load {} ${tclpkg}]
+package ifneeded ${tclpkg} ${tclpkgversion} [list load {} $(totitle "${tclpkg}")]
 _EOF_
 			fi
 		done
