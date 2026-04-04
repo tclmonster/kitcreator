@@ -131,7 +131,11 @@ jobs:
         env:
           STATICTK: 1
         run: |
-          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
+          case "${{matrix.tcl_tk_version}}" in
+            9.*) kitdll_pkgs=.github/workflows/pkgs-kitdll-tcl9.txt ;;
+            *)   kitdll_pkgs=.github/workflows/pkgs-kitdll.txt ;;
+          esac
+          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' "${kitdll_pkgs}")"
           clean_dynamic_tk_pkgs() {
             for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^(zlib|tk)$'); do
               rm -f  "${pkg}/.success"
