@@ -12,6 +12,10 @@ workdir="${pkgdir}/build/workdir-$$${RANDOM}${RANDOM}${RANDOM}${RANDOM}.work"
 
 _download="$(which download)"
 
+function totitle() {
+	echo "$1" | awk '{print toupper(substr($0,1,1)) substr($0,2)}'
+}
+
 function clean() {
 	rm -rf "${installdir}" "${runtimedir}"
 }
@@ -318,7 +322,7 @@ function createruntime() {
 
 	# Create pkgIndex files if needed
 	if [ -z "${tclpkg}" ]; then
-		tclpkg="${pkg}"
+		tclpkg="$(totitle "${pkg}")" # Tcl 9 load is case-sensitive
 	fi
 	echo "${tclpkg}" > "${installdir}/tcl-pkg-name"
 	if [ -n "${tclpkg_initfunc}" ]; then

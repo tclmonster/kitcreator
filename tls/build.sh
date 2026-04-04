@@ -2,10 +2,10 @@
 
 # BuildCompatible: KitCreator
 
-version="1.8.0"
-commit_hash="6d3664930c"
+version="2.0"
+commit_hash="1a14498b60"
 url="https://core.tcl-lang.org/tcltls/tarball/${commit_hash}/tcltls-${commit_hash}.tar.gz"
-sha256='dfd1401f8b0bfa0f2992d480b4e8ba085a4a17dc54e6b0db080e8bd6bdda725f'
+sha256='a6a556336bf7846dc7791f33fc615ee7de631dc544f3282d515f45330f1c4577'
 configure_extra=(--enable-deterministic --with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
 function buildSSLLibrary() {
@@ -176,6 +176,6 @@ function postinstall() {
 		    --remote-name  https://curl.se/ca/cacert.pem
 
 		# Patched pkgIndex.tcl required to initialize CA
-		cp -f "${tls_ca_file}" "${workdir}/pkgIndex.tcl" "${installdir}/lib/tls${version}/"
+		cp -f "${tls_ca_file}" "${workdir}/pkgIndex.tcl" "${installdir}/lib/tcltls${version}/"
 	fi
 }
