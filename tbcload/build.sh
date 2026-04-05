@@ -2,9 +2,9 @@
 
 # BuildCompatible: KitCreator
 
-version='1.7'
-url="https://github.com/bandoti/tbcload/archive/refs/tags/v${version}.tar.gz"
-sha256='a1cbfdb0e3e61e08b996df713dd210a6103a7828650aa39630355cecd1c24b63'
+version='2.0a0'
+url="https://github.com/tclmonster/tbcload2/archive/refs/tags/v${version}.tar.gz"
+sha256='292537bca57ba60c43ae79e74811409e62d3f1c97da945b7f4b6b8950e7941e1'
 
 KC_TBCLOAD_CFLAGS='-Wno-error=implicit-function-declaration'
 

@@ -2,10 +2,10 @@
 
 # BuildCompatible: KitCreator
 
-version="1.8.0"
-commit_hash="6d3664930c"
+version="2.0"
+commit_hash="1a14498b60"
 url="https://core.tcl-lang.org/tcltls/tarball/${commit_hash}/tcltls-${commit_hash}.tar.gz"
-sha256='dfd1401f8b0bfa0f2992d480b4e8ba085a4a17dc54e6b0db080e8bd6bdda725f'
+sha256='a6a556336bf7846dc7791f33fc615ee7de631dc544f3282d515f45330f1c4577'
 configure_extra=(--enable-deterministic --with-tclinclude=${KITCREATOR_DIR}/tcl/inst/include)
 
 function buildSSLLibrary() {
@@ -111,40 +111,6 @@ function preconfigure() {
 	fi
 }
 
-function expandLinkLibs {
-	echo "$PKG_LIBS" | awk '
-BEGIN {
-  path="";
-  libs="";
-
-} {
-  for (i=1; i <= NF; i++) {
-    if ($i ~ /^-L/)
-      path=substr($i,3)
-    if ($i ~ /^-l/)
-      libs=libs " " path "/lib" substr($i,3) ".a"
-  }
-}
-END {
-  print libs
-}'
-}
-
-function getcc {
-	grep -i 'ac_cv_prog_ac_ct_CC' config.log | awk -F= '{print $2}'
-}
-
-function shouldExpandLinkLibs {
-	case "$KC_CROSSCOMPILE_HOST_OS" in
-	    *darwin*)
-		$(getcc) --version | grep -qi clang
-		;;
-	    *)
-		false
-		;;
-	esac
-}
-
 function postinstall() {
 	local tls_etag_file
 	local tls_ca_file
@@ -154,11 +120,7 @@ function postinstall() {
 			eval "$(grep '^PKG_LIBS=' config.log)" || exit 1
 
 			find "${installdir}" -type f -name '*.a' | while IFS='' read -r filename; do
-				if shouldExpandLinkLibs; then
-					expandLinkLibs > "${filename}.linkadd"
-				else
-					echo "${PKG_LIBS}" > "${filename}.linkadd"
-				fi
+				echo "${PKG_LIBS}" > "${filename}.linkadd"
 			done
 
 		) || return 1
@@ -176,6 +138,6 @@ function postinstall() {
 		    --remote-name  https://curl.se/ca/cacert.pem
 
 		# Patched pkgIndex.tcl required to initialize CA
-		cp -f "${tls_ca_file}" "${workdir}/pkgIndex.tcl" "${installdir}/lib/tls${version}/"
+		cp -f "${tls_ca_file}" "${workdir}/pkgIndex.tcl" "${installdir}/lib/tcltls${version}/"
 	fi
 }

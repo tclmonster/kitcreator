@@ -2,9 +2,9 @@
 
 # BuildCompatible: KitCreator
 
-version="0.5.1"
-url="https://github.com/TclMonster/parse_args/releases/download/v${version}/parse_args${version}.tar.gz"
-sha256='a75f2fb2f018ddc07a2b77a22e40f5c4f602ddef0c17c0d520af5592701fa0a4'
+version="0.5.2"
+url="https://github.com/tclmonster/parse_args/releases/download/v${version}/parse_args${version}.tar.gz"
+sha256='54d9ce25045f464fe3c96378490b5a9308726b3f2c5e7839fbd0dd7272b639f3'
 
 function build() {
 	# Skip docs because it requires pandoc

@@ -1,0 +1,24 @@
+diff -ur tcl9.0.3.orig/unix/Makefile.in tcl9.0.3/unix/Makefile.in
+--- tcl9.0.3.orig/unix/Makefile.in
++++ tcl9.0.3/unix/Makefile.in
+@@ -1183,7 +1183,7 @@
+ TCL_PRIVATE_HEADERS = $(GENERIC_DIR)/tclInt.h $(GENERIC_DIR)/tclIntDecls.h \
+ 	$(GENERIC_DIR)/tclIntPlatDecls.h $(GENERIC_DIR)/tclPort.h \
+ 	$(GENERIC_DIR)/tclOOInt.h $(GENERIC_DIR)/tclOOIntDecls.h \
+-	$(UNIX_DIR)/tclUnixPort.h
++	$(UNIX_DIR)/tclUnixPort.h $(GENERIC_DIR)/tclCompile.h
+ # Any other headers you find in the Tcl sources are purely part of Tcl's
+ # implementation, and aren't to be installed.
+
+diff -ur tcl9.0.3.orig/win/Makefile.in tcl9.0.3/win/Makefile.in
+--- tcl9.0.3.orig/win/Makefile.in
++++ tcl9.0.3/win/Makefile.in
+@@ -1032,7 +1032,7 @@
+ 	@for i in "$(GENERIC_DIR)/tclInt.h" "$(GENERIC_DIR)/tclIntDecls.h" \
+ 		"$(GENERIC_DIR)/tclIntPlatDecls.h" "$(GENERIC_DIR)/tclPort.h" \
+ 		"$(GENERIC_DIR)/tclOOInt.h" "$(GENERIC_DIR)/tclOOIntDecls.h" \
+-		"$(WIN_DIR)/tclWinPort.h" ; \
++		"$(WIN_DIR)/tclWinPort.h" "$(GENERIC_DIR)/tclCompile.h"; \
+ 	    do \
+ 	    $(COPY) "$$i" "$(PRIVATE_INCLUDE_INSTALL_DIR)"; \
+ 	    done;

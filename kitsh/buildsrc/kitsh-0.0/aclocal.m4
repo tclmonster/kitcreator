@@ -382,9 +382,14 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 				fi
 
 				if test "$host_os" = "mingw32msvc" -o "$host_os" = "mingw32"; then
-					AC_DEFINE(KITSH_NEED_WINMAIN, [1], [Define if you need WinMain (Windows)])
-					GO_BUILD_TAGS="${GO_BUILD_TAGS} needwinmain"
-					CFLAGS="${CFLAGS} -mwindows"
+					AC_ARG_ENABLE(winmain, AS_HELP_STRING([--enable-winmain],
+						[Use WinMain GUI subsystem entry point instead of console subsystem]),
+						[], [enable_winmain=no])
+					if test "$enable_winmain" = "yes"; then
+						AC_DEFINE(KITSH_NEED_WINMAIN, [1], [Define if you need WinMain (Windows)])
+						GO_BUILD_TAGS="${GO_BUILD_TAGS} needwinmain"
+						CFLAGS="${CFLAGS} -mwindows"
+					fi
 				fi
 
 				DC_TEST_WHOLE_ARCHIVE_SHARED_LIB([$ARCHS $projlibfilesnostub], [
@@ -442,8 +447,8 @@ AC_DEFUN(DC_FIND_TCLKIT_LIBS, [
 	echo '' >> kitInit-libs.h
 	echo 'static void _Tclkit_GenericLib_Init(void) {' >> kitInit-libs.h
 	for lib_init_func in ${libs_init_funcs}; do
-		proj="`echo ${lib_init_func} | sed 's@_Init$$@@@' | dd conv=lcase 2>/dev/null`"
-		projdir="../../../$proj"
+		proj="`echo ${lib_init_func} | sed 's@_Init$$@@@'`"
+		projdir="../../../`echo ${proj} | dd conv=lcase 2>/dev/null`"
 		if test -f "${projdir}/inst/tcl-pkg-name"; then
 			proj="`cat "${projdir}/inst/tcl-pkg-name"`"
 		fi

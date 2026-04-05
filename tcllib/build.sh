@@ -2,6 +2,15 @@
 
 # BuildCompatible: KitCreator
 
-version='1.21'
+version='2.0'
 url="http://sourceforge.net/projects/tcllib/files/tcllib/${version}/tcllib-${version}.tar.bz2"
-sha256='4c8a5fc12896002a700dbc6ba3d7c7806a48fb8b89b60a3e902c9098a31757be'
+sha256='196c574da9218cf8dcf180f38a603e670775ddb29f191960d6f6f13f52e56b04'
+
+function build() {
+    :
+}
+
+function install() {
+    ${MAKE:-make} tcllibdir="${installdir}/lib" TCL_PACKAGE_PATH="${installdir}/lib" \
+		  install-tcl || return 1
+}

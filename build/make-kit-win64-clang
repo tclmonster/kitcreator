@@ -1,0 +1,15 @@
+#! /bin/sh
+
+AR=llvm-ar.exe
+CC=x86_64-w64-mingw32-clang.exe
+CXX=x86_64-w64-mingw32-clang++.exe
+NM=llvm-nm.exe
+RANLIB=llvm-ranlib.exe
+RC=llvm-windres.exe
+STRIP=llvm-strip.exe
+export AR CC CXX NM RANLIB RC STRIP
+
+KC_KITSH_LIBS=/clang64/lib/libdl.a
+export KC_KITSH_LIBS
+
+./kitcreator "$@" --enable-64bit --enable-tcl-private-headers ac_cv_header_dlfcn_h=no ac_cv_func_dladdr=no

@@ -2,10 +2,8 @@ tls
 tdom
 parse_args
 tk
-tksvg
 tcllib
-cffi
-tjson
+kitdll
 tkdnd
 crypto
 tbcload

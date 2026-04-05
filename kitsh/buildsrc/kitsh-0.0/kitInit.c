@@ -32,6 +32,15 @@
 
 #include "tclInt.h"
 
+/* Tcl 8.6 compatibility for Tcl 9 Tcl_Size type */
+#ifndef TCL_SIZE_MAX
+#  ifndef Tcl_Size
+     typedef int Tcl_Size;
+#  endif
+#  define TCL_SIZE_MAX INT_MAX
+#  define TCL_SIZE_MODIFIER ""
+#endif
+
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>
 #endif
@@ -50,33 +59,17 @@
 #if defined(HAVE_TCL_GETENCODINGNAMEFROMENVIRONMENT) && defined(HAVE_TCL_SETSYSTEMENCODING)
 #  define TCLKIT_CAN_SET_ENCODING 1
 #endif
-#if 10 * TCL_MAJOR_VERSION + TCL_MINOR_VERSION < 85
-#  define TCLKIT_REQUIRE_TCLEXECUTABLENAME 1
-#endif
-
-#if 10 * TCL_MAJOR_VERSION + TCL_MINOR_VERSION < 85
-#  define KIT_INCLUDES_PWB 1
-#endif
-#if 10 * TCL_MAJOR_VERSION + TCL_MINOR_VERSION < 86
-#  define KIT_INCLUDES_ZLIB 1
-#endif
 
 #include "kitInit-libs.h"
 
 #ifdef KIT_INCLUDES_MK4TCL
 Tcl_AppInitProc	Mk4tcl_Init;
 #endif
-Tcl_AppInitProc Vfs_Init, Rechan_Init;
-#ifdef KIT_INCLUDES_PWB
-Tcl_AppInitProc	Pwb_Init;
-#endif
-#ifdef KIT_INCLUDES_ZLIB
-Tcl_AppInitProc Zlib_Init;
-#endif
+Tcl_AppInitProc Vfs_Init;
 #ifdef KIT_STORAGE_CVFS
 Tcl_AppInitProc Cvfs_data_tcl_Init;
 #endif
-#ifdef TCL_THREADS
+#if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
 Tcl_AppInitProc	Thread_Init;
 #endif
 #ifdef _WIN32
@@ -94,11 +87,7 @@ Tcl_AppInitProc	Dde_Init, Registry_Init;
 #ifndef TCLKIT_DLL
 #  ifdef HAVE_ACCEPTABLE_DLADDR
 #    ifdef KITSH_NEED_WINMAIN
-#      ifdef _WIN32_WCE
-int wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdLine, int nCmdShow);
-#      else
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdLine, int nCmdShow);
-#      endif /* _WIN32_WCE */
 #    endif /* KITSH_NEED_WINMAIN */
 int main(int argc, char **argv);
 #  endif /* HAVE_ACCEPTABLE_DLADDR */
@@ -110,9 +99,6 @@ void __attribute__((constructor)) _Tclkit_Init(void);
 static void _Tclkit_Init(void);
 #endif
 
-#ifdef TCLKIT_REQUIRE_TCLEXECUTABLENAME
-char *tclExecutableName;
-#endif
 
 /*
  *  Attempt to load a "boot.tcl" entry from the embedded MetaKit file.
@@ -122,30 +108,10 @@ char *tclExecutableName;
  * interpreter.  It should mount up the VFS and make everything ready for
  * that interpreter to do its job.
  */
-static char *preInitCmd = 
-#if defined(_WIN32_WCE) && !defined(TCLKIT_DLL)
-/* silly hack to get wince port to launch, some sort of std{in,out,err} problem */
-"open /kitout.txt a; open /kitout.txt a; open /kitout.txt a\n"
-/* this too seems to be needed on wince - it appears to be related to the above */
-"catch {rename source ::tcl::source}\n"
-"proc source file {\n"
-	"set old [info script]\n"
-	"info script $file\n"
-	"set fid [open $file]\n"
-	"set data [read $fid]\n"
-	"close $fid\n"
-	"set code [catch {uplevel 1 $data} res]\n"
-	"info script $old\n"
-	"if {$code == 2} { set code 0 }\n"
-	"return -code $code $res\n"
-"}\n"
-#endif /* _WIN32_WCE && !TCLKIT_DLL */
+static char *preInitCmd =
 "proc tclKitInit {} {\n"
 	"rename tclKitInit {}\n"
 	"catch { load {} vfs }\n"
-#ifdef KIT_INCLUDES_ZLIB
-	"catch { load {} zlib }\n"
-#endif
 #ifdef KIT_INCLUDES_MK4TCL
 	"catch { load {} Mk4tcl }\n"
 #endif
@@ -191,7 +157,6 @@ static char *preInitCmd =
 #endif /* KIT_STORAGE_ZIP */
 #ifdef KIT_STORAGE_CVFS
 	"set ::tclKitStorage \"cvfs\"\n"
-	"load {} rechan\n"
 	"load {} cvfs_data_tcl\n"
 #include "cvfs.tcl.h"
 	"if {![info exists s]} {\n"
@@ -216,6 +181,7 @@ static char *preInitCmd =
 #if defined(KIT_INCLUDES_TK) && defined(KIT_TK_VERSION)
 	"package ifneeded Tk " KIT_TK_VERSION " {\n"
 		"load {} Tk\n"
+		"catch {rename send {}}\n"
 	"}\n"
 #endif
 #ifdef _WIN32
@@ -240,16 +206,13 @@ static const char initScript[] =
    Hack to get around Tcl bug 1224888.
 */
 static void SetExecName(Tcl_Interp *interp, const char *path) {
-#ifdef TCLKIT_REQUIRE_TCLEXECUTABLENAME
-	tclExecutableName = strdup(path);
-#endif
 	Tcl_FindExecutable(path);
 
 	return;
 }
 
 static void FindAndSetExecName(Tcl_Interp *interp) {
-	int len = 0;
+	Tcl_Size len = 0;
 	Tcl_Obj *execNameObj;
 	Tcl_Obj *lobjv[1];
 #ifdef HAVE_READLINK
@@ -301,11 +264,7 @@ static void FindAndSetExecName(Tcl_Interp *interp) {
 	}
 #    ifdef KITSH_NEED_WINMAIN
 	if (Tcl_GetNameOfExecutable() == NULL) {
-#      ifdef _WIN32_WCE
 		dladdr_ret = dladdr(&WinMain, &syminfo);
-#      else
-		dladdr_ret = dladdr(&wWinMain, &syminfo);
-#      endif /* _WIN32_WCE */
 
 		if (dladdr_ret != 0) {
 			SetExecName(interp, syminfo.dli_fname);
@@ -342,18 +301,11 @@ static void _Tclkit_Generic_Init(void) {
 #ifdef KIT_INCLUDES_MK4TCL
 	Tcl_StaticPackage(0, "Mk4tcl", Mk4tcl_Init, NULL);
 #endif
-#ifdef KIT_INCLUDES_PWB
-	Tcl_StaticPackage(0, "pwb", Pwb_Init, NULL);
-#endif 
-	Tcl_StaticPackage(0, "rechan", Rechan_Init, NULL);
 	Tcl_StaticPackage(0, "vfs", Vfs_Init, NULL);
-#ifdef KIT_INCLUDES_ZLIB
-	Tcl_StaticPackage(0, "zlib", Zlib_Init, NULL);
-#endif
 #ifdef KIT_STORAGE_CVFS
 	Tcl_StaticPackage(0, "cvfs_data_tcl", Cvfs_data_tcl_Init, NULL);
 #endif
-#ifdef TCL_THREADS
+#if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
 	Tcl_StaticPackage(0, "Thread", Thread_Init, NULL);
 #endif
 #ifdef _WIN32
@@ -366,7 +318,11 @@ static void _Tclkit_Generic_Init(void) {
 
 	_Tclkit_GenericLib_Init();
 
+#if TCL_MAJOR_VERSION >= 9
+	Tcl_SetPreInitScript(preInitCmd);
+#else
 	TclSetPreInitScript(preInitCmd);
+#endif
 
 	return;
 }
@@ -408,13 +364,9 @@ static void _Tclkit_Interp_Init(Tcl_Interp *interp) {
 
 #ifndef TCLKIT_DLL
 int TclKit_AppInit(Tcl_Interp *interp) {
-#ifdef KIT_INCLUDES_TK
-#  ifdef _WIN32
-#    ifndef _WIN32_WCE
+#if defined(KIT_INCLUDES_TK) && defined(_WIN32)
 	char msgBuf[2049];
-#    endif /* !_WIN32_WCE */
-#  endif /* _WIN32 */
-#endif /* KIT_INCLUDES_TK */
+#endif /* KIT_INCLUDES_TK && _WIN32 */
 
 	/* Perform common initialization */
 	_Tclkit_Init();
@@ -423,27 +375,24 @@ int TclKit_AppInit(Tcl_Interp *interp) {
 		goto error;
 	}
 
-#ifdef KIT_INCLUDES_TK
-#  ifdef _WIN32
+#if defined(KIT_INCLUDES_TK) && defined(KITSH_NEED_WINMAIN)
+	/* GUI subsystem (WinMain): always eagerly init Tk.
+	 * Insert "--" to prevent Tk_Init from consuming script args. */
+	Tcl_Eval(interp, "set argv [linsert $argv 0 --]");
 	if (Tk_Init(interp) == TCL_ERROR) {
 		goto error;
 	}
 	if (Tk_CreateConsoleWindow(interp) == TCL_ERROR) {
 		goto error;
 	}
-#  endif /* _WIN32 */
-#endif /* KIT_INCLUDES_TK */
+	Tcl_DeleteCommand(interp, "send");
+#endif /* KIT_INCLUDES_TK && KITSH_NEED_WINMAIN */
 
-	/* messy because TclSetStartupScriptPath is called slightly too late */
+	/* messy because Tcl_SetStartupScript is called slightly too late */
 	if (Tcl_Eval(interp, initScript) == TCL_OK) {
 		Tcl_Obj* path;
-#ifdef HAVE_TCLSETSTARTUPSCRIPTPATH
-		path = TclGetStartupScriptPath();
-		TclSetStartupScriptPath(Tcl_GetObjResult(interp));
-#elif defined(HAVE_TCL_SETSTARTUPSCRIPT)
 		path = Tcl_GetStartupScript(NULL);
 		Tcl_SetStartupScript(Tcl_GetObjResult(interp), NULL);
-#endif
 		if (path == NULL) {
 			Tcl_Eval(interp, "incr argc -1; set argv [lrange $argv 1 end]");
 		}
@@ -458,7 +407,6 @@ error:
 #ifdef KIT_INCLUDES_TK
 #  ifdef _WIN32
 	MessageBeep(MB_ICONEXCLAMATION);
-#    ifndef _WIN32_WCE
 	snprintf(msgBuf, sizeof(msgBuf),
 		"A critical error has occurred.  Please report this to the Tclkit vendor.\nInterpreter Returned: %s\nError Info: %s",
 		Tcl_GetStringResult(interp),
@@ -468,7 +416,6 @@ error:
 		MB_ICONSTOP | MB_OK | MB_TASKMODAL | MB_SETFOREGROUND);
 
 	ExitProcess(1);
-#    endif /* !_WIN32_WCE */
     /* we won't reach this, but we need the return */
 #  endif /* _WIN32 */
 #endif /* KIT_INCLUDES_TK */
@@ -527,7 +474,7 @@ static char *find_tclkit_dll_path(void) {
  * This function exists to allow C code to initialize a particular
  * interpreter.
  */
-static int tclkit_init_initinterp(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *CONST objv[]) {
+static int tclkit_init_initinterp(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	char *kitdll_path;
 
 	kitdll_path = find_tclkit_dll_path();

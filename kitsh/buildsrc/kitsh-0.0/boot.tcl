@@ -93,12 +93,7 @@ proc tclInit {} {
 		vfs::filesystem mount $mountpoint $vfsHandler
 
 		# alter path to find encodings
-		if {[info tclversion] eq "8.4"} {
-			load {} pwb
-			librarypath [info library]
-		} else {
-			encoding dirs [list [file join [info library] encoding]] ;# TIP 258
-		}
+		encoding dirs [list [file join [info library] encoding]] ;# TIP 258
 
 		# fix system encoding, if it wasn't properly set up (200207.004 bug)
 		if {[encoding system] eq "identity"} {

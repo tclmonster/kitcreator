@@ -2,7 +2,6 @@ tls
 tdom
 parse_args
 tk
-tksvg
 tcllib
 cffi
 tjson

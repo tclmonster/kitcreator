@@ -1,4 +1,4 @@
-OBJS = kitInit.o rechan.o pwb.o zlib.o
+OBJS = kitInit.o
 
 # Default target
 all: @TARGET@

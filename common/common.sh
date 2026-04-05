@@ -12,6 +12,10 @@ workdir="${pkgdir}/build/workdir-$$${RANDOM}${RANDOM}${RANDOM}${RANDOM}.work"
 
 _download="$(which download)"
 
+function totitle() {
+	echo "$1" | awk '{print toupper(substr($0,1,1)) substr($0,2)}'
+}
+
 function clean() {
 	rm -rf "${installdir}" "${runtimedir}"
 }
@@ -122,7 +126,7 @@ function extract() {
 }
 
 function apply_patches() {
-	local patch
+	local patch patchverdir patchver
 
 	for patch in "${patchdir}/all"/${pkg}-${version}-*.diff "${patchdir}/${TCL_VERSION}"/${pkg}-${version}-*.diff "${patchdir}"/*.diff; do
 		if [ ! -f "${patch}" ]; then
@@ -137,6 +141,32 @@ function apply_patches() {
 
 		echo "Applying: ${patch}"
 		( cd "${workdir}" && ${PATCH:-patch} -p1 ) < "${patch}" || return 1
+	done
+
+	# Apply version-prefix patches (e.g., patches/8.6/ matches 8.6.*)
+	for patchverdir in "${patchdir}"/*/; do
+		patchverdir="${patchverdir%/}"
+		patchver="$(basename "${patchverdir}")"
+		[ "${patchver}" = "all" ] && continue
+		[ "${patchver}" = "${TCL_VERSION}" ] && continue
+		case "${TCL_VERSION}" in
+			"${patchver}"|"${patchver}".*)
+				for patch in "${patchverdir}"/*.diff; do
+					if [ ! -f "${patch}" ]; then
+						continue
+					fi
+
+					if [ -x "${patch}.sh" ]; then
+						if ! "${patch}.sh" "${TCL_VERSION}" "${pkg}" "${version}"; then
+							continue
+						fi
+					fi
+
+					echo "Applying: ${patch}"
+					( cd "${workdir}" && ${PATCH:-patch} -p1 ) < "${patch}" || return 1
+				done
+				;;
+		esac
 	done
 
 	return 0
@@ -320,7 +350,7 @@ function createruntime() {
 	if [ -z "${tclpkg}" ]; then
 		tclpkg="${pkg}"
 	fi
-	echo "${tclpkg}" > "${installdir}/tcl-pkg-name"
+	echo "$(totitle "${tclpkg}")" > "${installdir}/tcl-pkg-name" # Tcl 9 load is case-sensitive
 	if [ -n "${tclpkg_initfunc}" ]; then
 		echo "${tclpkg_initfunc}" > "${installdir}/tcl-init-func"
 	fi
@@ -335,7 +365,7 @@ function createruntime() {
 		find "${runtimelibdir}" -name '*.a' | sed 's@/[^/]*\.a$@@' | head -n 1 | while IFS='' read -r runtimepkgdir; do
 			if [ ! -e "${runtimepkgdir}/pkgIndex.tcl" ]; then
 				cat << _EOF_ > "${runtimepkgdir}/pkgIndex.tcl"
-package ifneeded ${tclpkg} ${tclpkgversion} [list load {} ${tclpkg}]
+package ifneeded ${tclpkg} ${tclpkgversion} [list load {} $(totitle "${tclpkg}")]
 _EOF_
 			fi
 		done

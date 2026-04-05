@@ -1,0 +1,18 @@
+diff -uNr a/generic/vfs.c b/generic/vfs.c
+--- a/generic/vfs.c
++++ b/generic/vfs.c
+@@ -21,6 +21,16 @@
+  */
+
++/*
++ * mingw-w64 defines struct _stat64 (single underscore) but Tcl 8.6's tcl.h
++ * typedefs Tcl_StatBuf as struct __stat64 (double underscore, an MSVC-ism).
++ * Include <sys/stat.h> early and map the name before tcl.h is pulled in.
++ */
++#if defined(__MINGW32__) && !defined(__stat64)
++#include <sys/stat.h>
++#define __stat64 _stat64
++#endif
++
+ /* Required to access the 'stat' structure fields, and TclInExit() */
+ #include "tcl.h"

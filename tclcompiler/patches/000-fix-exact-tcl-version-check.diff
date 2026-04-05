@@ -1,0 +1,17 @@
+diff -ruN A/cmpWPkg.c B/cmpWPkg.c
+--- A/cmpWPkg.c	2024-01-01 00:00:00.000000000 +0000
++++ B/cmpWPkg.c	2026-04-05 00:00:00.000000000 +0000
+@@ -113,10 +113,10 @@
+ int Tclcompiler_Init(Tcl_Interp* interp)
+ {
+ #ifdef USE_TCL_STUBS
+-    if (!Tcl_InitStubs(interp, TCL_VERSION, 1))
++    if (!Tcl_InitStubs(interp, TCL_VERSION, 0))
+     {
+         return TCL_ERROR;
+     }
+ #else
+-    if (Tcl_PkgRequire(interp, "Tcl", TCL_VERSION, 1) == NULL)
++    if (Tcl_PkgRequire(interp, "Tcl", TCL_VERSION, 0) == NULL)
+     {
+         return TCL_ERROR;

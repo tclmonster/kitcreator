@@ -16,7 +16,6 @@ on:
     branches: [main]
 
 env:
-  TCL_TK_VERSION: 8.6.17
   CC: x86_64-w64-mingw32-clang.exe
   CXX: x86_64-w64-mingw32-clang++.exe
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -28,24 +27,28 @@ env:
   NM: llvm-nm.exe
   RC: llvm-windres.exe
   KC_KITSH_LIBS: /clang64/lib/libdl.a
-  KC_KITSH_LDFLAGS: '-Wl,--gc-sections'
+  KC_KITSH_LDFLAGS: '-stdlib=libc++ -lc++ -lc++abi -static -Wl,--gc-sections'
   KC_TLS_SSLDIR: /clang64/lib/pkgconfig
   KC_TLS_LINKSSLSTATIC: 1
+  STATICTBCLOAD: 1
+  STATICTCLCOMPILER: 1
   STATICTWAPI: 1
   STATICCFFI: 1
-  STATICTK: 0
-  STATICTKDND: 0
-  STATICTKSVG: 0
+  STATICTK: 1  # Tk9 wish build fails with static Tcl + shared Tk
+  STATICTKDND: 1
+  STATICTKSVG: 1
   STATICTLS: 1
   STATICTDOM: 1
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
-  STATICMK4: 1
   KITCREATOR_PKGS: twapi
 
 jobs:
   build-windows-kits:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        tcl_tk_version: ['8.6.17', '9.0.3']
     defaults:
       run:
         shell: msys2 {0}
@@ -111,22 +114,30 @@ jobs:
         run: |
           export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui.txt)"
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go
-          mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
-          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
+          ./kitcreator build ${{matrix.tcl_tk_version}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go
+          mv tclkit-${{matrix.tcl_tk_version}}.exe tclkitsh-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe
+          echo "$KITCREATOR_PKGS" > tclkitsh-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe.kc_packages
 
       - name: Full kit (with GUI)
         run: |
-          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go
-          mv tclkit-${{env.TCL_TK_VERSION}}.exe tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
-          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe.kc_packages
+          case "${{matrix.tcl_tk_version}}" in
+            9.*) gui_pkgs=.github/workflows/pkgs-gui-tcl9.txt ;;
+            *)   gui_pkgs=.github/workflows/pkgs-gui.txt ;;
+          esac
+          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' "${gui_pkgs}")"
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go --enable-winmain
+          mv tclkit-${{matrix.tcl_tk_version}}.exe tclkit-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe
+          echo "$KITCREATOR_PKGS" > tclkit-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe.kc_packages
 
       - name: Kit SDK
         env:
           STATICTK: 1
         run: |
-          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
+          case "${{matrix.tcl_tk_version}}" in
+            9.*) kitdll_pkgs=.github/workflows/pkgs-kitdll-tcl9.txt ;;
+            *)   kitdll_pkgs=.github/workflows/pkgs-kitdll.txt ;;
+          esac
+          export KITCREATOR_PKGS="${KITCREATOR_PKGS} $(awk '{printf "%s ", $0}' "${kitdll_pkgs}")"
           clean_dynamic_tk_pkgs() {
             for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^(zlib|tk)$'); do
               rm -f  "${pkg}/.success"
@@ -134,14 +145,14 @@ jobs:
             done
           }
           clean_dynamic_tk_pkgs
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go
-          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
-          echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz.kc_packages
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go=/clang64/bin/go
+          mv libtclkit-sdk-${{matrix.tcl_tk_version}}.tar.gz libtclkit-sdk-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.tar.gz
+          echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.tar.gz.kc_packages
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-windows-logs
+          name: kitcreator-windows-${{matrix.tcl_tk_version}}-logs
           path: |
             **/build.log
             **/config.log
@@ -150,17 +161,17 @@ jobs:
       - name: Upload kits
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-windows-kits
+          name: kitcreator-windows-${{matrix.tcl_tk_version}}-kits
           path: |
-            tclkitsh-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
-            tclkit-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.exe
-            libtclkit-sdk-${{env.TCL_TK_VERSION}}-x86_64-w64-mingw32.tar.gz
+            tclkitsh-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe
+            tclkit-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.exe
+            libtclkit-sdk-${{matrix.tcl_tk_version}}-x86_64-w64-mingw32.tar.gz
         if: ${{ !cancelled() }}
 
       - name: Upload kit package list
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-windows-kc_packages
+          name: kitcreator-windows-${{matrix.tcl_tk_version}}-kc_packages
           path: |
             *.kc_packages
         if: ${{ !cancelled() }}

@@ -73,6 +73,9 @@ case "${TCLVERS}" in
 	8.6.17)
 		SRCHASH='a3903371efcce8a405c5c245d029e9f6850258a60fa3761c4d58995610949b31'
 		;;
+	9.0.3)
+		SRCHASH='2537ba0c86112c8c953f7c09d33f134dd45c0fb3a71f2d7f7691fd301d2c33a6'
+		;;
 esac
 
 KC_TCL_SQLITE_VEC="${KC_TCL_SQLITE_VEC:-0}"
@@ -296,9 +299,29 @@ EOF
 		if [ ! -f "${patch}" ]; then
 			continue
 		fi
-                
+
 		echo "Applying: ${patch}"
 		${PATCH:-patch} -p1 < "${patch}"
+	done
+
+	# Apply version-prefix patches (e.g., patches/8.6/ matches 8.6.*)
+	for patchverdir in "${PATCHDIR}"/*/; do
+		patchverdir="${patchverdir%/}"
+		patchver="$(basename "${patchverdir}")"
+		[ "${patchver}" = "all" ] && continue
+		[ "${patchver}" = "${TCLVERS}" ] && continue
+		case "${TCLVERS}" in
+			"${patchver}"|"${patchver}".*)
+				for patch in "${patchverdir}"/*.diff; do
+					if [ ! -f "${patch}" ]; then
+						continue
+					fi
+
+					echo "Applying: ${patch}"
+					${PATCH:-patch} -p1 < "${patch}"
+				done
+				;;
+		esac
 	done
 
 
@@ -351,8 +374,17 @@ EOF
 		# Remove broken pre-generated Makfiles
 		rm -f GNUmakefile Makefile makefile
 
-		echo "Running: ./configure --disable-shared --with-encoding=utf-8 --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" ${CONFIGUREEXTRA}"
-		./configure --disable-shared --with-encoding=utf-8 --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" ${CONFIGUREEXTRA}
+		# Tcl 9+ embeds library scripts via zipfs by default;
+		# disable this so files are installed normally for KitCreator's VFS.
+		tcl_zipfs_flag=''
+		case "${TCLVERS}" in
+			9.*|[1-9][0-9].*)
+				tcl_zipfs_flag='--disable-zipfs'
+				;;
+		esac
+
+		echo "Running: ./configure --disable-shared --with-encoding=utf-8 --prefix=\"${INSTDIR}\" --libdir=\"${INSTDIR}/lib\" ${tcl_zipfs_flag} ${CONFIGUREEXTRA}"
+		./configure --disable-shared --with-encoding=utf-8 --prefix="${INSTDIR}" --libdir="${INSTDIR}/lib" ${tcl_zipfs_flag} ${CONFIGUREEXTRA}
 
 		echo "Running: ${MAKE:-make}"
 		${MAKE:-make} || continue
@@ -371,26 +403,6 @@ EOF
 
 			echo "Running: ${MAKE:-make} install $private_headers TCLSH_NATIVE=\"${TCLSH_NATIVE}\""
 			${MAKE:-make} install $private_headers TCLSH_NATIVE="${TCLSH_NATIVE}"
-		) || (
-			# Make install can fail if cross-compiling using Tcl 8.5.x
-			# because the Makefile calls "$(TCLSH)".  We can't simply
-			# redefine TCLSH because it also uses TCLSH as a build target
-			sed 's@^$(TCLSH)@blah@' Makefile > Makefile.new
-			cat Makefile.new > Makefile
-			rm -f Makefile.new
-
-			echo "Running: ${MAKE:-make} install $private_headers TCLSH=\"../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")\""
-			${MAKE:-make} install $private_headers TCLSH="../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")"
-		) || (
-			# Make install can fail if cross-compiling using Tcl 8.5.9
-			# because the Makefile calls "${TCL_EXE}".  We can't simply
-			# redefine TCL_EXE because it also uses TCL_EXE as a build target
-			sed 's@^${TCL_EXE}@blah@' Makefile > Makefile.new
-			cat Makefile.new > Makefile
-			rm -f Makefile.new
-
-			echo "Running: ${MAKE:-make} install $private_headers TCL_EXE=\"../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")\""
-			${MAKE:-make} install $private_headers TCL_EXE="../../../../../../../../../../../../../../../../../$(which "${TCLSH_NATIVE}")"
 		) || exit 1
 
 		mkdir "${OUTDIR}/lib" || exit 1

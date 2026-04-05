@@ -293,29 +293,11 @@ proc ::vfs::cvfs::vfsop_open {hashkey root relative actualpath mode permissions}
 		vfs::filesystem posixerror $::vfs::posix(EISDIR)
 	}
 
-	if {[info command chan] != ""} {
-		set chan [chan create [list "read"] [list ::vfs::cvfs::chanhandler $hashkey]]
+	set chan [chan create [list "read"] [list ::vfs::cvfs::chanhandler $hashkey]]
 
-		set ::vfs::cvfs::chandata([list $hashkey $chan]) [list file $relative pos 0 len $metadata(size) watching ""]
+	set ::vfs::cvfs::chandata([list $hashkey $chan]) [list file $relative pos 0 len $metadata(size) watching ""]
 
-		return [list $chan]
-	}
-
-	if {[info command rechan] == ""} {
-		catch {
-			package require rechan
-		}
-	}
-
-	if {[info command rechan] != ""} {
-		set chan [rechan [list ::vfs::cvfs::chanhandler $hashkey] 2]
-
-		set ::vfs::cvfs::chandata([list $hashkey $chan]) [list file $relative pos 0 len $metadata(size) watching ""]
-
-		return [list $chan]
-	}
-
-	return -code error "No way to generate a channel, need either Tcl 8.5+, \"rechan\""
+	return [list $chan]
 }
 
 ##### No-Ops since we are a readonly filesystem

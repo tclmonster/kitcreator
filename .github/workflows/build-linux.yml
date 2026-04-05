@@ -6,8 +6,9 @@ on:
     branches: [main]
 
 env:
-  TCL_TK_VERSION: 8.6.17
   KC_TLS_LINKSSLSTATIC: 0  # Linux generally has OpenSSL installed
+  STATICTBCLOAD: 1
+  STATICTCLCOMPILER: 1
   STATICTK: 0
   STATICTKDND: 0
   STATICTKSVG: 0
@@ -15,9 +16,7 @@ env:
   STATICTDOM: 1
   STATICPARSE_ARGS: 1
   STATICTCLLIB: 1
-  STATICMK4: 1
   STATICCFFI: 1
-  KC_MK4TCL_CXXFLAGS: '-fPIC'
   CFLAGS:   '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CPPFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
   CXXFLAGS: '-DNDEBUG -O2 -fomit-frame-pointer -fstack-protector-strong -ffunction-sections -fdata-sections'
@@ -29,6 +28,7 @@ jobs:
 
     strategy:
       matrix:
+        tcl_tk_version: ['8.6.17', '9.0.3']
         platform:
           - arch:       x86_64
             pkg_prefix: amd64
@@ -97,7 +97,6 @@ jobs:
 
       - name: Base kit
         env:
-          KITCREATOR_PKGS: mk4tcl
           CC:  ${{matrix.platform.cross_pfx}}-gcc
           CXX: ${{matrix.platform.cross_pfx}}-g++
           AR:  ${{matrix.platform.cross_pfx}}-ar
@@ -106,33 +105,41 @@ jobs:
           STRIP:  ${{matrix.platform.cross_pfx}}-strip
         run: |
           ./build/pre.sh
-          ./kitcreator build ${{env.TCL_TK_VERSION}}
-          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.arch}}-base
+          ./kitcreator build ${{matrix.tcl_tk_version}}
+          mv tclkit-${{matrix.tcl_tk_version}} tclkitsh-${{matrix.tcl_tk_version}}-${{env.arch}}-base
           cat <<EOF > $GITHUB_ENV
-          TCLKIT=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.arch}}-base
-          TCLSH_NATIVE=$(pwd)/tclkitsh-${{env.TCL_TK_VERSION}}-${{env.arch}}-base
+          TCLKIT=$(pwd)/tclkitsh-${{matrix.tcl_tk_version}}-${{env.arch}}-base
+          TCLSH_NATIVE=$(pwd)/tclkitsh-${{matrix.tcl_tk_version}}-${{env.arch}}-base
           EOF
 
       - name: Standard kit (No GUI)
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui.txt)"
           ./kitcreator clean
-          ./kitcreator build ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}"
-          mv tclkit-${{env.TCL_TK_VERSION}} tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
-          echo "$KITCREATOR_PKGS" > tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
+          ./kitcreator build ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}"
+          mv tclkit-${{matrix.tcl_tk_version}} tclkitsh-${{matrix.tcl_tk_version}}-${{env.suffix}}
+          echo "$KITCREATOR_PKGS" > tclkitsh-${{matrix.tcl_tk_version}}-${{env.suffix}}.kc_packages
 
       - name: Full kit (with GUI)
         run: |
-          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-gui.txt)"
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}"
-          mv tclkit-${{env.TCL_TK_VERSION}} tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
-          echo "$KITCREATOR_PKGS" > tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}.kc_packages
+          case "${{matrix.tcl_tk_version}}" in
+            9.*) gui_pkgs=.github/workflows/pkgs-gui-tcl9.txt ;;
+            *)   gui_pkgs=.github/workflows/pkgs-gui.txt ;;
+          esac
+          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' "${gui_pkgs}")"
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}"
+          mv tclkit-${{matrix.tcl_tk_version}} tclkit-${{matrix.tcl_tk_version}}-${{env.suffix}}
+          echo "$KITCREATOR_PKGS" > tclkit-${{matrix.tcl_tk_version}}-${{env.suffix}}.kc_packages
 
       - name: Kit SDK
         env:
           STATICTK: 1
         run: |
-          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-kitdll.txt)"
+          case "${{matrix.tcl_tk_version}}" in
+            9.*) kitdll_pkgs=.github/workflows/pkgs-kitdll-tcl9.txt ;;
+            *)   kitdll_pkgs=.github/workflows/pkgs-kitdll.txt ;;
+          esac
+          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' "${kitdll_pkgs}")"
           clean_dynamic_tk_pkgs() {
             for pkg in $(ls */build.sh | cut -d/ -f1 | egrep '^(zlib|tk)$'); do
               rm -f  "${pkg}/.success"
@@ -140,14 +147,14 @@ jobs:
             done
           }
           clean_dynamic_tk_pkgs
-          ./kitcreator retry ${{env.TCL_TK_VERSION}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}"
-          mv libtclkit-sdk-${{env.TCL_TK_VERSION}}.tar.gz libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
-          echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz.kc_packages
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}"
+          mv libtclkit-sdk-${{matrix.tcl_tk_version}}.tar.gz libtclkit-sdk-${{matrix.tcl_tk_version}}-${{env.suffix}}.tar.gz
+          echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{matrix.tcl_tk_version}}-${{env.suffix}}.tar.gz.kc_packages
 
       - name: Upload logs
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-linux-${{env.arch}}-logs
+          name: kitcreator-linux-${{env.arch}}-${{matrix.tcl_tk_version}}-logs
           path: |
             **/build.log
             **/config.log
@@ -156,17 +163,17 @@ jobs:
       - name: Upload kits
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-linux-${{env.arch}}-kits
+          name: kitcreator-linux-${{env.arch}}-${{matrix.tcl_tk_version}}-kits
           path: |
-            tclkitsh-${{env.TCL_TK_VERSION}}-${{env.suffix}}
-            tclkit-${{env.TCL_TK_VERSION}}-${{env.suffix}}
-            libtclkit-sdk-${{env.TCL_TK_VERSION}}-${{env.suffix}}.tar.gz
+            tclkitsh-${{matrix.tcl_tk_version}}-${{env.suffix}}
+            tclkit-${{matrix.tcl_tk_version}}-${{env.suffix}}
+            libtclkit-sdk-${{matrix.tcl_tk_version}}-${{env.suffix}}.tar.gz
         if: ${{ !cancelled() }}
 
       - name: Upload kit package list
         uses: actions/upload-artifact@v4
         with:
-          name: kitcreator-linux-${{env.arch}}-kc_packages
+          name: kitcreator-linux-${{env.arch}}-${{matrix.tcl_tk_version}}-kc_packages
           path: |
             *.kc_packages
         if: ${{ !cancelled() }}
