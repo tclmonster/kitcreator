@@ -34,7 +34,7 @@ env:
   STATICCFFI: 1
   STATICTK: 1  # Tk9 wish build fails with static Tcl + shared Tk
   STATICTKDND: 1
-  STATICTKSVG: 0
+  STATICTKSVG: 1
   STATICTLS: 1
   STATICTDOM: 1
   STATICPARSE_ARGS: 1
