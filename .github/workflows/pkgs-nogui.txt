@@ -5,3 +5,5 @@ tcllib
 cffi
 tjson
 crypto
+tbcload
+tclcompiler

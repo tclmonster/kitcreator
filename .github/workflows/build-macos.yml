@@ -19,6 +19,8 @@ env:
   CC: /usr/bin/clang
   CXX: /usr/bin/clang++
   KC_TLS_LINKSSLSTATIC: 1
+  STATICTBCLOAD: 1
+  STATICTCLCOMPILER: 1
   STATICTK: 0
   STATICTKDND: 0
   STATICTKSVG: 0

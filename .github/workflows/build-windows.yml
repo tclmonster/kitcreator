@@ -30,6 +30,8 @@ env:
   KC_KITSH_LDFLAGS: '-stdlib=libc++ -lc++ -lc++abi -static -Wl,--gc-sections'
   KC_TLS_SSLDIR: /clang64/lib/pkgconfig
   KC_TLS_LINKSSLSTATIC: 1
+  STATICTBCLOAD: 1
+  STATICTCLCOMPILER: 1
   STATICTWAPI: 1
   STATICCFFI: 1
   STATICTK: 1  # Tk9 wish build fails with static Tcl + shared Tk

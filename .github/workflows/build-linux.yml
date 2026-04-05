@@ -7,6 +7,8 @@ on:
 
 env:
   KC_TLS_LINKSSLSTATIC: 0  # Linux generally has OpenSSL installed
+  STATICTBCLOAD: 1
+  STATICTCLCOMPILER: 1
   STATICTK: 0
   STATICTKDND: 0
   STATICTKSVG: 0

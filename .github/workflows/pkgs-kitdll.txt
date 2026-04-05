@@ -7,3 +7,5 @@ tcllib
 kitdll
 tkdnd
 crypto
+tbcload
+tclcompiler
