@@ -126,7 +126,7 @@ function extract() {
 }
 
 function apply_patches() {
-	local patch
+	local patch patchverdir patchver
 
 	for patch in "${patchdir}/all"/${pkg}-${version}-*.diff "${patchdir}/${TCL_VERSION}"/${pkg}-${version}-*.diff "${patchdir}"/*.diff; do
 		if [ ! -f "${patch}" ]; then
@@ -141,6 +141,32 @@ function apply_patches() {
 
 		echo "Applying: ${patch}"
 		( cd "${workdir}" && ${PATCH:-patch} -p1 ) < "${patch}" || return 1
+	done
+
+	# Apply version-prefix patches (e.g., patches/8.6/ matches 8.6.*)
+	for patchverdir in "${patchdir}"/*/; do
+		patchverdir="${patchverdir%/}"
+		patchver="$(basename "${patchverdir}")"
+		[ "${patchver}" = "all" ] && continue
+		[ "${patchver}" = "${TCL_VERSION}" ] && continue
+		case "${TCL_VERSION}" in
+			"${patchver}"|"${patchver}".*)
+				for patch in "${patchverdir}"/*.diff; do
+					if [ ! -f "${patch}" ]; then
+						continue
+					fi
+
+					if [ -x "${patch}.sh" ]; then
+						if ! "${patch}.sh" "${TCL_VERSION}" "${pkg}" "${version}"; then
+							continue
+						fi
+					fi
+
+					echo "Applying: ${patch}"
+					( cd "${workdir}" && ${PATCH:-patch} -p1 ) < "${patch}" || return 1
+				done
+				;;
+		esac
 	done
 
 	return 0
