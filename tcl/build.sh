@@ -80,10 +80,10 @@ esac
 
 KC_TCL_SQLITE_VEC="${KC_TCL_SQLITE_VEC:-0}"
 
-SQLITE_VEC_VER='0.2.3-alpha'
+SQLITE_VEC_VER='0.1.10-alpha.3'
 SQLITE_VEC_SRC="src/sqlite-vec-${SQLITE_VEC_VER}.tar.gz"
-SQLITE_VEC_SRCURL="https://github.com/vlasky/sqlite-vec/archive/refs/tags/v${SQLITE_VEC_VER}.tar.gz"
-SQLITE_VEC_SRCHASH='b70a1050048268fb38a985d999f150cd463fd4aedd7b9e64b78b3ea4874f939c'
+SQLITE_VEC_SRCURL="https://github.com/asg017/sqlite-vec/archive/refs/tags/v${SQLITE_VEC_VER}.tar.gz"
+SQLITE_VEC_SRCHASH='b5028f3c07d5f5d1475ac7302d45981d4c89bd2a888d83317dca9d849e690a40'
 
 # Set configure options for this sub-project
 LDFLAGS="${LDFLAGS} ${KC_TCL_LDFLAGS}"
@@ -268,13 +268,31 @@ diff -ruN A/sqlite-vec.c B/sqlite-vec.c
  typedef size_t usize;
 EOF
 
+		echo "Generating sqlite-vec.h..."
+		awk -v ver="$(cat VERSION)" -v date="$(date +'%FT%TZ%z')" '
+		BEGIN {
+			split(ver, v, "[.-]")
+		}
+		{
+			gsub(/\${VERSION}/, ver)
+			gsub(/\${DATE}/, date)
+			gsub(/\${SOURCE}/, "")
+			gsub(/\${VERSION_MAJOR}/, v[1])
+			gsub(/\${VERSION_MINOR}/, v[2])
+			gsub(/\${VERSION_PATCH}/, v[3])
+			print
+		}
+		' sqlite-vec.h.tmpl > sqlite-vec.h || exit 1
+
 		SQLITE_VEC_DST=$(cd "${BUILDDIR}"/pkgs/sqlite*/compat/sqlite3; pwd;)
 
-		echo "Appending sqlite-vec.c to sqlite amalgamation..."
-		cat sqlite-vec.c >> "${SQLITE_VEC_DST}"/sqlite3.c || exit 1
+		echo "Copying sqlite-vec files to sqlite amalgamation directory..."
+		cp -f sqlite-vec.h sqlite-vec*.c "${SQLITE_VEC_DST}"/ || exit 1
 
-		echo "Appending vec_extra_init to sqlite amalgamation..."
+		echo "Appending #include sqlite-vec.c to sqlite amalgamation..."
 		cat <<'EOF' >> "${SQLITE_VEC_DST}"/sqlite3.c || exit 1
+#include "sqlite-vec.c"
+
 /* Bridge function for the SQLITE_EXTRA_INIT mechanism */
 int vec_extra_init(const char*) {
   /* We'll use this to register the extension for auto-loading */
@@ -286,8 +304,6 @@ int vec_extra_init(const char*) {
   return rc;
 }
 EOF
-		echo "Copying sqlite-vec.h..."
-		cp -f sqlite-vec.h "${SQLITE_VEC_DST}"/sqlite-vec.h
 
 		export CFLAGS="${CFLAGS} -DSQLITE_EXTRA_INIT=vec_extra_init -DSQLITE_CORE"
 	fi
