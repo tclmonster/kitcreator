@@ -199,5 +199,3 @@ func CryptoHmacCmd(clientData C.ClientData, interp *C.Tcl_Interp, objc C.int, ob
 	// Remaining args start at index 3
 	return computeHash(h, interp, objc, objv, 3)
 }
-
-func main() {}
