@@ -10,3 +10,4 @@ tkdnd
 crypto
 tbcload
 tclcompiler
+tclx
