@@ -4,6 +4,6 @@
 
 version="9.0.0"
 url="https://github.com/tclmonster/tclx/archive/refs/tags/v${version}-beta.tar.gz"
-sha256='6075ba010ec73151a3d33502e0162c002de43db9ce6ed7f9f00a8b381435b9ad'
+sha256='67198fee28409a4722ca6913c274a810d396792e2b4e10bea44d8151c61badda'
 tclpkg='Tclx'
 tclpkgversion='9.0'
