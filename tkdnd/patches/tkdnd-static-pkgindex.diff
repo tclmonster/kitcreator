@@ -1,0 +1,32 @@
+diff -ruN A/Makefile.in B/Makefile.in
+--- A/Makefile.in	2025-01-04 07:45:25
++++ B/Makefile.in	2026-04-12 12:00:00
+@@ -416,10 +416,8 @@
+ 	    $(INSTALL_DATA) $(srcdir)/$$p $(DESTDIR)$(pkglibdir)/$$destp; \
+ 	  fi; \
+ 	done
+-	@if test "x$(SHARED_BUILD)" = "x1"; then \
+-	    echo " Install pkgIndex.tcl $(DESTDIR)$(pkglibdir)"; \
+-	    $(INSTALL_DATA) pkgIndex.tcl $(DESTDIR)$(pkglibdir); \
+-	fi
++	@echo " Install pkgIndex.tcl $(DESTDIR)$(pkglibdir)"
++	@$(INSTALL_DATA) pkgIndex.tcl $(DESTDIR)$(pkglibdir)
+
+ #========================================================================
+ # Install binary executables (e.g. .exe files and dependent .dll files)
+diff -ruN A/library/tkdnd.tcl B/library/tkdnd.tcl
+--- A/library/tkdnd.tcl	2025-01-04 07:45:25
++++ B/library/tkdnd.tcl	2026-04-12 12:00:00
+@@ -207,7 +207,11 @@
+         error "unknown Tk windowing system"
+       }
+     }
+-    load $dir/$PKG_LIB_FILE [string totitle $PACKAGE_NAME 0 0]
++    if {[string match "*[info sharedlibextension]" $PKG_LIB_FILE]} {
++      load $dir/$PKG_LIB_FILE [string totitle $PACKAGE_NAME 0 0]
++    } else {
++      load {} [string totitle $PACKAGE_NAME 0 0]
++    }
+     source $dir/tkdnd_compat.tcl
+     ${_platform_namespace}::initialise
+   };# initialise
