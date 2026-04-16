@@ -111,7 +111,7 @@ static void _Tclkit_Init(void);
 static char *preInitCmd =
 "proc tclKitInit {} {\n"
 	"rename tclKitInit {}\n"
-	"catch { load {} vfs }\n"
+	"catch { load {} Vfs }\n"
 #ifdef KIT_INCLUDES_MK4TCL
 	"catch { load {} Mk4tcl }\n"
 #endif
@@ -136,7 +136,7 @@ static char *preInitCmd =
 		"if {$n != \"\"} {\n"
 			"set s [mk::get exe.dirs!0.files!$n contents]\n"
 			"if {![string length $s]} { error \"empty boot.tcl\" }\n"
-			"catch {load {} zlib}\n"
+			"catch {load {} Zlib}\n"
 			"if {[mk::get exe.dirs!0.files!$n size] != [string length $s]} {\n"
 				"set s [zlib decompress $s]\n"
 			"}\n"
@@ -157,7 +157,7 @@ static char *preInitCmd =
 #endif /* KIT_STORAGE_ZIP */
 #ifdef KIT_STORAGE_CVFS
 	"set ::tclKitStorage \"cvfs\"\n"
-	"load {} cvfs_data_tcl\n"
+	"load {} Cvfs_data_tcl\n"
 #include "cvfs.tcl.h"
 	"if {![info exists s]} {\n"
 		"catch {\n"
@@ -185,8 +185,8 @@ static char *preInitCmd =
 	"}\n"
 #endif
 #ifdef _WIN32
-	"catch {load {} dde}\n"
-	"catch {load {} registry}\n"
+	"catch {load {} Dde}\n"
+	"catch {load {} Registry}\n"
 #endif /* _WIN32 */
 	"return 0\n"
 "}\n"
@@ -301,16 +301,16 @@ static void _Tclkit_Generic_Init(void) {
 #ifdef KIT_INCLUDES_MK4TCL
 	Tcl_StaticPackage(0, "Mk4tcl", Mk4tcl_Init, NULL);
 #endif
-	Tcl_StaticPackage(0, "vfs", Vfs_Init, NULL);
+	Tcl_StaticPackage(0, "Vfs", Vfs_Init, NULL);
 #ifdef KIT_STORAGE_CVFS
-	Tcl_StaticPackage(0, "cvfs_data_tcl", Cvfs_data_tcl_Init, NULL);
+	Tcl_StaticPackage(0, "Cvfs_data_tcl", Cvfs_data_tcl_Init, NULL);
 #endif
 #if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
 	Tcl_StaticPackage(0, "Thread", Thread_Init, NULL);
 #endif
 #ifdef _WIN32
-	Tcl_StaticPackage(0, "dde", Dde_Init, NULL);
-	Tcl_StaticPackage(0, "registry", Registry_Init, NULL);
+	Tcl_StaticPackage(0, "Dde", Dde_Init, NULL);
+	Tcl_StaticPackage(0, "Registry", Registry_Init, NULL);
 #endif
 #ifdef KIT_INCLUDES_TK
 	Tcl_StaticPackage(0, "Tk", Tk_Init, Tk_SafeInit);
