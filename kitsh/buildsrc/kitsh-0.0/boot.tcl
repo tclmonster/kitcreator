@@ -149,6 +149,14 @@ proc tclInit {} {
 	# reset auto_path, so that init.tcl's search outside of tclkit is cancelled
 	set auto_path $tcl_libPath
 
+	# Child interps have vfs provided by preInitCmd (catch { load {} Vfs })
+	# before tclInit ran.  Forget it so that [package require vfs] now goes
+	# through the normal path (vfs.tcl -> vfsUtils.tcl) with auto_path in place.
+	# Root interp has TCLKIT_INITVFS set and already sourced vfsUtils directly.
+	if {![info exists ::TCLKIT_INITVFS]} {
+		package forget vfs
+	}
+
 	# Update Tcl Module system as well
 	if {[info command ::tcl::tm::path] ne ""} {
 		tcl::tm::path remove {*}[tcl::tm::path list]

@@ -1,0 +1,24 @@
+--- A/library/vfs.tcl.in.orig	2026-04-16 13:07:50.274988557 -0300
++++ B/library/vfs.tcl.in	2026-04-16 18:04:40.475751611 -0300
+@@ -21,10 +21,18 @@
+     lappend ::auto_path $::vfs::self
+ }
+ 
+-if {[package vsatisfies [package provide Tcl] 9.0-]} {
+-    load [file join $::vfs::self @PKG_LIB_FILE9@]
++if {[info commands ::vfs::filesystem] ne {}} {
++    package provide vfs @PACKAGE_VERSION@
+ } else {
+-    load [file join $::vfs::self @PKG_LIB_FILE8@]
++    try {
++        if {[package vsatisfies [package provide Tcl] 9.0-]} {
++            load [file join $::vfs::self @PKG_LIB_FILE9@]
++        } else {
++            load [file join $::vfs::self @PKG_LIB_FILE8@]
++        }
++    } on error {} {
++        load {} Vfs
++    }
+ }
+ 
+ if {$::vfs::redir} {
