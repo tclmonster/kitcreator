@@ -1,0 +1,11 @@
+--- tclcompiler2-2.0a0/cmpInt.h.orig	2026-04-28 11:59:48.893469536 -0300
++++ tclcompiler2-2.0a0/cmpInt.h	2026-04-28 11:59:51.560413721 -0300
+@@ -84,7 +84,7 @@
+  * The version of the tbcload package needed to load scripts compiled by this
+  * version of the compiler.
+  */
+-#define TBCLOAD_VERSION "2.0"
++#define TBCLOAD_VERSION "2.0a0"
+ 
+ /*
+  * This macro includes code that emits and reads the location map for a

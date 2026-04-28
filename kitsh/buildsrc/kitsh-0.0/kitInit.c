@@ -188,6 +188,7 @@ static char *preInitCmd =
 	"catch {load {} Dde}\n"
 	"catch {load {} Registry}\n"
 #endif /* _WIN32 */
+	"catch {load {} Tbcload}\n"
 	"return 0\n"
 "}\n"
 "tclKitInit";
