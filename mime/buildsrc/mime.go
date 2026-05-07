@@ -42,6 +42,10 @@ func dictPut(interp *C.Tcl_Interp, dict *C.Tcl_Obj, key, value string) {
 
 //export Mime_Init
 func Mime_Init(interp *C.Tcl_Interp) C.int {
+	for ext, typ := range mimeDB {
+		gomime.AddExtensionType(ext, typ)
+	}
+
 	C.Mime_SetupNamespace(interp)
 
 	C.Mime_CreateObjCommand(interp, C.CString("::mime::type"), (*C.Tcl_ObjCmdProc)(C.MimeTypeCmd), nil, nil)
