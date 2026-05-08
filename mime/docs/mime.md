@@ -8,7 +8,7 @@ Wraps Go's standard `mime` package.
 ## Synopsis
 
 ```tcl
-package require mime
+package require mime2
 
 mime type extension
 mime extensions type

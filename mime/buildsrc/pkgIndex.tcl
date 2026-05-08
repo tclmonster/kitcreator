@@ -1,1 +1,1 @@
-package ifneeded mime 1.0 [list load {} Mime]
+package ifneeded mime2 1.0 [list load {} Mime]

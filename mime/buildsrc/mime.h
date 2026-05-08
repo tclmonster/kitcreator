@@ -38,11 +38,11 @@ static inline Tcl_Command Mime_CreateObjCommand(Tcl_Interp *interp, const char *
 }
 
 static inline void Mime_SetupNamespace(Tcl_Interp *interp) {
-	Tcl_CreateNamespace(interp, "::mime", NULL, NULL);
+	Tcl_CreateNamespace(interp, "::mime2", NULL, NULL);
 }
 
 static inline void Mime_SetupEnsemble(Tcl_Interp *interp) {
-	Tcl_Namespace *nsPtr = Tcl_FindNamespace(interp, "::mime", NULL, 0);
+	Tcl_Namespace *nsPtr = Tcl_FindNamespace(interp, "::mime2", NULL, 0);
 	if (nsPtr != NULL) {
 		Tcl_Export(interp, nsPtr, "*", 0);
 		Tcl_CreateEnsemble(interp, "::mime", nsPtr, TCL_ENSEMBLE_PREFIX);

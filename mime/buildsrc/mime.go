@@ -48,18 +48,18 @@ func Mime_Init(interp *C.Tcl_Interp) C.int {
 
 	C.Mime_SetupNamespace(interp)
 
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::type"), (*C.Tcl_ObjCmdProc)(C.MimeTypeCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::extensions"), (*C.Tcl_ObjCmdProc)(C.MimeExtensionsCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::add"), (*C.Tcl_ObjCmdProc)(C.MimeAddCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::parse"), (*C.Tcl_ObjCmdProc)(C.MimeParseCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::format"), (*C.Tcl_ObjCmdProc)(C.MimeFormatCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::encode"), (*C.Tcl_ObjCmdProc)(C.MimeEncodeCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::decode"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime::decodeheader"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeHeaderCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::type"), (*C.Tcl_ObjCmdProc)(C.MimeTypeCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::extensions"), (*C.Tcl_ObjCmdProc)(C.MimeExtensionsCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::add"), (*C.Tcl_ObjCmdProc)(C.MimeAddCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::parse"), (*C.Tcl_ObjCmdProc)(C.MimeParseCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::format"), (*C.Tcl_ObjCmdProc)(C.MimeFormatCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::encode"), (*C.Tcl_ObjCmdProc)(C.MimeEncodeCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::decode"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeCmd), nil, nil)
+	C.Mime_CreateObjCommand(interp, C.CString("::mime2::decodeheader"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeHeaderCmd), nil, nil)
 
 	C.Mime_SetupEnsemble(interp)
 
-	return C.Tcl_PkgProvideEx(interp, C.CString("mime"), C.CString("1.0"), nil)
+	return C.Tcl_PkgProvideEx(interp, C.CString("mime2"), C.CString("1.0"), nil)
 }
 
 //export MimeTypeCmd
