@@ -261,8 +261,10 @@ Tcl_AppInit(
      * specific startup file will be run under any conditions.
      */
 
+#ifdef KITSH_ENABLE_TCLKITRC
     Tcl_ObjSetVar2(interp, Tcl_NewStringObj("tcl_rcFileName", -1), NULL,
 	    Tcl_NewStringObj("~/wishrc.tcl", -1), TCL_GLOBAL_ONLY);
+#endif
     return TCL_OK;
 }
 

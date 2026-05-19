@@ -207,6 +207,29 @@ AC_CHECK_FUNCS(readlink)
 dnl Check for acceptable dladdr so we can find ourselves on Solaris
 DC_CHECK_FOR_ACCEPTABLE_DLADDR
 
+dnl Determine whether to source the user rc file at interactive startup
+AC_MSG_CHECKING([whether to source the user rc file at interactive startup])
+AC_ARG_ENABLE(tclkitrc, AS_HELP_STRING([--enable-tclkitrc],[Source the user rc file (~/.tclkitrc, ~/tclkitrc.tcl on Windows) at interactive startup (default: disabled)]), [
+	AS_CASE([$enableval],
+		[yes], [
+			enable_tclkitrc='yes'
+		],
+		[no], [
+			enable_tclkitrc='no'
+		], [
+			AC_MSG_RESULT([unknown])
+
+			AC_MSG_ERROR([Invalid option: $enableval])
+		]
+	)
+], [
+	enable_tclkitrc='no'
+])
+AC_MSG_RESULT([$enable_tclkitrc])
+AS_IF([test "$enable_tclkitrc" = 'yes'], [
+	AC_DEFINE([KITSH_ENABLE_TCLKITRC], [1], [Define to source the user rc file at interactive startup])
+])
+
 dnl Find zlib
 AC_ARG_WITH(zlib, AS_HELP_STRING([--with-zlib],[directory containing zlib]), [
 	CPPFLAGS="${CPPFLAGS} -I${with_zlib}/include -I${with_zlib}"

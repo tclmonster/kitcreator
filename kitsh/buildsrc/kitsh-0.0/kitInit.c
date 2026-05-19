@@ -17,18 +17,18 @@
 
 #ifdef KIT_INCLUDES_TK
 #  include <tk.h>
-#endif /* KIT_INCLUDES_TK */
+#endif
 #include <tcl.h>
 
 #ifdef _WIN32
 #  define WIN32_LEAN_AND_MEAN
 #  include <windows.h>
 #  undef WIN32_LEAN_AND_MEAN
-#endif /* _WIN32 */
+#endif
 
 #ifndef MB_TASKMODAL
 #  define MB_TASKMODAL 0
-#endif /* MB_TASKMODAL */
+#endif
 
 #include "tclInt.h"
 
@@ -82,16 +82,16 @@ Tcl_AppInitProc	Dde_Init, Registry_Init;
 #else
 #  define TCLKIT_MOUNTPOINT "[info nameofexecutable]"
 #  define TCLKIT_VFSSOURCE "[info nameofexecutable]"
-#endif /* TCLKIT_DLL */
+#endif
 
 #ifndef TCLKIT_DLL
 #  ifdef HAVE_ACCEPTABLE_DLADDR
 #    ifdef KITSH_NEED_WINMAIN
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdLine, int nCmdShow);
-#    endif /* KITSH_NEED_WINMAIN */
+#    endif
 int main(int argc, char **argv);
-#  endif /* HAVE_ACCEPTABLE_DLADDR */
-#endif /* !TCLKIT_DLL */
+#  endif
+#endif
 
 #ifdef TCLKIT_DLL
 void __attribute__((constructor)) _Tclkit_Init(void);
@@ -142,7 +142,7 @@ static char *preInitCmd =
 			"}\n"
 		"}\n"
 	"}\n"
-#endif /* KIT_STORAGE_MK4 */
+#endif
 #ifdef KIT_STORAGE_ZIP
 	"set ::tclKitStorage \"zip\"\n"
 	"if {![info exists s]} {\n"
@@ -154,7 +154,7 @@ static char *preInitCmd =
 			"::zip::Data $::tclKitStorage_fd sb s\n"
 		"}\n"
 	"}\n"
-#endif /* KIT_STORAGE_ZIP */
+#endif
 #ifdef KIT_STORAGE_CVFS
 	"set ::tclKitStorage \"cvfs\"\n"
 	"load {} Cvfs_data_tcl\n"
@@ -164,7 +164,7 @@ static char *preInitCmd =
 			"set s [::vfs::cvfs::data::getData tcl boot.tcl]\n"
 		"}\n"
 	"}\n"
-#endif /* KIT_STORAGE_CVFS */
+#endif
 	"if {![info exists s]} {\n"
 		"set s \"\"\n"
 	"}\n"
@@ -172,7 +172,7 @@ static char *preInitCmd =
 	"set ::TCLKIT_TYPE \"kitdll\"\n"
 #else
 	"set ::TCLKIT_TYPE \"tclkit\"\n"
-#endif /* TCLKIT_DLL */
+#endif
 	"set ::TCLKIT_MOUNTPOINT " TCLKIT_MOUNTPOINT "\n"
 	"catch { set ::TCLKIT_VFSSOURCE " TCLKIT_VFSSOURCE " }\n"
 	"set ::TCLKIT_MOUNTPOINT_VAR {" TCLKIT_MOUNTPOINT "}\n"
@@ -187,7 +187,7 @@ static char *preInitCmd =
 #ifdef _WIN32
 	"catch {load {} Dde}\n"
 	"catch {load {} Registry}\n"
-#endif /* _WIN32 */
+#endif
 	"catch {load {} Tbcload}\n"
 	"return 0\n"
 "}\n"
@@ -219,11 +219,11 @@ static void FindAndSetExecName(Tcl_Interp *interp) {
 #ifdef HAVE_READLINK
 	ssize_t readlink_ret;
 	char exe_buf[4096];
-#endif /* HAVE_READLINK */
+#endif
 #ifdef HAVE_ACCEPTABLE_DLADDR
 	Dl_info syminfo;
 	int dladdr_ret;
-#endif /* HAVE_ACCEPTABLE_DLADDR */ 
+#endif
 
 #ifdef HAVE_READLINK
 	if (Tcl_GetNameOfExecutable() == NULL) {
@@ -251,7 +251,7 @@ static void FindAndSetExecName(Tcl_Interp *interp) {
 			}
 		}
 	}
-#endif /* HAVE_READLINK */
+#endif
 
 #ifdef HAVE_ACCEPTABLE_DLADDR
 #  ifndef TCLKIT_DLL
@@ -273,7 +273,7 @@ static void FindAndSetExecName(Tcl_Interp *interp) {
 			return;
 		}
 	}
-#    endif /* KITSH_NEED_WINMAIN */
+#    endif
 
 	if (Tcl_GetNameOfExecutable() == NULL) {
 		dladdr_ret = dladdr(&main, &syminfo);
@@ -331,16 +331,17 @@ static void _Tclkit_Generic_Init(void) {
 static void _Tclkit_Interp_Init(Tcl_Interp *interp) {
 #ifdef TCLKIT_CAN_SET_ENCODING
 	Tcl_DString encodingName;
-#endif /* TCLKIT_CAN_SET_ENCODING */
+#endif
 
-#ifndef TCLKIT_DLL
-	/* the tcl_rcFileName variable only exists in the initial interpreter */
+#if !defined(TCLKIT_DLL) && defined(KITSH_ENABLE_TCLKITRC)
+	/* tcl_rcFileName is consumed by Tcl_SourceRCFile in the initial,
+	 * interactive interpreter; disable via --disable-tclkitrc */
 #  ifdef _WIN32
 	Tcl_SetVar(interp, "tcl_rcFileName", "~/tclkitrc.tcl", TCL_GLOBAL_ONLY);
 #  else
 	Tcl_SetVar(interp, "tcl_rcFileName", "~/.tclkitrc", TCL_GLOBAL_ONLY);
-#  endif /* _WIN32 */
-#endif /* !TCLKIT_DLL */
+#  endif
+#endif
 
 #ifdef TCLKIT_CAN_SET_ENCODING
 	/* Set the encoding from the Environment */
@@ -348,7 +349,7 @@ static void _Tclkit_Interp_Init(Tcl_Interp *interp) {
 	Tcl_SetSystemEncoding(NULL, Tcl_DStringValue(&encodingName));
 	Tcl_SetVar(interp, "tclkit_system_encoding", Tcl_DStringValue(&encodingName), 0);
 	Tcl_DStringFree(&encodingName);
-#endif /* TCLKIT_CAN_SET_ENCODING */
+#endif
 
 	/* Hack to get around Tcl bug 1224888.  This must be run here and
 	 * in LibraryPathObjCmd because this information is needed both
@@ -358,7 +359,7 @@ static void _Tclkit_Interp_Init(Tcl_Interp *interp) {
 #if defined(_WIN32) && defined(KIT_INCLUDES_TK)
 	/* Every interpreter needs this done */
 	Tk_InitConsoleChannels(interp);
-#endif /* _WIN32 and KIT_INCLUDES_TK */
+#endif
 
 	return;
 }
@@ -367,7 +368,7 @@ static void _Tclkit_Interp_Init(Tcl_Interp *interp) {
 int TclKit_AppInit(Tcl_Interp *interp) {
 #if defined(KIT_INCLUDES_TK) && defined(_WIN32)
 	char msgBuf[2049];
-#endif /* KIT_INCLUDES_TK && _WIN32 */
+#endif
 
 	/* Perform common initialization */
 	_Tclkit_Init();
@@ -387,7 +388,7 @@ int TclKit_AppInit(Tcl_Interp *interp) {
 		goto error;
 	}
 	Tcl_DeleteCommand(interp, "send");
-#endif /* KIT_INCLUDES_TK && KITSH_NEED_WINMAIN */
+#endif
 
 	/* messy because Tcl_SetStartupScript is called slightly too late */
 	if (Tcl_Eval(interp, initScript) == TCL_OK) {
@@ -418,8 +419,8 @@ error:
 
 	ExitProcess(1);
     /* we won't reach this, but we need the return */
-#  endif /* _WIN32 */
-#endif /* KIT_INCLUDES_TK */
+#  endif
+#endif
 
 	return TCL_ERROR;
 }
@@ -432,7 +433,7 @@ error:
 static void _tclkit_dummy_func(void) {
 	return;
 }
-#  endif /* HAVE_ACCEPTABLE_DLADDR */
+#  endif
 
 /*
  * This function will return a pathname we can open() to treat as a VFS,
@@ -442,11 +443,11 @@ static char *find_tclkit_dll_path(void) {
 #ifdef HAVE_ACCEPTABLE_DLADDR
 	Dl_info syminfo;
 	int dladdr_ret;
-#endif /* HAVE_ACCEPTABLE_DLADDR */
+#endif
 #ifdef _WIN32
 	TCHAR modulename[8192];
 	DWORD gmfn_ret;
-#endif /* _WIN32 */
+#endif
 
 #ifdef HAVE_ACCEPTABLE_DLADDR
 	dladdr_ret = dladdr(&_tclkit_dummy_func, &syminfo);
@@ -455,7 +456,7 @@ static char *find_tclkit_dll_path(void) {
 			return(strdup(syminfo.dli_fname));
 		}
 	}
-#endif /* HAVE_ACCEPTABLE_DLADDR */
+#endif
 
 #ifdef _WIN32
 	gmfn_ret = GetModuleFileName(TclWinGetTclInstance(), modulename, sizeof(modulename) / sizeof(modulename[0]) - 1);
@@ -463,7 +464,7 @@ static char *find_tclkit_dll_path(void) {
 	if (gmfn_ret != 0) {
 		return(strdup(modulename));
 	}
-#endif /* _WIN32 */
+#endif
 
 	return(NULL);
 }

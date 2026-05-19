@@ -2,7 +2,7 @@ proc tclInit {} {
 	rename tclInit {}
 
 	global auto_path tcl_library tcl_libPath
-	global tcl_version tcl_rcFileName
+	global tcl_version
   
 	set mountpoint [subst "$::TCLKIT_MOUNTPOINT_VAR"]
 
