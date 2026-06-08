@@ -191,7 +191,7 @@ fi
 			fi
 
 			echo "Applying: ${patch}"
-			${PATCH:-patch} -p1 < "${patch}"
+			${PATCH:-patch} -p1 < "${patch}" || exit 1
 		done
 	)
 
