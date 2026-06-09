@@ -1,3 +1,35 @@
+Index: generic/tkPort.h
+==================================================================
+--- A/generic/tkPort.h
++++ B/generic/tkPort.h
+@@ -12,20 +12,17 @@
+  */
+ 
+ #ifndef _TKPORT
+ #define _TKPORT
+ 
+-#if defined(_WIN32)
+-#   include "tkWinPort.h"
+-#endif
+ #ifndef _TK
+ #   include "tk.h"
+ #endif
+-#if !defined(_WIN32)
+-#   if defined(MAC_OSX_TK)
+-#	include "tkMacOSXPort.h"
+-#   else
+-#	include "tkUnixPort.h"
+-#   endif
++#if defined(_WIN32)
++#   include "tkWinPort.h"
++#elif defined(MAC_OSX_TK)
++#   include "tkMacOSXPort.h"
++#else
++#   include "tkUnixPort.h"
+ #endif
+ 
+ #endif /* _TKPORT */
+
 Index: generic/ttk/ttkImage.c
 ==================================================================
 --- A/generic/ttk/ttkImage.c
@@ -194,7 +226,7 @@ Index: generic/ttk/ttkImage.c
  {
      ImageData *imageData = (ImageData *)clientData;
      if (imageData->imageSpec)	{ TtkFreeImageSpec(imageData->imageSpec); }
-@@ -285,14 +342,86 @@
+@@ -285,10 +342,82 @@
      if (imageData->imageMap)	{ Tcl_DecrRefCount(imageData->imageMap); }
  #endif
      ckfree(clientData);
@@ -277,11 +309,7 @@ Index: generic/ttk/ttkImage.c
      TCL_UNUSED(void *), /* elementRecord */
      TCL_UNUSED(Tk_Window),
      int *widthPtr,
-     int *heightPtr,
-     Ttk_Padding *paddingPtr)
- {
-     ImageData *imageData = (ImageData *)clientData;
-@@ -373,10 +503,11 @@
+@@ -373,10 +502,11 @@
  	 { "-border","-height","-padding","-sticky","-width",NULL };
      enum { O_BORDER, O_HEIGHT, O_PADDING, O_STICKY, O_WIDTH };
  
@@ -293,7 +321,7 @@ Index: generic/ttk/ttkImage.c
  
      if (objc + 1 < 2) {
  	Tcl_SetObjResult(interp, Tcl_NewStringObj(
-@@ -383,16 +514,20 @@
+@@ -383,16 +513,20 @@
  		"Must supply a base image", -1));
  	Tcl_SetErrorCode(interp, "TTK", "IMAGE", "BASE", (char *)NULL);
  	return TCL_ERROR;
@@ -316,7 +344,7 @@ Index: generic/ttk/ttkImage.c
      imageData->sticky = TTK_FILL_BOTH;
      imageData->border = imageData->padding = Ttk_UniformPadding(0);
  #ifdef TILE_07_COMPAT
-@@ -450,15 +585,19 @@
+@@ -450,15 +584,19 @@
  		if (Ttk_GetStickyFromObj(interp, objv[i+1], &imageData->sticky)
  			!= TCL_OK) { goto error; }
  	}
@@ -441,171 +469,7 @@ Index: generic/ttk/ttkLayout.c
   * +++ Inquiry and modification.
   */
 
-ADDED   generic/ttk/ttkNodeCache.c
-Index: generic/ttk/ttkTheme.c
-==================================================================
---- A/generic/ttk/ttkTheme.c
-+++ B/generic/ttk/ttkTheme.c
-@@ -122,10 +122,12 @@
-     void *clientData;		/* Client data passed in at registration time */
-     void *elementRecord;	/* Scratch buffer for element record storage */
-     int nResources;		/* #Element options */
-     Tcl_Obj **defaultValues;	/* Array of option default values */
-     Tcl_HashTable optMapCache;	/* Map: Tk_OptionTable * -> OptionMap */
-+    unsigned cacheFlags;	/* Render-cache policy (TTK_ELEMENT_* flags) */
-+    Ttk_ElementCacheProc *cacheProc;	/* Cache-info query, or NULL */
- };
- 
- /* TTKGetOptionSpec --
-  *	Look up a Tk_OptionSpec by name from a Tk_OptionTable,
-  *	and verify that it's compatible with the specified Tk_OptionType,
-@@ -250,12 +252,40 @@
- 
-     /* Initialize option map cache:
-      */
-     Tcl_InitHashTable(&elementClass->optMapCache, TCL_ONE_WORD_KEYS);
- 
-+    /* Render-cache policy: off until the element opts in.
-+     */
-+    elementClass->cacheFlags = 0;
-+    elementClass->cacheProc = NULL;
-+
-     return elementClass;
- }
-+
-+/* TtkSetElementCachePolicy --
-+ *	Record an element class's render-cache policy: whether its composited
-+ *	output may be cached per layout node, and an optional query reporting
-+ *	its opacity and content epoch.  Called once by an element after
-+ *	registration.
-+ */
-+void TtkSetElementCachePolicy(
-+    Ttk_ElementClass *eclass,
-+    unsigned cacheFlags,
-+    Ttk_ElementCacheProc *cacheProc)
-+{
-+    eclass->cacheFlags = cacheFlags;
-+    eclass->cacheProc = cacheProc;
-+}
-+
-+/* Ttk_ElementClassCacheable --
-+ *	Return nonzero if the element class opted into per-node render caching.
-+ */
-+int Ttk_ElementClassCacheable(Ttk_ElementClass *eclass)
-+{
-+    return (eclass->cacheFlags & TTK_ELEMENT_CACHEABLE) != 0;
-+}
- 
- /*
-  * FreeElementClass --
-  *	Release resources associated with an element class record.
-  */
-@@ -1134,10 +1164,40 @@
-     }
-     eclass->specPtr->draw(
- 	eclass->clientData, eclass->elementRecord,
- 	tkwin, d, b, state);
- }
-+
-+/* Ttk_ElementGetCacheInfo --
-+ *	Query a cacheable element's opacity and content epoch for the current
-+ *	(tkwin, state).  Defaults to {not opaque, epoch 0} for elements that
-+ *	registered no cache proc, which is always a correct (if unoptimized)
-+ *	answer.  Used by the per-node render cache in ttkLayout.c.
-+ */
-+void
-+Ttk_ElementGetCacheInfo(
-+    Ttk_ElementClass *eclass,
-+    Ttk_Style style,
-+    void *recordPtr,
-+    Tk_OptionTable optionTable,
-+    Tk_Window tkwin,
-+    Ttk_Box b,
-+    Ttk_State state,
-+    Ttk_ElementCacheInfo *info)
-+{
-+    info->opaque = 0;
-+    info->epoch = 0;
-+    if (eclass->cacheProc == NULL) {
-+	return;
-+    }
-+    if (!InitializeElementRecord(
-+	    eclass, style, recordPtr, optionTable, tkwin, state)) {
-+	return;
-+    }
-+    eclass->cacheProc(
-+	eclass->clientData, eclass->elementRecord, tkwin, b, state, info);
-+}
- 
- /*------------------------------------------------------------------------
-  * +++ 'style' command ensemble procedures.
-  */
- 
-
-Index: generic/ttk/ttkThemeInt.h
-==================================================================
---- A/generic/ttk/ttkThemeInt.h
-+++ B/generic/ttk/ttkThemeInt.h
-@@ -20,10 +20,58 @@
- 	int *widthPtr, int *heightPtr, Ttk_Padding*);
- MODULE_SCOPE void Ttk_DrawElement(
- 	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
- 	Tk_Window tkwin, Drawable d, Ttk_Box b, Ttk_State state);
- 
-+/*
-+ * Element render-cache policy (see the per-node cache in ttkLayout.c).
-+ * An element class may opt into having its composited output cached per
-+ * layout node, and may supply a query reporting whether it is fully opaque
-+ * (i.e. background-independent) at a given state.  Both default to off, so
-+ * elements that do not opt in keep drawing directly with no pixmap.
-+ */
-+#define TTK_ELEMENT_CACHEABLE	0x1	/* opts into per-node render caching */
-+
-+/*
-+ * Cache info an element reports for the current (tkwin, state): whether it is
-+ * fully opaque (so its render is background-independent), and a content epoch
-+ * that bumps whenever the element's own pixels change (e.g. an underlying photo
-+ * is rewritten) so a stale node pixmap is rebuilt.
-+ */
-+typedef struct Ttk_ElementCacheInfo {
-+    int		opaque;		/* element fully opaque (bg-independent) */
-+    unsigned	epoch;		/* bumps when the element's own content changes */
-+} Ttk_ElementCacheInfo;
-+
-+typedef void Ttk_ElementCacheProc(void *clientData, void *elementRecord,
-+	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *info);
-+
-+MODULE_SCOPE void TtkSetElementCachePolicy(
-+	Ttk_ElementClass *, unsigned cacheFlags, Ttk_ElementCacheProc *);
-+MODULE_SCOPE int Ttk_ElementClassCacheable(Ttk_ElementClass *);
-+MODULE_SCOPE void Ttk_ElementGetCacheInfo(
-+	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
-+	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *);
-+
-+/*
-+ * Per-node element render cache (ttkCache.c).  The layout-draw traversal
-+ * (ttkLayout.c) opens a draw context, draws each node's element through it, and
-+ * closes it; the cache module owns the composited node pixmaps, the z-order
-+ * invalidation, and all graphics state.  Both types are opaque to the rest of
-+ * Ttk; a layout node stores a NodeDrawCache* slot the cache module manages.
-+ */
-+typedef struct NodeDrawCache NodeDrawCache;
-+typedef struct NodeDrawContext NodeDrawContext;
-+
-+MODULE_SCOPE NodeDrawContext *TtkNodeDrawBegin(
-+	Ttk_Style style, void *recordPtr, Tk_OptionTable optionTable,
-+	Tk_Window tkwin, Drawable d);
-+MODULE_SCOPE void TtkDrawCachedElement(NodeDrawContext *,
-+	Ttk_ElementClass *, NodeDrawCache **cacheSlot, Ttk_Box b, Ttk_State);
-+MODULE_SCOPE void TtkNodeDrawEnd(NodeDrawContext *);
-+MODULE_SCOPE void TtkFreeNodeDrawCache(NodeDrawCache *);
-+
- MODULE_SCOPE Tcl_Obj *Ttk_QueryStyle(
-     Ttk_Style, void *, Tk_OptionTable, const char *, Ttk_State state);
- 
- MODULE_SCOPE Ttk_LayoutTemplate Ttk_ParseLayoutTemplate(
- 	Tcl_Interp *, Tcl_Obj *);
-
+ADDED    generic/ttk/ttkNodeCache.c
 Index: generic/ttk/ttkNodeCache.c
 ==================================================================
 --- A/generic/ttk/ttkNodeCache.c
@@ -897,3 +761,607 @@ Index: generic/ttk/ttkNodeCache.c
 +}
 +
 +/*EOF*/
+
+Index: generic/ttk/ttkTheme.c
+==================================================================
+--- A/generic/ttk/ttkTheme.c
++++ B/generic/ttk/ttkTheme.c
+@@ -122,10 +122,12 @@
+     void *clientData;		/* Client data passed in at registration time */
+     void *elementRecord;	/* Scratch buffer for element record storage */
+     int nResources;		/* #Element options */
+     Tcl_Obj **defaultValues;	/* Array of option default values */
+     Tcl_HashTable optMapCache;	/* Map: Tk_OptionTable * -> OptionMap */
++    unsigned cacheFlags;	/* Render-cache policy (TTK_ELEMENT_* flags) */
++    Ttk_ElementCacheProc *cacheProc;	/* Cache-info query, or NULL */
+ };
+ 
+ /* TTKGetOptionSpec --
+  *	Look up a Tk_OptionSpec by name from a Tk_OptionTable,
+  *	and verify that it's compatible with the specified Tk_OptionType,
+@@ -250,12 +252,40 @@
+ 
+     /* Initialize option map cache:
+      */
+     Tcl_InitHashTable(&elementClass->optMapCache, TCL_ONE_WORD_KEYS);
+ 
++    /* Render-cache policy: off until the element opts in.
++     */
++    elementClass->cacheFlags = 0;
++    elementClass->cacheProc = NULL;
++
+     return elementClass;
+ }
++
++/* TtkSetElementCachePolicy --
++ *	Record an element class's render-cache policy: whether its composited
++ *	output may be cached per layout node, and an optional query reporting
++ *	its opacity and content epoch.  Called once by an element after
++ *	registration.
++ */
++void TtkSetElementCachePolicy(
++    Ttk_ElementClass *eclass,
++    unsigned cacheFlags,
++    Ttk_ElementCacheProc *cacheProc)
++{
++    eclass->cacheFlags = cacheFlags;
++    eclass->cacheProc = cacheProc;
++}
++
++/* Ttk_ElementClassCacheable --
++ *	Return nonzero if the element class opted into per-node render caching.
++ */
++int Ttk_ElementClassCacheable(Ttk_ElementClass *eclass)
++{
++    return (eclass->cacheFlags & TTK_ELEMENT_CACHEABLE) != 0;
++}
+ 
+ /*
+  * FreeElementClass --
+  *	Release resources associated with an element class record.
+  */
+@@ -1135,10 +1165,40 @@
+     }
+     eclass->specPtr->draw(
+ 	eclass->clientData, eclass->elementRecord,
+ 	tkwin, d, b, state);
+ }
++
++/* Ttk_ElementGetCacheInfo --
++ *	Query a cacheable element's opacity and content epoch for the current
++ *	(tkwin, state).  Defaults to {not opaque, epoch 0} for elements that
++ *	registered no cache proc, which is always a correct (if unoptimized)
++ *	answer.  Used by the per-node render cache in ttkLayout.c.
++ */
++void
++Ttk_ElementGetCacheInfo(
++    Ttk_ElementClass *eclass,
++    Ttk_Style style,
++    void *recordPtr,
++    Tk_OptionTable optionTable,
++    Tk_Window tkwin,
++    Ttk_Box b,
++    Ttk_State state,
++    Ttk_ElementCacheInfo *info)
++{
++    info->opaque = 0;
++    info->epoch = 0;
++    if (eclass->cacheProc == NULL) {
++	return;
++    }
++    if (!InitializeElementRecord(
++	    eclass, style, recordPtr, optionTable, tkwin, state)) {
++	return;
++    }
++    eclass->cacheProc(
++	eclass->clientData, eclass->elementRecord, tkwin, b, state, info);
++}
+ 
+ /*------------------------------------------------------------------------
+  * +++ 'style' command ensemble procedures.
+  */
+ 
+
+Index: generic/ttk/ttkThemeInt.h
+==================================================================
+--- A/generic/ttk/ttkThemeInt.h
++++ B/generic/ttk/ttkThemeInt.h
+@@ -29,10 +29,58 @@
+ 	int *widthPtr, int *heightPtr, Ttk_Padding*);
+ MODULE_SCOPE void Ttk_DrawElement(
+ 	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
+ 	Tk_Window tkwin, Drawable d, Ttk_Box b, Ttk_State state);
+ 
++/*
++ * Element render-cache policy (see the per-node cache in ttkLayout.c).
++ * An element class may opt into having its composited output cached per
++ * layout node, and may supply a query reporting whether it is fully opaque
++ * (i.e. background-independent) at a given state.  Both default to off, so
++ * elements that do not opt in keep drawing directly with no pixmap.
++ */
++#define TTK_ELEMENT_CACHEABLE	0x1	/* opts into per-node render caching */
++
++/*
++ * Cache info an element reports for the current (tkwin, state): whether it is
++ * fully opaque (so its render is background-independent), and a content epoch
++ * that bumps whenever the element's own pixels change (e.g. an underlying photo
++ * is rewritten) so a stale node pixmap is rebuilt.
++ */
++typedef struct Ttk_ElementCacheInfo {
++    int		opaque;		/* element fully opaque (bg-independent) */
++    unsigned	epoch;		/* bumps when the element's own content changes */
++} Ttk_ElementCacheInfo;
++
++typedef void Ttk_ElementCacheProc(void *clientData, void *elementRecord,
++	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *info);
++
++MODULE_SCOPE void TtkSetElementCachePolicy(
++	Ttk_ElementClass *, unsigned cacheFlags, Ttk_ElementCacheProc *);
++MODULE_SCOPE int Ttk_ElementClassCacheable(Ttk_ElementClass *);
++MODULE_SCOPE void Ttk_ElementGetCacheInfo(
++	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
++	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *);
++
++/*
++ * Per-node element render cache (ttkCache.c).  The layout-draw traversal
++ * (ttkLayout.c) opens a draw context, draws each node's element through it, and
++ * closes it; the cache module owns the composited node pixmaps, the z-order
++ * invalidation, and all graphics state.  Both types are opaque to the rest of
++ * Ttk; a layout node stores a NodeDrawCache* slot the cache module manages.
++ */
++typedef struct NodeDrawCache NodeDrawCache;
++typedef struct NodeDrawContext NodeDrawContext;
++
++MODULE_SCOPE NodeDrawContext *TtkNodeDrawBegin(
++	Ttk_Style style, void *recordPtr, Tk_OptionTable optionTable,
++	Tk_Window tkwin, Drawable d);
++MODULE_SCOPE void TtkDrawCachedElement(NodeDrawContext *,
++	Ttk_ElementClass *, NodeDrawCache **cacheSlot, Ttk_Box b, Ttk_State);
++MODULE_SCOPE void TtkNodeDrawEnd(NodeDrawContext *);
++MODULE_SCOPE void TtkFreeNodeDrawCache(NodeDrawCache *);
++
+ MODULE_SCOPE Tcl_Obj *Ttk_QueryStyle(
+     Ttk_Style, void *, Tk_OptionTable, const char *, Ttk_State state);
+ 
+ MODULE_SCOPE Ttk_LayoutTemplate Ttk_ParseLayoutTemplate(
+ 	Tcl_Interp *, Tcl_Obj *);
+
+Index: unix/Makefile.in
+==================================================================
+--- A/unix/Makefile.in
++++ B/unix/Makefile.in
+@@ -382,11 +382,12 @@
+ 	tkVisual.o tkWindow.o
+ 
+ TTK_OBJS = \
+ 	ttkBlink.o ttkButton.o ttkCache.o ttkClamTheme.o ttkClassicTheme.o \
+ 	ttkDefaultTheme.o ttkElements.o ttkEntry.o ttkFrame.o ttkImage.o \
+-	ttkInit.o ttkLabel.o ttkLayout.o ttkManager.o ttkNotebook.o \
++	ttkInit.o ttkLabel.o ttkLayout.o ttkManager.o ttkNodeCache.o \
++	ttkNotebook.o \
+ 	ttkPanedwindow.o ttkProgress.o ttkScale.o ttkScrollbar.o ttkScroll.o \
+ 	ttkSeparator.o ttkSquare.o ttkState.o \
+ 	ttkTagSet.o ttkTheme.o ttkTrace.o ttkTrack.o ttkTreeview.o \
+ 	ttkWidget.o ttkStubInit.o
+ 
+@@ -484,10 +485,11 @@
+ 	$(TTK_DIR)/ttkImage.c \
+ 	$(TTK_DIR)/ttkInit.c \
+ 	$(TTK_DIR)/ttkLabel.c \
+ 	$(TTK_DIR)/ttkLayout.c \
+ 	$(TTK_DIR)/ttkManager.c \
++	$(TTK_DIR)/ttkNodeCache.c \
+ 	$(TTK_DIR)/ttkNotebook.c \
+ 	$(TTK_DIR)/ttkPanedwindow.c \
+ 	$(TTK_DIR)/ttkProgress.c \
+ 	$(TTK_DIR)/ttkScale.c \
+ 	$(TTK_DIR)/ttkScrollbar.c \
+@@ -1512,10 +1514,13 @@
+ 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkLabel.c
+ 
+ ttkLayout.o: $(TTK_DIR)/ttkLayout.c
+ 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkLayout.c
+ 
++ttkNodeCache.o: $(TTK_DIR)/ttkNodeCache.c
++	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkNodeCache.c
++
+ ttkManager.o: $(TTK_DIR)/ttkManager.c
+ 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkManager.c
+ 
+ ttkNotebook.o: $(TTK_DIR)/ttkNotebook.c
+ 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkNotebook.c
+
+Index: win/Makefile.in
+==================================================================
+--- A/win/Makefile.in
++++ B/win/Makefile.in
+@@ -421,10 +421,11 @@
+ 	ttkImage.$(OBJEXT) \
+ 	ttkInit.$(OBJEXT) \
+ 	ttkLabel.$(OBJEXT) \
+ 	ttkLayout.$(OBJEXT) \
+ 	ttkManager.$(OBJEXT) \
++	ttkNodeCache.$(OBJEXT) \
+ 	ttkNotebook.$(OBJEXT) \
+ 	ttkPanedwindow.$(OBJEXT) \
+ 	ttkProgress.$(OBJEXT) \
+ 	ttkScale.$(OBJEXT) \
+ 	ttkScrollbar.$(OBJEXT) \
+
+Index: win/configure
+==================================================================
+--- A/win/configure
++++ B/win/configure
+@@ -4612,11 +4612,11 @@
+     if test "${GCC}" = "yes" ; then
+ 	SHLIB_LD=""
+ 	SHLIB_LD_LIBS='${LIBS}'
+ 	LIBS="-lnetapi32 -lkernel32 -luser32 -ladvapi32 -luserenv -lws2_32"
+ 	# mingw needs to link ole32 and oleaut32 for [send], but MSVC doesn't
+-	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool"
++	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool -lmsimg32"
+ 	STLIB_LD='${AR} cr'
+ 	RC_OUT=-o
+ 	RC_TYPE=
+ 	RC_INCLUDE=--include
+ 	RC_DEFINE=--define
+@@ -4826,11 +4826,11 @@
+ 	    CFLAGS_OPTIMIZE="-nologo -O2 ${runtime}"
+ 	    lflags="${lflags} -nologo"
+ 	    LINKBIN="link"
+ 	fi
+ 
+-	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib"
++	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib msimg32.lib"
+ 
+ 	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
+ 	SHLIB_LD_LIBS='${LIBS}'
+ 	# link -lib only works when -lib is the first arg
+ 	STLIB_LD="${LINKBIN} -lib ${lflags}"
+
+Index: win/makefile.vc
+==================================================================
+--- A/win/makefile.vc
++++ B/win/makefile.vc
+@@ -295,10 +295,11 @@
+ 	$(TMP_DIR)\ttkImage.obj \
+ 	$(TMP_DIR)\ttkInit.obj \
+ 	$(TMP_DIR)\ttkLabel.obj \
+ 	$(TMP_DIR)\ttkLayout.obj \
+ 	$(TMP_DIR)\ttkManager.obj \
++	$(TMP_DIR)\ttkNodeCache.obj \
+ 	$(TMP_DIR)\ttkNotebook.obj \
+ 	$(TMP_DIR)\ttkPanedwindow.obj \
+ 	$(TMP_DIR)\ttkProgress.obj \
+ 	$(TMP_DIR)\ttkScale.obj \
+ 	$(TMP_DIR)\ttkScrollbar.obj \
+@@ -345,11 +346,11 @@
+ !endif
+ 
+ PRJ_DEFINES	= /DBUILD_ttk $(CONFIG_DEFS) /Dinline=__inline /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE
+ 
+ # Additional Link libraries needed beyond those in rules.vc
+-PRJ_LIBS   = netapi32.lib gdi32.lib user32.lib userenv.lib winspool.lib shell32.lib ole32.lib uuid.lib
++PRJ_LIBS   = netapi32.lib gdi32.lib user32.lib userenv.lib winspool.lib shell32.lib ole32.lib uuid.lib msimg32.lib
+ 
+ #---------------------------------------------------------------------
+ # TkTest flags
+ #---------------------------------------------------------------------
+ 
+
+Index: win/tcl.m4
+==================================================================
+--- A/win/tcl.m4
++++ B/win/tcl.m4
+@@ -660,11 +660,11 @@
+     if test "${GCC}" = "yes" ; then
+ 	SHLIB_LD=""
+ 	SHLIB_LD_LIBS='${LIBS}'
+ 	LIBS="-lnetapi32 -lkernel32 -luser32 -ladvapi32 -luserenv -lws2_32"
+ 	# mingw needs to link ole32 and oleaut32 for [send], but MSVC doesn't
+-	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool"
++	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool -lmsimg32"
+ 	STLIB_LD='${AR} cr'
+ 	RC_OUT=-o
+ 	RC_TYPE=
+ 	RC_INCLUDE=--include
+ 	RC_DEFINE=--define
+@@ -849,11 +849,11 @@
+ 	    CFLAGS_OPTIMIZE="-nologo -O2 ${runtime}"
+ 	    lflags="${lflags} -nologo"
+ 	    LINKBIN="link"
+ 	fi
+ 
+-	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib"
++	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib msimg32.lib"
+ 
+ 	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
+ 	SHLIB_LD_LIBS='${LIBS}'
+ 	# link -lib only works when -lib is the first arg
+ 	STLIB_LD="${LINKBIN} -lib ${lflags}"
+
+Index: win/tkWinImage.c
+==================================================================
+--- A/win/tkWinImage.c
++++ B/win/tkWinImage.c
+@@ -686,13 +686,254 @@
+ 	ReleaseDC(NULL, dc);
+     }
+ 
+     return imagePtr;
+ }
++
++/*
++ *----------------------------------------------------------------------
++ *
++ * RGBA compositing support (TkpPutRGBAImage) --
++ *
++ *	TkpPutRGBAImage composites an RGBA image onto a drawable with GDI
++ *	AlphaBlend.  It is called once per 9-slice tile, so creating and
++ *	destroying a DIB section and memory DC on each call dominated the cost.
++ *	A small per-thread source DIB + memory DC is therefore cached and
++ *	reused, grown on demand up to TK_RGBA_DIB_CACHE_MAX per side; larger
++ *	one-off draws bypass the cache and allocate transiently.
++ *
++ *----------------------------------------------------------------------
++ */
++
++#define TK_RGBA_DIB_CACHE_MAX 256	/* Cache DIBs up to this size per side. */
++
++typedef struct {
++    HDC		memDC;		/* Cached memory DC, or NULL. */
++    HBITMAP	dib;		/* DIB section selected into memDC, or NULL. */
++    HBITMAP	oldBmp;		/* memDC's original bitmap, restored on free. */
++    void	*bits;		/* Pixel pointer of dib. */
++    int		w, h;		/* Size dib was allocated at. */
++} RGBACache;
++
++static Tcl_ThreadDataKey rgbaCacheKey;
++
++/* RGBACacheExitHandler -- free this thread's cached DIB and memory DC. */
++static void
++RGBACacheExitHandler(
++    TCL_UNUSED(void *))
++{
++    RGBACache *cache = (RGBACache *)
++	    Tcl_GetThreadData(&rgbaCacheKey, sizeof(RGBACache));
++
++    if (cache->memDC != NULL) {
++	if (cache->oldBmp != NULL) {
++	    SelectObject(cache->memDC, cache->oldBmp);
++	}
++	DeleteDC(cache->memDC);
++    }
++    if (cache->dib != NULL) {
++	DeleteObject(cache->dib);
++    }
++    memset(cache, 0, sizeof(*cache));
++}
++
++/* CreateRGBADib -- a top-down 32-bit BGRA DIB section; returns it and bits. */
++static HBITMAP
++CreateRGBADib(
++    HDC refDC,
++    int w, int h,
++    void **bitsPtr)
++{
++    BITMAPINFO bmi;
++
++    memset(&bmi, 0, sizeof(bmi));
++    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
++    bmi.bmiHeader.biWidth = w;
++    bmi.bmiHeader.biHeight = -h;		/* negative = top-down */
++    bmi.bmiHeader.biPlanes = 1;
++    bmi.bmiHeader.biBitCount = 32;
++    bmi.bmiHeader.biCompression = BI_RGB;
++    return CreateDIBSection(refDC, &bmi, DIB_RGB_COLORS, bitsPtr, NULL, 0);
++}
++
++/* GetRGBACache -- this thread's cached DIB + memory DC, grown to >= w x h. */
++static RGBACache *
++GetRGBACache(
++    HDC refDC,
++    int w, int h)
++{
++    RGBACache *cache = (RGBACache *)
++	    Tcl_GetThreadData(&rgbaCacheKey, sizeof(RGBACache));
++
++    if (cache->memDC == NULL) {
++	cache->memDC = CreateCompatibleDC(refDC);
++	if (cache->memDC == NULL) {
++	    return NULL;
++	}
++	Tcl_CreateThreadExitHandler(RGBACacheExitHandler, NULL);
++    }
++    if (cache->dib != NULL && (cache->w < w || cache->h < h)) {
++	SelectObject(cache->memDC, cache->oldBmp);
++	DeleteObject(cache->dib);
++	cache->dib = NULL;
++    }
++    if (cache->dib == NULL) {
++	int newW = (w > cache->w) ? w : cache->w;
++	int newH = (h > cache->h) ? h : cache->h;
++
++	cache->dib = CreateRGBADib(refDC, newW, newH, &cache->bits);
++	if (cache->dib == NULL) {
++	    return NULL;
++	}
++	cache->oldBmp = (HBITMAP) SelectObject(cache->memDC, cache->dib);
++	cache->w = newW;
++	cache->h = newH;
++    }
++    return cache;
++}
++
++/*
++ * PremultiplyRGBA --
++ *	Copy a w x h sub-rect of an RGBA image (alpha at byte 3) into a BGRA
++ *	buffer of the given byte stride, premultiplying by alpha.  AC_SRC_ALPHA
++ *	wants premultiplied data; pix32 is RGBA and GDI DIBs are BGRA, so R and
++ *	B are swapped.
++ */
++
++static void
++PremultiplyRGBA(
++    XImage *image,
++    int src_x, int src_y,
++    int w, int h,
++    unsigned char *dst,
++    int dstStride)
++{
++    int x, y;
++
++    for (y = 0; y < h; y++) {
++	unsigned char *s = (unsigned char *) image->data
++		+ (size_t) (src_y + y) * image->bytes_per_line
++		+ (size_t) src_x * 4;
++	unsigned char *o = dst + (size_t) y * dstStride;
++
++	for (x = 0; x < w; x++) {
++	    unsigned int a = s[3];
++
++	    o[0] = (unsigned char) ((s[2] * a + 127) / 255);	/* B */
++	    o[1] = (unsigned char) ((s[1] * a + 127) / 255);	/* G */
++	    o[2] = (unsigned char) ((s[0] * a + 127) / 255);	/* R */
++	    o[3] = (unsigned char) a;				/* A */
++	    s += 4;
++	    o += 4;
++	}
++    }
++}
++
++/*
++ *----------------------------------------------------------------------
++ *
++ * TkpPutRGBAImage --
++ *
++ *	Composite an RGBA image (4 bytes/pixel, alpha at byte 3, NOT
++ *	premultiplied) onto a drawable using GDI AlphaBlend (Porter-Duff
++ *	source-over).  Enabled by TK_CAN_RENDER_RGBA in tkWinPort.h; called by
++ *	TkImgPhotoDisplay in place of the software BlendComplexAlpha path, which
++ *	reads the destination back with XGetImage and blends per pixel on the
++ *	CPU.  Works for both window and pixmap drawables.
++ *
++ * Results:
++ *	Success, or BadDrawable if a device context or DIB could not be
++ *	obtained.
++ *
++ * Side effects:
++ *	Draws onto the drawable.
++ *
++ *----------------------------------------------------------------------
++ */
++
++int
++TkpPutRGBAImage(
++    Display *display,
++    Drawable drawable,
++    GC gc,
++    XImage *image,		/* Source image; alpha at byte 3, not
++				 * premultiplied. */
++    int src_x, int src_y,	/* Top-left of the sub-rect within image. */
++    int dest_x, int dest_y,	/* Top-left within drawable. */
++    unsigned int width, unsigned int height)
++{
++    TkWinDCState state;
++    HDC dstDC;
++    BLENDFUNCTION bf = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
++    int w = (int) width, h = (int) height;
++    (void) gc;
++
++    if (w <= 0 || h <= 0) {
++	return Success;
++    }
++
++    dstDC = TkWinGetDrawableDC(display, drawable, &state);
++    if (dstDC == NULL) {
++	return BadDrawable;
++    }
++
++    if (w <= TK_RGBA_DIB_CACHE_MAX && h <= TK_RGBA_DIB_CACHE_MAX) {
++	/*
++	 * Common case: composite through the per-thread cached DIB + memory
++	 * DC, so repeated small draws (e.g. 9-slice tiles) don't churn GDI
++	 * objects.  The DIB may be wider than w, so premultiply with its
++	 * stride and AlphaBlend just the (0,0,w,h) sub-rect.
++	 */
++
++	RGBACache *cache = GetRGBACache(dstDC, w, h);
++
++	if (cache != NULL) {
++	    PremultiplyRGBA(image, src_x, src_y, w, h,
++		    (unsigned char *) cache->bits, cache->w * 4);
++	    if (!AlphaBlend(dstDC, dest_x, dest_y, w, h,
++		    cache->memDC, 0, 0, w, h, bf)) {
++		BitBlt(dstDC, dest_x, dest_y, w, h, cache->memDC, 0, 0, SRCCOPY);
++	    }
++	    TkWinReleaseDrawableDC(drawable, dstDC, &state);
++	    return Success;
++	}
++
++	/* Cache setup failed; fall through to a one-off allocation. */
++    }
++
++    /*
++     * Oversized draw (or cache allocation failed): one-off DIB + memory DC.
++     */
++
++    {
++	HDC memDC;
++	HBITMAP dib, oldBmp;
++	void *bits = NULL;
++
++	dib = CreateRGBADib(dstDC, w, h, &bits);
++	if (dib == NULL) {
++	    TkWinReleaseDrawableDC(drawable, dstDC, &state);
++	    return BadDrawable;
++	}
++	PremultiplyRGBA(image, src_x, src_y, w, h, (unsigned char *) bits, w * 4);
++
++	memDC = CreateCompatibleDC(dstDC);
++	oldBmp = (HBITMAP) SelectObject(memDC, dib);
++	if (!AlphaBlend(dstDC, dest_x, dest_y, w, h, memDC, 0, 0, w, h, bf)) {
++	    BitBlt(dstDC, dest_x, dest_y, w, h, memDC, 0, 0, SRCCOPY);
++	}
++	SelectObject(memDC, oldBmp);
++	DeleteDC(memDC);
++	DeleteObject(dib);
++    }
++
++    TkWinReleaseDrawableDC(drawable, dstDC, &state);
++    return Success;
++}
+ 
+ /*
+  * Local Variables:
+  * mode: c
+  * c-basic-offset: 4
+  * fill-column: 78
+  * End:
+  */
+
+Index: win/tkWinPort.h
+==================================================================
+--- A/win/tkWinPort.h
++++ B/win/tkWinPort.h
+@@ -122,6 +122,19 @@
+  */
+ 
+ #define TkpGetPixel(p) (((((p)->red >> 8) & 0xff) \
+ 	| ((p)->green & 0xff00) | (((p)->blue << 8) & 0xff0000)) | 0x20000000)
+ 
++/*
++ * Inform tkImgPhInstance.c that we implement TkpPutRGBAImage to composite RGBA
++ * images directly (via GDI AlphaBlend), so it uses that instead of the software
++ * BlendComplexAlpha path and its XGetImage read-back.
++ */
++
++#define TK_CAN_RENDER_RGBA
++
++MODULE_SCOPE int TkpPutRGBAImage(
++	Display *display, Drawable drawable, GC gc, XImage *image,
++	int src_x, int src_y, int dest_x, int dest_y,
++	unsigned int width, unsigned int height);
++
+ #endif /* _WINPORT */
+
