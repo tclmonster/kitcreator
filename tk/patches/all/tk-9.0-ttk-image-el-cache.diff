@@ -2,9 +2,7 @@ Index: generic/tkPort.h
 ==================================================================
 --- A/generic/tkPort.h
 +++ B/generic/tkPort.h
-@@ -12,20 +12,17 @@
-  */
- 
+@@ -14,18 +14,15 @@
  #ifndef _TKPORT
  #define _TKPORT
  
@@ -29,14 +27,78 @@ Index: generic/tkPort.h
  #endif
  
  #endif /* _TKPORT */
-
+Index: generic/ttk/ttkElements.c
+==================================================================
+--- A/generic/ttk/ttkElements.c
++++ B/generic/ttk/ttkElements.c
+@@ -182,6 +182,29 @@
+     BackgroundElementDraw
+ };
+ 
++#ifndef TK_NO_DOUBLE_BUFFERING
++/* BackgroundElementCacheInfo --
++ *	Cache info for the background and fill elements: a flat fill of the
++ *	resolved -background color, so fully opaque.  The resolved border is
++ *	folded into the content epoch so a changed style background still
++ *	invalidates nodes composited over it.
++ */
++static void BackgroundElementCacheInfo(
++    TCL_UNUSED(void *),
++    void *elementRecord,
++    Tk_Window tkwin,
++    TCL_UNUSED(Ttk_Box),
++    TCL_UNUSED(Ttk_State),
++    Ttk_ElementCacheInfo *info)
++{
++    BackgroundElement *bg = (BackgroundElement *)elementRecord;
++    Tk_3DBorder border = Tk_Get3DBorderFromObj(tkwin, bg->backgroundObj);
++
++    info->opaque = 1;
++    info->epoch = (unsigned) ((size_t) border >> 4);
++}
++#endif /* !TK_NO_DOUBLE_BUFFERING */
++
+ /*----------------------------------------------------------------------
+  * +++ Border element.
+  */
+@@ -1984,14 +2007,29 @@
+ TtkElements_Init(Tcl_Interp *interp)
+ {
+     Ttk_Theme theme =  Ttk_GetDefaultTheme(interp);
++    Ttk_ElementClass *eclass;
+ 
+     /*
+      * Elements:
+      */
+-    Ttk_RegisterElement(interp, theme, "background",
++    eclass = Ttk_RegisterElement(interp, theme, "background",
+ 	    &BackgroundElementSpec, NULL);
+-
+-    Ttk_RegisterElement(interp, theme, "fill", &FillElementSpec, NULL);
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (eclass) {
++	TtkSetElementCachePolicy(eclass, TTK_ELEMENT_STABLE,
++		BackgroundElementCacheInfo);
++    }
++#endif
++
++    eclass = Ttk_RegisterElement(interp, theme, "fill", &FillElementSpec, NULL);
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (eclass) {
++	TtkSetElementCachePolicy(eclass, TTK_ELEMENT_STABLE,
++		BackgroundElementCacheInfo);
++    }
++#else
++    (void) eclass;
++#endif
+     Ttk_RegisterElement(interp, theme, "border", &BorderElementSpec, NULL);
+     Ttk_RegisterElement(interp, theme, "field", &FieldElementSpec, NULL);
+     Ttk_RegisterElement(interp, theme, "focus", &FocusElementSpec, NULL);
 Index: generic/ttk/ttkImage.c
 ==================================================================
 --- A/generic/ttk/ttkImage.c
 +++ B/generic/ttk/ttkImage.c
-@@ -9,23 +9,25 @@
-  * list is a sequence of statespec/imagename options as per
-  * [style map].
+@@ -11,7 +11,7 @@
   */
  
  #include "tkInt.h"
@@ -45,9 +107,7 @@ Index: generic/ttk/ttkImage.c
  
  #define MIN(a,b) ((a) < (b) ? (a) : (b))
  
- /*------------------------------------------------------------------------
-  * +++ ImageSpec management.
-  */
+@@ -21,28 +21,15 @@
  
  struct TtkImageSpec {
      Tk_Image		baseImage;	/* Base image to use */
@@ -60,10 +120,25 @@ Index: generic/ttk/ttkImage.c
      void		*imageChangedClientData;
  };
  
- /* NullImageChanged --
-@@ -83,13 +85,15 @@
-     Tcl_Size objc;
-     Tcl_Obj **objv;
+-/* NullImageChanged --
+- *	Do-nothing Tk_ImageChangedProc.
+- */
+-static void NullImageChanged(
+-    TCL_UNUSED(void *),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int))
+-{
+-    /* No-op */
+-}
+-
+ /* ImageSpecImageChanged --
+  *     Image changes should trigger a repaint.
+  */
+@@ -85,9 +72,11 @@
  
      imageSpec = (Ttk_ImageSpec *)ckalloc(sizeof(*imageSpec));
      imageSpec->baseImage = 0;
@@ -75,11 +150,7 @@ Index: generic/ttk/ttkImage.c
      imageSpec->imageChanged = imageChangedProc;
      imageSpec->imageChangedClientData = imageChangedClientData;
  
-     if (Tcl_ListObjGetElements(interp, objPtr, &objc, &objv) != TCL_OK) {
- 	goto error;
-@@ -106,18 +110,21 @@
-     }
- 
+@@ -108,6 +97,7 @@
      n = (objc - 1) / 2;
      imageSpec->states = (Ttk_StateSpec *)ckalloc(n * sizeof(Ttk_StateSpec));
      imageSpec->images = (Tk_Image *)ckalloc(n * sizeof(Tk_Image));
@@ -87,8 +158,7 @@ Index: generic/ttk/ttkImage.c
  
      /* Get base image:
      */
-     imageSpec->baseImage = Tk_GetImage(
- 	    interp, tkwin, Tcl_GetString(objv[0]), ImageSpecImageChanged, imageSpec);
+@@ -116,6 +106,8 @@
      if (!imageSpec->baseImage) {
  	goto error;
      }
@@ -97,11 +167,12 @@ Index: generic/ttk/ttkImage.c
  
      /* Extract state and image specifications:
       */
-     for (i = 0; i < n; ++i) {
- 	Tcl_Obj *stateSpec = objv[2*i + 1];
-@@ -132,10 +139,12 @@
+@@ -130,10 +122,12 @@
+ 	imageSpec->states[i] = state;
+ 
  	imageSpec->images[i] = Tk_GetImage(
- 	    interp, tkwin, imageName, NullImageChanged, NULL);
+-	    interp, tkwin, imageName, NullImageChanged, NULL);
++	    interp, tkwin, imageName, ImageSpecImageChanged, imageSpec);
  	if (imageSpec->images[i] == NULL) {
  	    goto error;
  	}
@@ -110,11 +181,7 @@ Index: generic/ttk/ttkImage.c
  	imageSpec->mapCount = i+1;
      }
  
-     return imageSpec;
- 
-@@ -151,15 +160,20 @@
- {
-     int i;
+@@ -153,11 +147,16 @@
  
      for (i=0; i < imageSpec->mapCount; ++i) {
  	Tk_FreeImage(imageSpec->images[i]);
@@ -131,11 +198,7 @@ Index: generic/ttk/ttkImage.c
  
      ckfree(imageSpec);
  }
- 
- /* TtkSelectImage --
-@@ -177,10 +191,29 @@
- 	}
-     }
+@@ -179,6 +178,25 @@
      return imageSpec->baseImage;
  }
  
@@ -161,11 +224,7 @@ Index: generic/ttk/ttkImage.c
  /*------------------------------------------------------------------------
   * +++ Drawing utilities.
   */
- 
- /* LPadding, CPadding, RPadding --
-@@ -226,11 +259,11 @@
- 	return;
-     }
+@@ -228,7 +246,7 @@
  
      for (x = dst.x; x < dr; x += src.width) {
  	int cw = MIN(src.width, dr - x);
@@ -174,11 +233,7 @@ Index: generic/ttk/ttkImage.c
  	    int ch = MIN(src.height, db - y);
  	    Tk_RedrawImage(image, src.x, src.y, cw, ch, d, x, y);
  	}
-     }
- }
-@@ -259,25 +292,49 @@
-     Ttk_Stripe(tkwin, d, image, BPadding(src,p), BPadding(dst,p), p);
- }
+@@ -261,6 +279,12 @@
  
  /*------------------------------------------------------------------------
   * +++ Image element definition.
@@ -191,9 +246,7 @@ Index: generic/ttk/ttkImage.c
   */
  
  typedef struct {		/* ClientData for image elements */
-     Ttk_ImageSpec *imageSpec;	/* Image(s) to use */
-     int minWidth;		/* Minimum width; overrides image width */
-     int minHeight;		/* Minimum height; overrides image height */
+@@ -270,6 +294,7 @@
      Ttk_Sticky sticky;		/* -stickiness specification */
      Ttk_Padding border;		/* Fixed border region */
      Ttk_Padding padding;	/* Internal padding */
@@ -201,10 +254,10 @@ Index: generic/ttk/ttkImage.c
  
  #ifdef TILE_07_COMPAT
      Ttk_ResourceCache cache;	/* Resource cache for images */
-     Ttk_StateMap imageMap;	/* State-based lookup table for images */
+@@ -277,6 +302,23 @@
  #endif
  } ImageData;
-+
+ 
 +/* ImageElementImageChanged --
 + *	A source image's pixels changed; bump the content epoch so the
 + *	layout-draw layer rebuilds any node pixmap caching this element.
@@ -221,14 +274,11 @@ Index: generic/ttk/ttkImage.c
 +    ImageData *imageData = (ImageData *)clientData;
 +    imageData->epoch++;
 +}
- 
++
  static void FreeImageData(void *clientData)
  {
      ImageData *imageData = (ImageData *)clientData;
-     if (imageData->imageSpec)	{ TtkFreeImageSpec(imageData->imageSpec); }
-@@ -285,10 +342,82 @@
-     if (imageData->imageMap)	{ Tcl_DecrRefCount(imageData->imageMap); }
- #endif
+@@ -287,6 +329,78 @@
      ckfree(clientData);
  }
  
@@ -307,11 +357,7 @@ Index: generic/ttk/ttkImage.c
  static void ImageElementSize(
      void *clientData,
      TCL_UNUSED(void *), /* elementRecord */
-     TCL_UNUSED(Tk_Window),
-     int *widthPtr,
-@@ -373,10 +502,11 @@
- 	 { "-border","-height","-padding","-sticky","-width",NULL };
-     enum { O_BORDER, O_HEIGHT, O_PADDING, O_STICKY, O_WIDTH };
+@@ -375,6 +489,7 @@
  
      Ttk_ImageSpec *imageSpec = 0;
      ImageData *imageData = 0;
@@ -319,11 +365,7 @@ Index: generic/ttk/ttkImage.c
      int padding_specified = 0;
      Tcl_Size i;
  
-     if (objc + 1 < 2) {
- 	Tcl_SetObjResult(interp, Tcl_NewStringObj(
-@@ -383,16 +513,20 @@
- 		"Must supply a base image", -1));
- 	Tcl_SetErrorCode(interp, "TTK", "IMAGE", "BASE", (char *)NULL);
+@@ -385,12 +500,16 @@
  	return TCL_ERROR;
      }
  
@@ -342,11 +384,7 @@ Index: generic/ttk/ttkImage.c
      imageData->imageSpec = imageSpec;
      imageData->minWidth = imageData->minHeight = -1;
      imageData->sticky = TTK_FILL_BOTH;
-     imageData->border = imageData->padding = Ttk_UniformPadding(0);
- #ifdef TILE_07_COMPAT
-@@ -450,15 +584,19 @@
- 		if (Ttk_GetStickyFromObj(interp, objv[i+1], &imageData->sticky)
- 			!= TCL_OK) { goto error; }
+@@ -452,11 +571,15 @@
  	}
      }
  
@@ -365,16 +403,11 @@ Index: generic/ttk/ttkImage.c
  
      Ttk_RegisterCleanup(interp, imageData, FreeImageData);
      Tcl_SetObjResult(interp, Tcl_NewStringObj(elementName, -1));
-     return TCL_OK;
- 
-
 Index: generic/ttk/ttkLayout.c
 ==================================================================
 --- A/generic/ttk/ttkLayout.c
 +++ B/generic/ttk/ttkLayout.c
-@@ -526,10 +526,11 @@
-     unsigned		flags;		/* Packing and sticky flags */
-     Ttk_ElementClass	*eclass;	/* Class record */
+@@ -528,6 +528,7 @@
      Ttk_State		state;		/* Current state */
      Ttk_Box		parcel;		/* allocated parcel */
      Ttk_LayoutNode	*next, *child;
@@ -382,11 +415,7 @@ Index: generic/ttk/ttkLayout.c
  };
  
  static Ttk_LayoutNode *Ttk_NewLayoutNode(
-     unsigned flags, Ttk_ElementClass *elementClass)
- {
-@@ -538,19 +539,21 @@
-     node->flags = flags;
-     node->eclass = elementClass;
+@@ -540,6 +541,7 @@
      node->state = 0u;
      node->next = node->child = 0;
      node->parcel = Ttk_MakeBox(0,0,0,0);
@@ -394,9 +423,7 @@ Index: generic/ttk/ttkLayout.c
  
      return node;
  }
- 
- static void Ttk_FreeLayoutNode(Ttk_LayoutNode *node)
- {
+@@ -549,6 +551,7 @@
      while (node) {
  	Ttk_LayoutNode *next = node->next;
  	Ttk_FreeLayoutNode(node->child);
@@ -404,11 +431,7 @@ Index: generic/ttk/ttkLayout.c
  	ckfree(node);
  	node = next;
      }
- }
- 
-@@ -1118,13 +1121,21 @@
-  */
- 
+@@ -1120,9 +1123,17 @@
  /*
   * Ttk_DrawLayout --
   *	Draw a layout tree.
@@ -427,11 +450,7 @@ Index: generic/ttk/ttkLayout.c
  {
      for (; node; node = node->next)
      {
- 	int border = node->flags & TTK_BORDER;
- 	int substate = state;
-@@ -1132,27 +1143,31 @@
- 	if (node->flags & TTK_UNIT) {
- 	    substate |= node->state;
+@@ -1134,23 +1145,27 @@
  	}
  
  	if (node->child && border) {
@@ -466,42 +485,30 @@ Index: generic/ttk/ttkLayout.c
  }
  
  /*------------------------------------------------------------------------
-  * +++ Inquiry and modification.
-  */
-
-ADDED    generic/ttk/ttkNodeCache.c
 Index: generic/ttk/ttkNodeCache.c
 ==================================================================
 --- A/generic/ttk/ttkNodeCache.c
 +++ B/generic/ttk/ttkNodeCache.c
-@@ -0,0 +1,286 @@
+@@ -0,0 +1,304 @@
 +/*
 + * ttkNodeCache.c --
 + *
 + *	Per-node element *render* cache for the Ttk layout-draw traversal.
-+ *	(Distinct from ttkCache.c, which is the theme *resource* cache for
-+ *	fonts, colors and images.)
++ *	ttkLayout.c walks a widget's node tree in z-order and draws each element
++ *	through this module, which caches the composited result on the layout
++ *	node -- so it is per-widget-instance -- replacing the per-tile redraw
++ *	with a single copy on a hit.  A node is reused while its size, position,
++ *	state and content epoch hold; a translucent node also rebuilds when a
++ *	lower node drawn this pass overlaps it, so a changed background shows
++ *	through.  Invalidation needs no help from widgets or elements.
 + *
-+ *	The layout layer (ttkLayout.c) walks a widget's node tree in z-order and
-+ *	draws each node's element through this module.  An element is a pure
-+ *	renderer: it draws into whatever drawable it is handed.  This module
-+ *	caches the *composited* result of a cacheable element on its layout node
-+ *	-- so the cache is per-widget-instance, with no cross-widget
-+ *	contamination -- and replaces the per-tile redraw with a single blit on
-+ *	a cache hit.
++ *	STABLE elements (e.g. the implicit per-widget background node) are
++ *	always drawn directly, but an unchanged draw does not dirty its
++ *	parcel -- without that, the background node would force every
++ *	translucent node above it to rebuild on every pass.
 + *
-+ *	Because the cache is owned here, in the one place that sees both the
-+ *	z-order and the live background, invalidation needs no cooperation from
-+ *	widgets or elements: a transparent node is rebuilt whenever a lower node
-+ *	drawn this pass overlaps it (so a changed background shows through), and
-+ *	otherwise reused while its size, position, state and content epoch are
-+ *	unchanged.  An opaque element that fully fills its parcel is
-+ *	background-independent and reused on size/position/state/epoch alone.
-+ *
-+ *	The pixmap cache is compiled in only where XCopyArea accepts a Pixmap;
-+ *	on platforms without double buffering (e.g. macOS, which composites
-+ *	efficiently via Core Graphics) every entry point degrades to a direct
-+ *	element draw with no caching.
++ *	Compiled in only where XCopyArea accepts a Pixmap; without double
++ *	buffering every entry point degrades to a direct element draw.
 + *
 + * Copyright © 2026 Tk contributors.  Freely redistributable.
 + */
@@ -511,10 +518,8 @@ Index: generic/ttk/ttkNodeCache.c
 +
 +/*
 + * NodeDrawContext --
-+ *	Per-draw-pass state, created by TtkNodeDrawBegin and torn down by
-+ *	TtkNodeDrawEnd.  Carries the element-draw parameters pulled from the
-+ *	layout, the live destination, a shared GXcopy GC, and the set of
-+ *	parcels (re)drawn this pass (the dirty set driving invalidation).
++ *	Per-draw-pass state (TtkNodeDrawBegin/End): element-draw parameters, the
++ *	destination, a lazy GXcopy GC, and the parcels drawn this pass.
 + */
 +struct NodeDrawContext {
 +    Ttk_Style		style;
@@ -534,9 +539,7 @@ Index: generic/ttk/ttkNodeCache.c
 +
 +/*
 + * NodeDrawCache --
-+ *	One cached composited element, hung off a layout node.  Holds either the
-+ *	bare opaque render or, for a translucent element, the element baked over
-+ *	the background it was last drawn against.
++ *	One cached composited element, hung off a layout node.
 + */
 +struct NodeDrawCache {
 +    Pixmap	pixmap;		/* Cached composited element, or None */
@@ -555,9 +558,8 @@ Index: generic/ttk/ttkNodeCache.c
 +}
 +
 +/* DirtyOverlaps, DirtyAdd --
-+ *	Track the parcels (re)drawn this pass.  A transparent node whose parcel
-+ *	a dirty rect overlaps has a changed background and must rebuild; a node
-+ *	that draws marks its parcel dirty for the nodes layered above it.
++ *	The parcels drawn this pass; a translucent node rebuilds when one
++ *	overlaps its parcel.
 + */
 +static int DirtyOverlaps(NodeDrawContext *ctx, Ttk_Box b)
 +{
@@ -595,8 +597,7 @@ Index: generic/ttk/ttkNodeCache.c
 +#endif /* !TK_NO_DOUBLE_BUFFERING */
 +
 +/* TtkNodeDrawBegin --
-+ *	Open a draw pass for one layout tree.  Captures the element-draw
-+ *	parameters and the destination; graphics state is allocated lazily.
++ *	Open a draw pass; graphics state is allocated lazily.
 + */
 +NodeDrawContext *TtkNodeDrawBegin(
 +    Ttk_Style style,
@@ -622,9 +623,8 @@ Index: generic/ttk/ttkNodeCache.c
 +}
 +
 +/* TtkNodeDrawEnd --
-+ *	Close a draw pass: release the shared GC and dirty set, then the
-+ *	context itself.  The per-node pixmaps persist across passes and are
-+ *	freed with their nodes (TtkFreeNodeDrawCache).
++ *	Close a draw pass: free the shared GC and dirty set.  Node pixmaps
++ *	persist; they are freed by TtkFreeNodeDrawCache.
 + */
 +void TtkNodeDrawEnd(NodeDrawContext *ctx)
 +{
@@ -640,8 +640,7 @@ Index: generic/ttk/ttkNodeCache.c
 +}
 +
 +/* TtkFreeNodeDrawCache --
-+ *	Release a node's cached pixmap and the cache record.  NULL-tolerant;
-+ *	called by Ttk_FreeLayoutNode for every node.
++ *	Free a node's cached pixmap and record; NULL-tolerant.
 + */
 +void TtkFreeNodeDrawCache(NodeDrawCache *cache)
 +{
@@ -657,13 +656,9 @@ Index: generic/ttk/ttkNodeCache.c
 +}
 +
 +/* TtkDrawCachedElement --
-+ *	Draw one node's element, going through its per-node render cache.  On a
-+ *	hit the cached composite is blitted in a single XCopyArea; on a miss the
-+ *	element is (re)rendered into the node pixmap -- seeded with the live
-+ *	background first unless it opaquely fills the parcel -- then stored and
-+ *	blitted.  A draw marks the parcel dirty for nodes layered above it; a
-+ *	hit leaves it clean.  Falls back to a direct element draw for
-+ *	non-cacheable elements, an unrealized window, or an allocation failure.
++ *	Draw one node's element through its per-node cache: copy the cached
++ *	pixmap on a hit, else (re)render and store it.  Falls back to a direct
++ *	draw for non-cacheable elements, an unrealized window, or alloc failure.
 + */
 +void TtkDrawCachedElement(
 +    NodeDrawContext *ctx,
@@ -686,11 +681,8 @@ Index: generic/ttk/ttkNodeCache.c
 +	Ttk_ElementGetCacheInfo(eclass, ctx->style, ctx->recordPtr,
 +		ctx->optionTable, ctx->tkwin, b, state, &info);
 +
-+	/*
-+	 * Fast path: blit the cached pixmap when size, position, state and
-+	 * content epoch match and -- for a translucent element -- nothing
-+	 * drawn beneath it changed this pass.
-+	 */
++	/* Hit: size, position, state and epoch match, and -- if translucent
++	 * -- nothing beneath changed this pass. */
 +	if (cache && cache->valid
 +		&& cache->x == b.x && cache->y == b.y
 +		&& cache->w == b.width && cache->h == b.height
@@ -722,8 +714,8 @@ Index: generic/ttk/ttkNodeCache.c
 +	gc = NodeCopyGC(ctx);
 +	if (cache->pixmap != None && gc != NULL) {
 +	    if (!info.opaque) {
-+		/* Seed with the live background so translucent pixels blend
-+		 * and any non-filling -sticky margins show through. */
++		/* Seed the live background for translucent pixels and
++		 * non-filling -sticky margins. */
 +		XCopyArea(ctx->display, ctx->d, cache->pixmap, gc,
 +			b.x, b.y, (unsigned)b.width, (unsigned)b.height, 0, 0);
 +	    }
@@ -749,6 +741,47 @@ Index: generic/ttk/ttkNodeCache.c
 +	}
 +    }
 +
++    if (Ttk_ElementClassStable(eclass)) {
++	/* Stable element: same (parcel, state, epoch) means same pixels.
++	 * Always drawn directly -- no pixmap; the record only keeps the key
++	 * -- but an unchanged draw does not dirty its parcel, so translucent
++	 * cached nodes above it keep hitting.  The implicit per-widget
++	 * background node is the important case: without this, it would
++	 * dirty the whole widget on every pass. */
++	Ttk_ElementCacheInfo info;
++	NodeDrawCache *cache = *cacheSlot;
++	int unchanged;
++
++	Ttk_ElementGetCacheInfo(eclass, ctx->style, ctx->recordPtr,
++		ctx->optionTable, ctx->tkwin, b, state, &info);
++
++	unchanged = cache && cache->valid
++		&& cache->x == b.x && cache->y == b.y
++		&& cache->w == b.width && cache->h == b.height
++		&& cache->state == state
++		&& cache->opaque == info.opaque
++		&& cache->epoch == info.epoch
++		&& (info.opaque || !DirtyOverlaps(ctx, b));
++
++	Ttk_DrawElement(eclass, ctx->style, ctx->recordPtr,
++		ctx->optionTable, ctx->tkwin, ctx->d, b, state);
++
++	if (!unchanged) {
++	    if (cache == NULL) {
++		cache = *cacheSlot = (NodeDrawCache *)Tcl_Alloc(sizeof(*cache));
++		memset(cache, 0, sizeof(*cache));
++	    }
++	    cache->x = b.x;	cache->y = b.y;
++	    cache->w = b.width;	cache->h = b.height;
++	    cache->state = state;
++	    cache->opaque = info.opaque;
++	    cache->epoch = info.epoch;
++	    cache->valid = 1;
++	    DirtyAdd(ctx, b);
++	}
++	return;
++    }
++
 +    /* Direct draw: non-cacheable element, unrealized window, or alloc fail. */
 +    Ttk_DrawElement(eclass, ctx->style, ctx->recordPtr, ctx->optionTable,
 +	    ctx->tkwin, ctx->d, b, state);
@@ -761,14 +794,11 @@ Index: generic/ttk/ttkNodeCache.c
 +}
 +
 +/*EOF*/
-
 Index: generic/ttk/ttkTheme.c
 ==================================================================
 --- A/generic/ttk/ttkTheme.c
 +++ B/generic/ttk/ttkTheme.c
-@@ -122,10 +122,12 @@
-     void *clientData;		/* Client data passed in at registration time */
-     void *elementRecord;	/* Scratch buffer for element record storage */
+@@ -124,6 +124,8 @@
      int nResources;		/* #Element options */
      Tcl_Obj **defaultValues;	/* Array of option default values */
      Tcl_HashTable optMapCache;	/* Map: Tk_OptionTable * -> OptionMap */
@@ -777,11 +807,7 @@ Index: generic/ttk/ttkTheme.c
  };
  
  /* TTKGetOptionSpec --
-  *	Look up a Tk_OptionSpec by name from a Tk_OptionTable,
-  *	and verify that it's compatible with the specified Tk_OptionType,
-@@ -250,12 +252,40 @@
- 
-     /* Initialize option map cache:
+@@ -252,9 +254,46 @@
       */
      Tcl_InitHashTable(&elementClass->optMapCache, TCL_ONE_WORD_KEYS);
  
@@ -792,7 +818,7 @@ Index: generic/ttk/ttkTheme.c
 +
      return elementClass;
  }
-+
+ 
 +/* TtkSetElementCachePolicy --
 + *	Record an element class's render-cache policy: whether its composited
 + *	output may be cached per layout node, and an optional query reporting
@@ -815,18 +841,23 @@ Index: generic/ttk/ttkTheme.c
 +{
 +    return (eclass->cacheFlags & TTK_ELEMENT_CACHEABLE) != 0;
 +}
- 
++
++/* Ttk_ElementClassStable --
++ *	Return nonzero if the element class declared its draw deterministic
++ *	for an unchanged (parcel, state, content epoch).
++ */
++int Ttk_ElementClassStable(Ttk_ElementClass *eclass)
++{
++    return (eclass->cacheFlags & TTK_ELEMENT_STABLE) != 0;
++}
++
  /*
   * FreeElementClass --
   *	Release resources associated with an element class record.
-  */
-@@ -1135,10 +1165,40 @@
-     }
-     eclass->specPtr->draw(
- 	eclass->clientData, eclass->elementRecord,
+@@ -1138,6 +1177,36 @@
  	tkwin, d, b, state);
  }
-+
+ 
 +/* Ttk_ElementGetCacheInfo --
 + *	Query a cacheable element's opacity and content epoch for the current
 + *	(tkwin, state).  Defaults to {not opaque, epoch 0} for elements that
@@ -856,19 +887,15 @@ Index: generic/ttk/ttkTheme.c
 +    eclass->cacheProc(
 +	eclass->clientData, eclass->elementRecord, tkwin, b, state, info);
 +}
- 
++
  /*------------------------------------------------------------------------
   * +++ 'style' command ensemble procedures.
   */
- 
-
 Index: generic/ttk/ttkThemeInt.h
 ==================================================================
 --- A/generic/ttk/ttkThemeInt.h
 +++ B/generic/ttk/ttkThemeInt.h
-@@ -29,10 +29,58 @@
- 	int *widthPtr, int *heightPtr, Ttk_Padding*);
- MODULE_SCOPE void Ttk_DrawElement(
+@@ -31,6 +31,65 @@
  	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
  	Tk_Window tkwin, Drawable d, Ttk_Box b, Ttk_State state);
  
@@ -880,6 +907,16 @@ Index: generic/ttk/ttkThemeInt.h
 + * elements that do not opt in keep drawing directly with no pixmap.
 + */
 +#define TTK_ELEMENT_CACHEABLE	0x1	/* opts into per-node render caching */
++
++/*
++ * A STABLE element draws the same pixels whenever its parcel, state and
++ * content epoch are unchanged (and, if translucent, nothing beneath it was
++ * redrawn this pass).  It is always drawn directly -- never through a node
++ * pixmap -- but an unchanged draw does not dirty its parcel, so translucent
++ * cached nodes above it can keep hitting.  The implicit per-widget background
++ * node (Ttk_CreateLayout) is the important case.
++ */
++#define TTK_ELEMENT_STABLE	0x2	/* deterministic draw; see above */
 +
 +/*
 + * Cache info an element reports for the current (tkwin, state): whether it is
@@ -898,6 +935,7 @@ Index: generic/ttk/ttkThemeInt.h
 +MODULE_SCOPE void TtkSetElementCachePolicy(
 +	Ttk_ElementClass *, unsigned cacheFlags, Ttk_ElementCacheProc *);
 +MODULE_SCOPE int Ttk_ElementClassCacheable(Ttk_ElementClass *);
++MODULE_SCOPE int Ttk_ElementClassStable(Ttk_ElementClass *);
 +MODULE_SCOPE void Ttk_ElementGetCacheInfo(
 +	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
 +	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *);
@@ -923,16 +961,11 @@ Index: generic/ttk/ttkThemeInt.h
  MODULE_SCOPE Tcl_Obj *Ttk_QueryStyle(
      Ttk_Style, void *, Tk_OptionTable, const char *, Ttk_State state);
  
- MODULE_SCOPE Ttk_LayoutTemplate Ttk_ParseLayoutTemplate(
- 	Tcl_Interp *, Tcl_Obj *);
-
 Index: unix/Makefile.in
 ==================================================================
 --- A/unix/Makefile.in
 +++ B/unix/Makefile.in
-@@ -382,11 +382,12 @@
- 	tkVisual.o tkWindow.o
- 
+@@ -384,7 +384,8 @@
  TTK_OBJS = \
  	ttkBlink.o ttkButton.o ttkCache.o ttkClamTheme.o ttkClassicTheme.o \
  	ttkDefaultTheme.o ttkElements.o ttkEntry.o ttkFrame.o ttkImage.o \
@@ -942,11 +975,7 @@ Index: unix/Makefile.in
  	ttkPanedwindow.o ttkProgress.o ttkScale.o ttkScrollbar.o ttkScroll.o \
  	ttkSeparator.o ttkSquare.o ttkState.o \
  	ttkTagSet.o ttkTheme.o ttkTrace.o ttkTrack.o ttkTreeview.o \
- 	ttkWidget.o ttkStubInit.o
- 
-@@ -484,10 +485,11 @@
- 	$(TTK_DIR)/ttkImage.c \
- 	$(TTK_DIR)/ttkInit.c \
+@@ -486,6 +487,7 @@
  	$(TTK_DIR)/ttkLabel.c \
  	$(TTK_DIR)/ttkLayout.c \
  	$(TTK_DIR)/ttkManager.c \
@@ -954,11 +983,7 @@ Index: unix/Makefile.in
  	$(TTK_DIR)/ttkNotebook.c \
  	$(TTK_DIR)/ttkPanedwindow.c \
  	$(TTK_DIR)/ttkProgress.c \
- 	$(TTK_DIR)/ttkScale.c \
- 	$(TTK_DIR)/ttkScrollbar.c \
-@@ -1512,10 +1514,13 @@
- 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkLabel.c
- 
+@@ -1514,6 +1516,9 @@
  ttkLayout.o: $(TTK_DIR)/ttkLayout.c
  	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkLayout.c
  
@@ -968,16 +993,11 @@ Index: unix/Makefile.in
  ttkManager.o: $(TTK_DIR)/ttkManager.c
  	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkManager.c
  
- ttkNotebook.o: $(TTK_DIR)/ttkNotebook.c
- 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkNotebook.c
-
 Index: win/Makefile.in
 ==================================================================
 --- A/win/Makefile.in
 +++ B/win/Makefile.in
-@@ -421,10 +421,11 @@
- 	ttkImage.$(OBJEXT) \
- 	ttkInit.$(OBJEXT) \
+@@ -423,6 +423,7 @@
  	ttkLabel.$(OBJEXT) \
  	ttkLayout.$(OBJEXT) \
  	ttkManager.$(OBJEXT) \
@@ -985,16 +1005,11 @@ Index: win/Makefile.in
  	ttkNotebook.$(OBJEXT) \
  	ttkPanedwindow.$(OBJEXT) \
  	ttkProgress.$(OBJEXT) \
- 	ttkScale.$(OBJEXT) \
- 	ttkScrollbar.$(OBJEXT) \
-
 Index: win/configure
 ==================================================================
 --- A/win/configure
 +++ B/win/configure
-@@ -4612,11 +4612,11 @@
-     if test "${GCC}" = "yes" ; then
- 	SHLIB_LD=""
+@@ -4614,7 +4614,7 @@
  	SHLIB_LD_LIBS='${LIBS}'
  	LIBS="-lnetapi32 -lkernel32 -luser32 -ladvapi32 -luserenv -lws2_32"
  	# mingw needs to link ole32 and oleaut32 for [send], but MSVC doesn't
@@ -1003,11 +1018,7 @@ Index: win/configure
  	STLIB_LD='${AR} cr'
  	RC_OUT=-o
  	RC_TYPE=
- 	RC_INCLUDE=--include
- 	RC_DEFINE=--define
-@@ -4826,11 +4826,11 @@
- 	    CFLAGS_OPTIMIZE="-nologo -O2 ${runtime}"
- 	    lflags="${lflags} -nologo"
+@@ -4828,7 +4828,7 @@
  	    LINKBIN="link"
  	fi
  
@@ -1016,16 +1027,11 @@ Index: win/configure
  
  	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
  	SHLIB_LD_LIBS='${LIBS}'
- 	# link -lib only works when -lib is the first arg
- 	STLIB_LD="${LINKBIN} -lib ${lflags}"
-
 Index: win/makefile.vc
 ==================================================================
 --- A/win/makefile.vc
 +++ B/win/makefile.vc
-@@ -295,10 +295,11 @@
- 	$(TMP_DIR)\ttkImage.obj \
- 	$(TMP_DIR)\ttkInit.obj \
+@@ -297,6 +297,7 @@
  	$(TMP_DIR)\ttkLabel.obj \
  	$(TMP_DIR)\ttkLayout.obj \
  	$(TMP_DIR)\ttkManager.obj \
@@ -1033,11 +1039,7 @@ Index: win/makefile.vc
  	$(TMP_DIR)\ttkNotebook.obj \
  	$(TMP_DIR)\ttkPanedwindow.obj \
  	$(TMP_DIR)\ttkProgress.obj \
- 	$(TMP_DIR)\ttkScale.obj \
- 	$(TMP_DIR)\ttkScrollbar.obj \
-@@ -345,11 +346,11 @@
- !endif
- 
+@@ -347,7 +348,7 @@
  PRJ_DEFINES	= /DBUILD_ttk $(CONFIG_DEFS) /Dinline=__inline /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE
  
  # Additional Link libraries needed beyond those in rules.vc
@@ -1046,16 +1048,11 @@ Index: win/makefile.vc
  
  #---------------------------------------------------------------------
  # TkTest flags
- #---------------------------------------------------------------------
- 
-
 Index: win/tcl.m4
 ==================================================================
 --- A/win/tcl.m4
 +++ B/win/tcl.m4
-@@ -660,11 +660,11 @@
-     if test "${GCC}" = "yes" ; then
- 	SHLIB_LD=""
+@@ -662,7 +662,7 @@
  	SHLIB_LD_LIBS='${LIBS}'
  	LIBS="-lnetapi32 -lkernel32 -luser32 -ladvapi32 -luserenv -lws2_32"
  	# mingw needs to link ole32 and oleaut32 for [send], but MSVC doesn't
@@ -1064,11 +1061,7 @@ Index: win/tcl.m4
  	STLIB_LD='${AR} cr'
  	RC_OUT=-o
  	RC_TYPE=
- 	RC_INCLUDE=--include
- 	RC_DEFINE=--define
-@@ -849,11 +849,11 @@
- 	    CFLAGS_OPTIMIZE="-nologo -O2 ${runtime}"
- 	    lflags="${lflags} -nologo"
+@@ -851,7 +851,7 @@
  	    LINKBIN="link"
  	fi
  
@@ -1077,16 +1070,11 @@ Index: win/tcl.m4
  
  	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
  	SHLIB_LD_LIBS='${LIBS}'
- 	# link -lib only works when -lib is the first arg
- 	STLIB_LD="${LINKBIN} -lib ${lflags}"
-
 Index: win/tkWinImage.c
 ==================================================================
 --- A/win/tkWinImage.c
 +++ B/win/tkWinImage.c
-@@ -686,13 +686,254 @@
- 	ReleaseDC(NULL, dc);
-     }
+@@ -688,6 +688,247 @@
  
      return imagePtr;
  }
@@ -1334,19 +1322,11 @@ Index: win/tkWinImage.c
  
  /*
   * Local Variables:
-  * mode: c
-  * c-basic-offset: 4
-  * fill-column: 78
-  * End:
-  */
-
 Index: win/tkWinPort.h
 ==================================================================
 --- A/win/tkWinPort.h
 +++ B/win/tkWinPort.h
-@@ -122,6 +122,19 @@
-  */
- 
+@@ -124,4 +124,17 @@
  #define TkpGetPixel(p) (((((p)->red >> 8) & 0xff) \
  	| ((p)->green & 0xff00) | (((p)->blue << 8) & 0xff0000)) | 0x20000000)
  
@@ -1364,4 +1344,3 @@ Index: win/tkWinPort.h
 +	unsigned int width, unsigned int height);
 +
  #endif /* _WINPORT */
-
