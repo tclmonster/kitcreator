@@ -1,0 +1,13 @@
+diff -ruN a/generic/vfs.c b/generic/vfs.c
+--- a/generic/vfs.c	2026-08-01 01:02:13.488377508 -0300
++++ b/generic/vfs.c	2026-08-01 01:26:55.633316729 -0300
+@@ -1117,6 +1117,9 @@
+     int returnVal;
+     Tcl_Interp* interp;
+ 
++    /* The callback sets only the fields it names; zero the rest. */
++    memset(bufPtr, 0, sizeof(*bufPtr));
++
+     mountCmd = VfsBuildCommandForPath(&interp, "stat", pathPtr);
+     if (mountCmd == NULL) {
+ 	return TCLVFS_POSIXERROR;
