@@ -176,17 +176,17 @@ function strip_library() {
 	cp 'tclkit.ico' 'starpack.vfs/'
 
 	## Strip & sign before copying to preserve signature on "retry"
-	if strip_debug_symbols; then
-		while IFS= read -r file; do
-			if is_signed "${file}"; then
-			    echo "Skipping signed file \"${file}\""
-			    continue ;# Otherwise signature will be clobbered
-			fi
-			strip_library   "${file}"
-			apply_signature "${file}"
+	while IFS= read -r file; do
+		if is_signed "${file}"; then
+		    echo "Skipping signed file \"${file}\""
+		    continue ;# Otherwise signature will be clobbered
+		fi
+		if strip_debug_symbols; then
+			strip_library "${file}"
+		fi
+		apply_signature "${file}"
 
-		done < <(find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \))
-	fi
+	done < <(find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \))
 
 	## Copy in all built directories
 	cp -r "${OTHERPKGSDIR}"/*/out/* 'starpack.vfs/'
@@ -325,9 +325,9 @@ function strip_library() {
 		fi
 
 		if strip_debug_symbols; then
-			strip_binary    "${KITDLL_EXE_TARGET}" ;# Only need to strip & sign the tclsh/wish
-			apply_signature "${KITDLL_EXE_TARGET}" ;# that will end up in the kitdll.
+			strip_binary "${KITDLL_EXE_TARGET}" ;# Only need to strip & sign the tclsh/wish
 		fi
+		apply_signature "${KITDLL_EXE_TARGET}" ;# that will end up in the kitdll.
 
 		export KITDLL_EXE_TARGET ;# Allow this exe to be bundled for notarization (see below)
 
@@ -357,8 +357,9 @@ function strip_library() {
 				strip_library "${KITTARGET_NAME}"
 				;;
 		esac
-		apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 	fi
+
+	apply_signature "${KITTARGET_NAME}" "${CODESIGN_KITSH_IDENTIFIER:-}"
 
 	if ! test "${KC_KITSTORAGE}" = "cvfs"; then
 		# Intall VFS onto kit
