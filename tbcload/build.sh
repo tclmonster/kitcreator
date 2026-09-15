@@ -4,7 +4,7 @@
 
 version='2.0a0'
 url="https://github.com/tclmonster/tbcload2/archive/refs/tags/v${version}.tar.gz"
-sha256='292537bca57ba60c43ae79e74811409e62d3f1c97da945b7f4b6b8950e7941e1'
+sha256='ecc72947288cdc98833a75711596ee20b54ae6897a2286acd7def39b73224291'
 
 KC_TBCLOAD_CFLAGS='-Wno-error=implicit-function-declaration'
 
