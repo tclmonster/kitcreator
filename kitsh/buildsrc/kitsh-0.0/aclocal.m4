@@ -165,6 +165,21 @@ AC_DEFUN(DC_DO_STATIC_LINK_LIBCXX, [
 
 AC_DEFUN(DC_FIND_GOKIT_LIBS, [
 	if test "${HAVE_GO}" = "yes"; then
+		dnl Assemble the Go package for the target: flatten gokit/_unix or gokit/_win
+		dnl into gokit/. Go ignores a directory with a leading underscore, so both
+		dnl stay in place afterward and neither's imports reach "go mod tidy" below
+		case $host_os in
+			mingw*|msys*|cygwin*)
+				gokit_os="win"
+			;;
+			*)
+				gokit_os="unix"
+			;;
+		esac
+		AC_MSG_CHECKING([for Go platform sources])
+		cp gokit/_${gokit_os}/* gokit/ || AC_MSG_ERROR([cannot assemble gokit/_${gokit_os}])
+		AC_MSG_RESULT([${gokit_os}])
+
 		AC_MSG_CHECKING([for Go extension packages])
 
 		gokit_imports=""
@@ -228,7 +243,12 @@ ${gokit_imports})
 GOEOF
 		fi
 
-		dnl Append require/replace blocks to gokit/go.mod
+		dnl Generate gokit/go.mod
+		cat > gokit/go.mod << 'GOEOF'
+module kitcreator/kitsh/gokit
+
+go 1.21
+GOEOF
 		if test -n "${gokit_requires}"; then
 			cat >> gokit/go.mod << GOEOF
 
@@ -238,11 +258,13 @@ ${gokit_requires})
 replace (
 ${gokit_replaces})
 GOEOF
-			dnl Resolve transitive dependencies from extensions
-			AC_MSG_CHECKING([resolving Go module dependencies])
-			(cd gokit && ${GO} mod tidy 2>&1) || AC_MSG_ERROR([go mod tidy failed])
-			AC_MSG_RESULT([ok])
 		fi
+
+		dnl Resolve dependencies: the transitive ones of the extensions, and the
+		dnl imports of the platform sources themselves
+		AC_MSG_CHECKING([resolving Go module dependencies])
+		(cd gokit && ${GO} mod tidy 2>&1) || AC_MSG_ERROR([go mod tidy failed])
+		AC_MSG_RESULT([ok])
 
 	fi
 ])

@@ -8,5 +8,6 @@ package main
 import "C"
 
 func main() {
+	useUTF8Console()
 	C.cgo_call_winmain()
 }

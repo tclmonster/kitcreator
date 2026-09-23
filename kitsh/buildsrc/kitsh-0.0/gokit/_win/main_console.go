@@ -12,6 +12,7 @@ import (
 )
 
 func main() {
+	useUTF8Console()
 	argc := C.int(len(os.Args))
 	argv := make([]*C.char, len(os.Args)+1)
 	for i, arg := range os.Args {

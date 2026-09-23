@@ -24,13 +24,30 @@ package that replaces the traditional C `main.c`/`winMain.c` entry points.
 
 | File | Purpose |
 |------|---------|
-| `main_unix.go` | Unix entry: builds `argc`/`argv` from `os.Args`, calls `Tcl_Main` via cgo |
-| `main_windows.go` | Windows GUI entry (build tag `needwinmain`): calls `cgo_call_winmain()` |
-| `main_windows_console.go` | Windows console entry (no `needwinmain` tag): same as Unix path |
+| `_unix/main.go` | Unix entry: builds `argc`/`argv` from `os.Args`, calls `Tcl_Main` via cgo |
+| `_win/main_gui.go` | Windows GUI entry (build tag `needwinmain`): calls `cgo_call_winmain()` |
+| `_win/main_console.go` | Windows console entry (no `needwinmain` tag): same as the Unix entry |
+| `_win/utf8.go` | Windows: `useUTF8Console()` sets the console code pages to UTF-8 via `golang.org/x/sys/windows`; both Windows entries call it first |
 | `cgo_helpers.c` | C shims: `cgo_call_tcl_main()`, `cgo_call_tk_main()` |
-| `cgo_helpers_windows.c` | Windows `cgo_call_winmain()` adapted from `winMain.c` |
+| `_win/cgo_winmain.c` | `cgo_call_winmain()`, for `_win/main_gui.go`, adapted from `winMain.c` |
 | `cgo_helpers.h` | Declarations for the C shims |
 | `go.mod` | Module definition (`kitcreator/kitsh/gokit`), extended at configure time |
+
+The platform directories carry a leading underscore, which the Go toolchain
+always ignores — so `_unix/` and `_win/` are invisible to `go build`, `go vet`
+and `go mod tidy` regardless of target. Go compiles a single directory, so
+configure still assembles the package for the target first: it copies the
+matching directory's files into `gokit/` (`_win/` for `mingw*`, `msys*` and
+`cygwin*` hosts, `_unix/` otherwise) and leaves both directories in place,
+since the underscore keeps `go mod tidy` from ever seeing either one's
+imports.
+
+Because of the flattening: a platform file's relative paths resolve from
+`gokit/`, not from its location in source (`cgo_winmain.c`'s `../winMain.c` is
+one); a platform file must not share a name with a top-level one
+(`cgo_helpers.c`, `cgo_helpers.h`, `go.mod`), which the copy would silently
+overwrite; and a file needs its own `//go:build` line if its name doesn't say
+the platform, as `_win/utf8.go` does with `//go:build windows`.
 
 ### Build Mechanism
 
@@ -57,9 +74,9 @@ Key points:
 
 | Platform | Build Tags | Entry |
 |----------|------------|-------|
-| Unix/macOS | (none) | `main_unix.go` -> `Tcl_Main` |
-| Windows + Tk | `needwinmain` | `main_windows.go` -> `cgo_call_winmain` -> `Tk_Main` |
-| Windows, no Tk | (none) | `main_windows_console.go` -> `Tcl_Main` |
+| Unix/macOS | (none) | `_unix/main.go` -> `Tcl_Main` |
+| Windows + Tk | `needwinmain` | `_win/main_gui.go` -> `cgo_call_winmain` -> `Tk_Main` |
+| Windows, no Tk | (none) | `_win/main_console.go` -> `Tcl_Main` |
 
 ## Go Extension Architecture
 
@@ -126,16 +143,21 @@ An extension can be:
 The `DC_FIND_GOKIT_LIBS` macro in `aclocal.m4`:
 
 1. Guards on `HAVE_GO=yes` (silently skipped otherwise)
-2. Scans `../../../*/inst/go-pkg/` for directories containing `.go` files
-3. For each discovered extension, accumulates:
+2. Assembles `gokit/` from the platform directory for the target (see Source
+   Files)
+3. Scans `../../../*/inst/go-pkg/` for directories containing `.go` files
+4. For each discovered extension, accumulates:
    - A blank import line for `kitInit-libs.go`
    - A `require` entry for `go.mod`
    - A `replace` entry pointing to the local source path
    - If an `<Ext>_Init` function is found in the `.go` files, an `extern`
      declaration is written to `kitInit-libs.h` and the init function is
      added to `libs_init_funcs` for `Tcl_StaticPackage()` registration
-4. Generates `gokit/kitInit-libs.go`
-5. Appends `require`/`replace` blocks to `gokit/go.mod`
+5. Generates `gokit/kitInit-libs.go`
+6. Appends `require`/`replace` blocks to `gokit/go.mod` when extensions were
+   found
+7. Runs `go mod tidy` in `gokit/`, resolving the extensions' dependencies and
+   the platform sources' own imports
 
 This macro is called within `DC_FIND_TCLKIT_LIBS`, before the
 `_Tclkit_GenericLib_Init` function is written to `kitInit-libs.h`, so that
@@ -263,6 +285,6 @@ hello   ;# => "Hello from Go!"
 
 | Scenario | Result |
 |----------|--------|
-| No Go extensions present | `kitInit-libs.go` generated with just `package main`; `go.mod` unchanged |
+| No Go extensions present | `kitInit-libs.go` generated with just `package main`; `go.mod` gains only what the platform sources import (nothing on Unix) |
 | Go extensions present | Blank imports and `go.mod` entries generated; extensions linked into binary |
 | `HAVE_GO=no` (or Go unavailable) | `DC_FIND_GOKIT_LIBS` is skipped entirely; C fallback build used |
