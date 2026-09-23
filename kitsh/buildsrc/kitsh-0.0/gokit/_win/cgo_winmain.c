@@ -1,9 +1,9 @@
 #ifdef _WIN32
 #ifndef TCLKIT_DLL
 /*
- * cgo_helpers_windows.c --
+ * cgo_winmain.c --
  *
- *	Windows-specific C shim for Go entry point.
+ *	C shim for the Go GUI entry point (_win/main_gui.go).
  *	Includes winMain.c for shared code (WinMain, setargv, etc.),
  *	then provides cgo_call_winmain() as the Go-callable entry.
  */
