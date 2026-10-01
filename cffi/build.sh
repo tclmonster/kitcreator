@@ -6,6 +6,9 @@ version='2.0.3'
 url="https://sourceforge.net/projects/magicsplat/files/cffi/cffi${version}-src.tar.gz"
 sha256='8f9b7e7aa2beb105a7d86ad880a5e279d11c380cc83b1ae0ad038bf128573edc'
 
+# Tcl 9.1 hides Tcl_CmdInfo.objProc under TCL_NO_DEPRECATED, which cffi defines
+KC_CFFI_CFLAGS='-UTCL_NO_DEPRECATED'
+
 function postinstall() {
 
     find "${installdir}" -type f -name '*.a' | while IFS='' read -r filename; do
