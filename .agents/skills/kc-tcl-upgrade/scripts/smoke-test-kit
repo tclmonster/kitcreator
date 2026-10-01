@@ -1,0 +1,57 @@
+#! /bin/sh
+
+# Usage: smoke-test-kit [-t] <kit> [<package>...]
+#
+# Checks that a Tclkit runs from its own VFS and that each <package> loads,
+# in the main interpreter and in a child interpreter.  The kit runs from a
+# copy in a temporary directory, so it cannot fall back to the build tree's
+# tcl/inst/lib.  With -t, also compiles a proc with tclcompiler and runs it
+# through tbcload.  The checks themselves are in smoke-test-kit.tcl.
+#
+# Prints one line per check; exits non-zero if any check fails.
+
+die() {
+	echo "smoke-test-kit: $*" >&2
+	exit 1
+}
+
+usage() {
+	die "usage: smoke-test-kit [-t] <kit> [<package>...]"
+}
+
+script_dir="$(dirname "$0")"
+test_script="${script_dir}/smoke-test-kit.tcl"
+
+tbc_check='0'
+if [ "$1" = '-t' ]; then
+	tbc_check='1'
+	shift
+fi
+
+if [ "$#" -lt 1 ]; then
+	usage
+fi
+
+kit="$1"
+shift
+
+if [ ! -f "${kit}" ]; then
+	die "no such kit: ${kit}"
+fi
+
+workdir="$(mktemp -d "${TMPDIR:-/tmp}/smoke-test-kit.XXXXXX")" || die 'cannot create a work directory'
+
+kit_name="$(basename "${kit}")"
+kit_copy="${workdir}/bin/${kit_name}"
+
+mkdir "${workdir}/bin"
+if ! cp -p "${kit}" "${kit_copy}"; then
+	rm -rf "${workdir}"
+	die "cannot copy ${kit}"
+fi
+
+"${kit_copy}" "${test_script}" "${workdir}" "${tbc_check}" "$@"
+status="$?"
+
+rm -rf "${workdir}"
+exit "${status}"

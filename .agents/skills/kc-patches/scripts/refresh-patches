@@ -1,0 +1,247 @@
+#! /bin/sh
+
+# Usage: refresh-patches [-w <workdir>] <source> <patch>...
+#        refresh-patches --continue <workdir>
+#
+# Applies the patch stack to a copy of <source> (archive or directory), in
+# order, and rewrites each patch in place as the exact change it makes:
+# "diff -ruN A/<file> B/<file>" without timestamps, keeping any text above the
+# first file section.
+#
+# If a patch does not apply, it is applied as far as it goes and the script
+# stops.  Finish the change in <workdir>/B (<workdir>/A is the tree before
+# it), delete the .rej files, and run with --continue.  The work directory is
+# removed on success unless -w was given.
+
+script_dir="$(dirname "$0")"
+kitcreator_dir="$(cd "${script_dir}/../../../.." && pwd)"
+KITCREATOR_DIR="${KITCREATOR_DIR:-${kitcreator_dir}}"
+PATH="${kitcreator_dir}/common/helpers:${PATH}"
+LC_ALL=C
+export KITCREATOR_DIR PATH LC_ALL
+
+die() {
+	echo "refresh-patches: $*" >&2
+	exit 1
+}
+
+usage() {
+	die "usage: refresh-patches [-w <workdir>] <source> <patch>... | --continue <workdir>"
+}
+
+# Print <file> as an absolute path; it must exist
+absolute_path() {
+	file="$1"
+
+	if [ ! -e "${file}" ]; then
+		die "no such file: ${file}"
+	fi
+
+	file_dir="$(cd "$(dirname "${file}")" && pwd)"
+	file_name="$(basename "${file}")"
+	echo "${file_dir}/${file_name}"
+}
+
+# Copy <source> into B; an archive's single top-level directory is dropped
+extract() {
+	source="$1"
+
+	if [ -d "${source}" ]; then
+		cp -pR "${source}/." B
+		return
+	fi
+
+	mkdir src || return 1
+
+	case "${source}" in
+		*.zip)
+			unzip -q "${source}" -d src
+			;;
+		*)
+			tar -xf "${source}" -C src
+			;;
+	esac || return 1
+
+	top='src'
+	entries="$(ls -A src)"
+	entry_count="$(echo "${entries}" | wc -l | tr -d ' ')"
+	if [ "${entry_count}" = '1' ] && [ -d "src/${entries}" ]; then
+		top="src/${entries}"
+	fi
+
+	cp -pR "${top}/." B || return 1
+	rm -rf src
+}
+
+# Print the text above <patch>'s first file section (its explanation, if any)
+patch_header() {
+	awk '
+		/^(diff |Index: |--- |\+\+\+ )/ {
+			exit
+		}
+
+		{
+			print
+		}
+	' "$1"
+}
+
+# Print <diff> without the timestamps diff adds to its ---/+++ lines
+strip_timestamps() {
+	awk '
+		/^(--- A\/|\+\+\+ B\/)/ {
+			sub(/\t.*$/, "")
+		}
+
+		{
+			print
+		}
+	' "$1"
+}
+
+# Rewrite <patch> as the difference between A and B
+regenerate() {
+	patch="$1"
+
+	diff -ruN A B > raw.diff
+	if [ "$?" -gt 1 ]; then
+		die "diff failed for ${patch}"
+	fi
+
+	if grep '^Binary files' raw.diff >/dev/null; then
+		die "${patch} changes binary files; refresh it by hand"
+	fi
+
+	if [ ! -s raw.diff ]; then
+		echo "WARNING: ${patch} makes no change (already upstream?); left as is" >&2
+		return
+	fi
+
+	patch_header "${patch}" > new.diff
+	strip_timestamps raw.diff >> new.diff
+
+	if ! mv new.diff "${patch}"; then
+		die "cannot write ${patch}"
+	fi
+
+	patch_in_tree="${patch#"${KITCREATOR_DIR}"/}"
+	echo "Refreshed: ${patch_in_tree}" >&2
+}
+
+if [ "$1" = '--continue' ]; then
+	if [ "$#" != '2' ]; then
+		usage
+	fi
+
+	if ! cd "$2" 2>/dev/null || [ ! -f patches ]; then
+		die "not a refresh-patches work directory: $2"
+	fi
+
+	if [ ! -s patches ]; then
+		die "nothing left to refresh in $2"
+	fi
+
+	rejects="$(find B -name '*.rej')"
+	if [ -n "${rejects}" ]; then
+		die ".rej files remain in $2/B; finish the change and delete them first"
+	fi
+
+	resume='1'
+else
+	workdir=''
+	if [ "$1" = '-w' ]; then
+		if [ "$#" -lt 2 ]; then
+			usage
+		fi
+
+		workdir="$2"
+		shift 2
+	fi
+
+	if [ "$#" -lt 2 ]; then
+		usage
+	fi
+
+	# Absolute paths, since everything below runs in the work directory
+	source="$(absolute_path "$1")" || exit 1
+	shift
+
+	patch_list="$(
+		for patch in "$@"; do
+			absolute_path "${patch}"
+		done
+	)" || exit 1
+
+	if [ -n "${workdir}" ]; then
+		workdir_contents="$(ls -A "${workdir}" 2>/dev/null)"
+		if [ -n "${workdir_contents}" ]; then
+			die "work directory is not empty: ${workdir}"
+		fi
+
+		mkdir -p "${workdir}" || die "cannot create ${workdir}"
+		touch "${workdir}/keep"
+	else
+		workdir="$(mktemp -d "${TMPDIR:-/tmp}/refresh-patches.XXXXXX")" || die 'cannot create a work directory'
+	fi
+
+	cd "${workdir}" || die "cannot use ${workdir}"
+
+	printf '%s\n' "${patch_list}" > patches
+
+	mkdir B
+	if ! extract "${source}"; then
+		if [ ! -e keep ]; then
+			cd /
+			rm -rf "${workdir}"
+		fi
+
+		die "cannot extract ${source}"
+	fi
+
+	resume=''
+fi
+
+workdir="$(pwd)"
+
+while [ -s patches ]; do
+	patch="$(sed -n 1p patches)"
+
+	# On --continue, B already holds the fixed-up change for this patch
+	if [ -n "${resume}" ]; then
+		resume=''
+	else
+		rm -rf A
+		cp -pR B A || die 'cannot snapshot the tree'
+
+		if ! apply-patch "${patch}" B >> apply.log 2>&1 4>&1; then
+			(cd B && ${PATCH:-patch} -f -p1 < "${patch}") >> apply.log 2>&1
+
+			echo "Stopped: ${patch} does not apply." >&2
+			echo "Finish the change in ${workdir}/B using the .rej files (see apply.log)," >&2
+			echo "delete them, then run: $0 --continue ${workdir}" >&2
+			exit 1
+		fi
+	fi
+
+	# Remove backups and rejects that patch created (not files from the source)
+	(cd B && find . -type f \( -name '*.orig' -o -name '*.rej' \)) | while IFS='' read -r file; do
+		if [ ! -e "A/${file}" ]; then
+			rm -f "B/${file}"
+		fi
+	done
+
+	regenerate "${patch}"
+
+	# Done with this patch: drop it from the list
+	sed 1d patches > patches.new
+	mv patches.new patches
+done
+
+echo 'All patches refreshed.' >&2
+
+if [ -e keep ]; then
+	echo "Work directory: ${workdir}" >&2
+else
+	cd /
+	rm -rf "${workdir}"
+fi
