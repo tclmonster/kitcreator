@@ -1,7 +1,19 @@
+# Tcl 9.0 and earlier call tclInit from Tcl_Init.  Tcl 9.1 no longer does,
+# so kitInit.c calls tclKitPreInit from the pre-init script and
+# tclKitPostInit from a post-init callback, with Tcl sourcing init.tcl
+# from $tcl_library in between.
 proc tclInit {} {
 	rename tclInit {}
 
-	global auto_path tcl_library tcl_libPath
+	tclKitPreInit
+	uplevel #0 [list source [file join $::tcl_library init.tcl]]
+	tclKitPostInit
+}
+
+proc tclKitPreInit {} {
+	rename tclKitPreInit {}
+
+	global tcl_library tcl_libPath
 	global tcl_version
   
 	set mountpoint [subst "$::TCLKIT_MOUNTPOINT_VAR"]
@@ -142,10 +154,13 @@ proc tclInit {} {
 	# Set-up starkit::tclkitroot
 	namespace eval ::starkit { variable tclkitroot }
 	set ::starkit::tclkitroot $mountpoint
+}
 
-	# Perform expected initialization
-	uplevel #0 [list source [file join $tcl_library init.tcl]]
-  
+proc tclKitPostInit {} {
+	rename tclKitPostInit {}
+
+	global auto_path tcl_libPath
+
 	# reset auto_path, so that init.tcl's search outside of tclkit is cancelled
 	set auto_path $tcl_libPath
 

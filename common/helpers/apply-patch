@@ -1,0 +1,55 @@
+#! /usr/bin/env bash
+
+# Usage: apply-patch <patchfile> [<directory>]
+#
+# Applies <patchfile> (-p1) in <directory> (default: current directory).
+#
+#   - All or nothing: the patch is test-applied first, so one that does not
+#     fit never leaves a half-patched tree.
+#   - Never prompts.
+#   - Fuzz is allowed, but hunks that needed it are listed on the console so
+#     the patch can be refreshed.
+#
+# Output: stdout and stderr go to the package's build.log.  File descriptor 4
+# is the console: kitcreator opens it (4>&2) for each package build before
+# redirecting stdout and stderr to build.log, so messages written to fd 4 are
+# seen while building.
+
+if [ "${#}" != '1' ] && [ "${#}" != '2' ]; then
+	echo 'Usage: apply-patch <patchfile> [<directory>]' >&2
+
+	exit 1
+fi
+
+patchfile="$1"
+directory="${2:-.}"
+
+# Shorter name for messages: path relative to the KitCreator directory
+name="${patchfile#"${KITCREATOR_DIR}"/}"
+
+echo "Applying: ${name}"
+
+if ! output="$(${PATCH:-patch} --dry-run -f -p1 -d "${directory}" < "${patchfile}" 2>&1)" ||
+   ! output="$(${PATCH:-patch} -f -p1 -d "${directory}" < "${patchfile}" 2>&1)"; then
+	echo "${output}"
+	echo "ERROR: ${name} does not apply"
+
+	echo >&4
+	echo "  ERROR: ${name} does not apply (see build.log)" >&4
+
+	exit 1
+fi
+
+echo "${output}"
+
+# List hunks that needed fuzz, as "<file>: <patch's message>"
+fuzz="$(echo "${output}" | awk '/^[Pp]atching file/ { file = $3 } /with fuzz/ { print "    " file ": " $0 }')"
+if [ -n "${fuzz}" ]; then
+	{
+		echo
+		echo "  WARNING: ${name} applied with fuzz, consider refreshing it:"
+		echo "${fuzz}"
+	} >&4
+fi
+
+exit 0

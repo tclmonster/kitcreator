@@ -81,8 +81,7 @@ fi
 	    continue
 	fi
         
-	echo "Applying: ${patch}"
-	${PATCH:-patch} -p1 < "${patch}"
+	apply-patch "${patch}" || exit 1
     done
 
     # There's a STATIC<packageInAllUpperCase>=-1,0,1

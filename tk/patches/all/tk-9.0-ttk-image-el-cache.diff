@@ -1027,27 +1027,6 @@ Index: win/configure
  
  	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
  	SHLIB_LD_LIBS='${LIBS}'
-Index: win/makefile.vc
-==================================================================
---- A/win/makefile.vc
-+++ B/win/makefile.vc
-@@ -297,6 +297,7 @@
- 	$(TMP_DIR)\ttkLabel.obj \
- 	$(TMP_DIR)\ttkLayout.obj \
- 	$(TMP_DIR)\ttkManager.obj \
-+	$(TMP_DIR)\ttkNodeCache.obj \
- 	$(TMP_DIR)\ttkNotebook.obj \
- 	$(TMP_DIR)\ttkPanedwindow.obj \
- 	$(TMP_DIR)\ttkProgress.obj \
-@@ -347,7 +348,7 @@
- PRJ_DEFINES	= /DBUILD_ttk $(CONFIG_DEFS) /Dinline=__inline /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE
- 
- # Additional Link libraries needed beyond those in rules.vc
--PRJ_LIBS   = netapi32.lib gdi32.lib user32.lib userenv.lib winspool.lib shell32.lib ole32.lib uuid.lib
-+PRJ_LIBS   = netapi32.lib gdi32.lib user32.lib userenv.lib winspool.lib shell32.lib ole32.lib uuid.lib msimg32.lib
- 
- #---------------------------------------------------------------------
- # TkTest flags
 Index: win/tcl.m4
 ==================================================================
 --- A/win/tcl.m4

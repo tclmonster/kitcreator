@@ -76,6 +76,9 @@ case "${TCLVERS}" in
 	9.0.3)
 		SRCHASH='bf344efadb618babb7933f69275620f72454d1c8220130da93e3f7feb0efbf9b'
 		;;
+	9.0.4)
+		SRCHASH='d7a146d2917eb8b5cc95276dbf0e3d03c7464d2b19c1675357857c989301dbb4'
+		;;
 esac
 
 # Set configure options for this sub-project
@@ -190,10 +193,9 @@ fi
 				continue
 			fi
 
-			echo "Applying: ${patch}"
-			${PATCH:-patch} -p1 < "${patch}" || exit 1
+			apply-patch "${patch}" || exit 1
 		done
-	)
+	) || exit 1
 
 	# Apply patch scripts if needed
 	for patchscript in "${PATCHSCRIPTDIR}"/*.sh; do

@@ -76,6 +76,9 @@ case "${TCLVERS}" in
 	9.0.3)
 		SRCHASH='2537ba0c86112c8c953f7c09d33f134dd45c0fb3a71f2d7f7691fd301d2c33a6'
 		;;
+	9.0.4)
+		SRCHASH='d0aed49230bc02a65c1e0229e65f34590a4b037ec40d546f32573b467f7551ea'
+		;;
 esac
 
 KC_TCL_SQLITE_VEC="${KC_TCL_SQLITE_VEC:-0}"
@@ -316,28 +319,18 @@ EOF
 			continue
 		fi
 
-		echo "Applying: ${patch}"
-		${PATCH:-patch} -p1 < "${patch}"
+		apply-patch "${patch}" || exit 1
 	done
 
-	# Apply version-prefix patches (e.g., patches/8.6/ matches 8.6.*)
-	for patchverdir in "${PATCHDIR}"/*/; do
-		patchverdir="${patchverdir%/}"
-		patchver="$(basename "${patchverdir}")"
-		[ "${patchver}" = "all" ] && continue
-		[ "${patchver}" = "${TCLVERS}" ] && continue
-		case "${TCLVERS}" in
-			"${patchver}"|"${patchver}".*)
-				for patch in "${patchverdir}"/*.diff; do
-					if [ ! -f "${patch}" ]; then
-						continue
-					fi
+	# Apply version-prefix patches, least specific first (patches/9/, then patches/9.0/)
+	for patchver in $(version-prefixes "${TCLVERS}"); do
+		for patch in "${PATCHDIR}/${patchver}"/*.diff; do
+			if [ ! -f "${patch}" ]; then
+				continue
+			fi
 
-					echo "Applying: ${patch}"
-					${PATCH:-patch} -p1 < "${patch}"
-				done
-				;;
-		esac
+			apply-patch "${patch}" || exit 1
+		done
 	done
 
 

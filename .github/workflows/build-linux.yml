@@ -28,7 +28,7 @@ jobs:
 
     strategy:
       matrix:
-        tcl_tk_version: ['8.6.17', '9.0.3']
+        tcl_tk_version: ['8.6.17', '9.0.4']
         platform:
           - arch:       x86_64
             pkg_prefix: amd64
