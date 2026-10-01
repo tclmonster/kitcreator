@@ -221,12 +221,8 @@ go 1.21
 package hello
 
 /*
-#include <tcl.h>
+#include "tclcgo.h"
 #include <stdlib.h>
-
-// Typedef for Tcl_Obj *const * -- Go cannot express const in pointer
-// types, so a typedef preserves the const qualifier through cgo.
-typedef Tcl_Obj *const *Tcl_ObjArgs;
 
 // Extern must match the cgo-generated types (using the typedef).
 extern int HelloCmd(ClientData, Tcl_Interp *, int, Tcl_ObjArgs);
@@ -238,14 +234,14 @@ import "unsafe"
 func Hello_Init(interp *C.Tcl_Interp) C.int {
 	// Cast required: cgo does nominal type checking on function pointers,
 	// so the //export function must be explicitly cast to *C.Tcl_ObjCmdProc.
-	C.Tcl_CreateObjCommand(interp, C.CString("hello"),
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("hello"),
 		(*C.Tcl_ObjCmdProc)(C.HelloCmd), nil, nil)
-	return C.Tcl_PkgProvide(interp, C.CString("hello"), C.CString("1.0"))
+	return C.Tcl_PkgProvideEx(interp, C.CString("hello"), C.CString("1.0"), nil)
 }
 
 //export HelloCmd
 func HelloCmd(clientData C.ClientData, interp *C.Tcl_Interp, objc C.int, objv C.Tcl_ObjArgs) C.int {
-	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(C.CString("Hello from Go!"), C.int(-1)))
+	C.Tcl_SetObjResult(interp, C.Tcl_NewStringObj(C.CString("Hello from Go!"), C.Tcl_Size(-1)))
 	return C.TCL_OK
 }
 ```
@@ -256,13 +252,13 @@ registration files are needed.
 
 ### Cgo Patterns for Tcl Callbacks
 
-Go's cgo has two constraints that affect how `//export`ed functions interact
-with Tcl's C API:
+Go's cgo has several constraints that affect how Go code interacts with
+Tcl's C API:
 
 1. **`const` pointer types:** Go cannot express `const` in pointer types.
    `Tcl_ObjCmdProc` requires `Tcl_Obj *const *objv`, but `**C.Tcl_Obj` maps
-   to `Tcl_Obj **`. The solution is a C typedef (e.g.,
-   `typedef Tcl_Obj *const *Tcl_ObjArgs`) in the preamble. Using
+   to `Tcl_Obj **`. The solution is a C typedef
+   (`typedef Tcl_Obj *const *Tcl_ObjArgs`, provided by `tclcgo.h`). Using
    `C.Tcl_ObjArgs` in the Go function signature makes cgo generate the
    correct const-qualified type.
 
@@ -274,6 +270,35 @@ with Tcl's C API:
    `//export`ed function as `C.MyFunc` from Go code, you must provide a
    matching `extern` declaration in the cgo preamble. The extern's parameter
    types must exactly match what cgo generates (use the same typedef).
+
+4. **Macros:** cgo cannot call C macros, and several Tcl API entry points
+   are macros depending on Tcl version and stubs configuration (e.g.,
+   `Tcl_GetString`, `Tcl_Close`, `Tcl_PkgProvide` in Tcl 9.1). Calling one
+   fails with `could not determine what C.Tcl_... refers to`. See below.
+
+### Shared cgo Header (`tclcgo.h`)
+
+`kitsh/buildsrc/kitsh-0.0/tclcgo.h` holds the cgo glue shared by all Go
+extensions. The kitsh build directory is always the first `-I` in
+`CGO_CFLAGS`, so an extension only needs `#include "tclcgo.h"`. It provides:
+
+- The `Tcl_Size` compatibility typedef for Tcl 8.6
+- The `Tcl_ObjArgs` typedef
+- `cgo_Tcl_<Name>` wrappers for Tcl functions cgo cannot call directly
+
+When a Tcl function turns out to be a macro:
+
+1. If the underlying real function exists in every supported Tcl version,
+   call it directly from Go -- no wrapper. For example,
+   `C.Tcl_GetStringFromObj(obj, nil)` instead of `C.Tcl_GetString(obj)`, and
+   `C.Tcl_PkgProvideEx(..., nil)` instead of `C.Tcl_PkgProvide(...)`.
+2. Otherwise, add a `static inline` wrapper to `tclcgo.h` named
+   `cgo_<Tcl function>` with the same parameters, whose body just calls the
+   Tcl function (the C preprocessor resolves the macro). For example,
+   `cgo_Tcl_Close` exists because `Tcl_CloseEx` is not in Tcl 8.6.
+
+The functions are `static inline`, so each Go package compiles its own copy
+and nothing collides at link time.
 
 After building, the extension is available in Tcl:
 ```tcl
