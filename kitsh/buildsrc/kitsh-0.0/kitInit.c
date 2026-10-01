@@ -191,7 +191,14 @@ static char *preInitCmd =
 	"catch {load {} Tbcload}\n"
 	"return 0\n"
 "}\n"
-"tclKitInit";
+"tclKitInit\n"
+#if TCL_MAJOR_VERSION > 9 || (TCL_MAJOR_VERSION == 9 && TCL_MINOR_VERSION >= 1)
+"if {[info procs tclKitPreInit] ne {}} {\n"
+	"rename tclInit {}\n"
+	"tclKitPreInit\n"
+"}\n"
+#endif
+;
 
 static const char initScript[] =
 "if {[file isfile [file join " TCLKIT_VFSSOURCE " main.tcl]]} {\n"
@@ -298,6 +305,18 @@ static void FindAndSetExecName(Tcl_Interp *interp) {
 	return;
 }
 
+#if TCL_MAJOR_VERSION > 9 || (TCL_MAJOR_VERSION == 9 && TCL_MINOR_VERSION >= 1)
+/*
+ * Tcl 9.1 sources init.tcl itself after the pre-init script, so the rest
+ * of boot.tcl's initialization runs from a post-init callback.
+ */
+static int _Tclkit_PostInit(Tcl_Interp *interp, void *clientData) {
+	(void)clientData;
+
+	return Tcl_EvalEx(interp, "if {[info procs tclKitPostInit] ne {}} { tclKitPostInit }", TCL_INDEX_NONE, TCL_EVAL_GLOBAL);
+}
+#endif
+
 static void _Tclkit_Generic_Init(void) {
 #ifdef KIT_INCLUDES_MK4TCL
 	Tcl_StaticPackage(0, "Mk4tcl", Mk4tcl_Init, NULL);
@@ -321,6 +340,9 @@ static void _Tclkit_Generic_Init(void) {
 
 #if TCL_MAJOR_VERSION >= 9
 	Tcl_SetPreInitScript(preInitCmd);
+#  if TCL_MAJOR_VERSION > 9 || TCL_MINOR_VERSION >= 1
+	Tcl_RegisterPostInitProc(_Tclkit_PostInit, NULL);
+#  endif
 #else
 	TclSetPreInitScript(preInitCmd);
 #endif
