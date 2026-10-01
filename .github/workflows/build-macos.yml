@@ -39,7 +39,7 @@ jobs:
     runs-on: macos-14
     strategy:
       matrix:
-        tcl_tk_version: ['8.6.17', '9.0.3']
+        tcl_tk_version: ['8.6.17', '9.0.4']
     steps:
       - uses: actions/checkout@v4
 
