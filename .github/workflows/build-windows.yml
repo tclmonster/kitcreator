@@ -48,7 +48,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        tcl_tk_version: ['8.6.17', '9.0.3']
+        tcl_tk_version: ['8.6.17', '9.1.0']
     defaults:
       run:
         shell: msys2 {0}
