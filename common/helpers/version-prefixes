@@ -1,0 +1,23 @@
+#! /usr/bin/env bash
+
+# Usage: version-prefixes <version>
+#
+# Prints each proper prefix of <version> ending at a dot, least specific
+# first, one per line (e.g. "9.0.4" prints "9" then "9.0").  Used to find
+# version-prefix patch directories (patches/9/, patches/9.0/) in order.
+
+if [ "${#}" != '1' ]; then
+	echo 'Usage: version-prefixes <version>' >&2
+
+	exit 1
+fi
+
+version="$1"
+prefix=''
+
+while [ "${version}" != "${version#*.}" ]; do
+	prefix="${prefix:+${prefix}.}${version%%.*}"
+	version="${version#*.}"
+
+	echo "${prefix}"
+done
