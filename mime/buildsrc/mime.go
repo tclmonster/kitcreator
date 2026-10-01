@@ -14,7 +14,7 @@ func getArgs(objv C.Tcl_ObjArgs, objc C.int) []*C.Tcl_Obj {
 }
 
 func getString(obj *C.Tcl_Obj) string {
-	return C.GoString(C.Tcl_GetString(obj))
+	return C.GoString(C.Tcl_GetStringFromObj(obj, nil))
 }
 
 func setError(interp *C.Tcl_Interp, msg string) C.int {
@@ -48,14 +48,14 @@ func Mime_Init(interp *C.Tcl_Interp) C.int {
 
 	C.Mime_SetupNamespace(interp)
 
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::type"), (*C.Tcl_ObjCmdProc)(C.MimeTypeCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::extensions"), (*C.Tcl_ObjCmdProc)(C.MimeExtensionsCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::add"), (*C.Tcl_ObjCmdProc)(C.MimeAddCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::parse"), (*C.Tcl_ObjCmdProc)(C.MimeParseCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::format"), (*C.Tcl_ObjCmdProc)(C.MimeFormatCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::encode"), (*C.Tcl_ObjCmdProc)(C.MimeEncodeCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::decode"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeCmd), nil, nil)
-	C.Mime_CreateObjCommand(interp, C.CString("::mime2::decodeheader"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeHeaderCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::type"), (*C.Tcl_ObjCmdProc)(C.MimeTypeCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::extensions"), (*C.Tcl_ObjCmdProc)(C.MimeExtensionsCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::add"), (*C.Tcl_ObjCmdProc)(C.MimeAddCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::parse"), (*C.Tcl_ObjCmdProc)(C.MimeParseCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::format"), (*C.Tcl_ObjCmdProc)(C.MimeFormatCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::encode"), (*C.Tcl_ObjCmdProc)(C.MimeEncodeCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::decode"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeCmd), nil, nil)
+	C.cgo_Tcl_CreateObjCommand(interp, C.CString("::mime2::decodeheader"), (*C.Tcl_ObjCmdProc)(C.MimeDecodeHeaderCmd), nil, nil)
 
 	C.Mime_SetupEnsemble(interp)
 
