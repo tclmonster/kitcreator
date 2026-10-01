@@ -193,10 +193,9 @@ fi
 				continue
 			fi
 
-			echo "Applying: ${patch}"
-			${PATCH:-patch} -p1 < "${patch}" || exit 1
+			apply-patch "${patch}" || exit 1
 		done
-	)
+	) || exit 1
 
 	# Apply patch scripts if needed
 	for patchscript in "${PATCHSCRIPTDIR}"/*.sh; do

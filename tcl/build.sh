@@ -319,28 +319,18 @@ EOF
 			continue
 		fi
 
-		echo "Applying: ${patch}"
-		${PATCH:-patch} -p1 < "${patch}"
+		apply-patch "${patch}" || exit 1
 	done
 
-	# Apply version-prefix patches (e.g., patches/8.6/ matches 8.6.*)
-	for patchverdir in "${PATCHDIR}"/*/; do
-		patchverdir="${patchverdir%/}"
-		patchver="$(basename "${patchverdir}")"
-		[ "${patchver}" = "all" ] && continue
-		[ "${patchver}" = "${TCLVERS}" ] && continue
-		case "${TCLVERS}" in
-			"${patchver}"|"${patchver}".*)
-				for patch in "${patchverdir}"/*.diff; do
-					if [ ! -f "${patch}" ]; then
-						continue
-					fi
+	# Apply version-prefix patches, least specific first (patches/9/, then patches/9.0/)
+	for patchver in $(version-prefixes "${TCLVERS}"); do
+		for patch in "${PATCHDIR}/${patchver}"/*.diff; do
+			if [ ! -f "${patch}" ]; then
+				continue
+			fi
 
-					echo "Applying: ${patch}"
-					${PATCH:-patch} -p1 < "${patch}"
-				done
-				;;
-		esac
+			apply-patch "${patch}" || exit 1
+		done
 	done
 
 
