@@ -236,7 +236,7 @@ func Hello_Init(interp *C.Tcl_Interp) C.int {
 	// so the //export function must be explicitly cast to *C.Tcl_ObjCmdProc.
 	C.cgo_Tcl_CreateObjCommand(interp, C.CString("hello"),
 		(*C.Tcl_ObjCmdProc)(C.HelloCmd), nil, nil)
-	return C.Tcl_PkgProvideEx(interp, C.CString("hello"), C.CString("1.0"), nil)
+	return C.cgo_Tcl_PkgProvide(interp, C.CString("hello"), C.CString("1.0"))
 }
 
 //export HelloCmd
@@ -271,10 +271,20 @@ Tcl's C API:
    matching `extern` declaration in the cgo preamble. The extern's parameter
    types must exactly match what cgo generates (use the same typedef).
 
-4. **Macros:** cgo cannot call C macros, and several Tcl API entry points
-   are macros depending on Tcl version and stubs configuration (e.g.,
-   `Tcl_GetString`, `Tcl_Close`, `Tcl_PkgProvide` in Tcl 9.1). Calling one
-   fails with `could not determine what C.Tcl_... refers to`. See below.
+4. **Macros:** cgo cannot call C macros, and many Tcl API entry points are
+   macros in some Tcl version or build configuration (`Tcl_PkgProvide`
+   always, `Tcl_GetString` in 9.x, `Tcl_MutexLock` without threads).
+   Calling one fails with `could not determine what C.Tcl_... refers to`;
+   call its `C.cgo_Tcl_<Name>` wrapper instead (see below).
+
+5. **`objc` must match the registration:** `Tcl_ObjCmdProc` takes
+   `int objc`, `Tcl_ObjCmdProc2` takes `Tcl_Size objc`. A command declared
+   with `objc C.Tcl_Size` but registered with `cgo_Tcl_CreateObjCommand`
+   reads 64 bits where Tcl passed 32, and works only while the upper half
+   happens to be zero; the cast from item 2 hides the mismatch. Declare
+   `objc C.int`, as the bundled extensions do, or, in a Tcl 9-only
+   extension, register with `cgo_Tcl_CreateObjCommand2` and
+   `(*C.Tcl_ObjCmdProc2)`.
 
 ### Shared cgo Header (`tclcgo.h`)
 
@@ -284,21 +294,20 @@ extensions. The kitsh build directory is always the first `-I` in
 
 - The `Tcl_Size` compatibility typedef for Tcl 8.6
 - The `Tcl_ObjArgs` typedef
-- `cgo_Tcl_<Name>` wrappers for Tcl functions cgo cannot call directly
+- `cgo_Tcl_<Name>` wrappers for every Tcl function that is a macro in any
+  supported Tcl version or build configuration
 
-When a Tcl function turns out to be a macro:
+Go code may call a wrapper (`C.cgo_Tcl_GetString(obj)`) or the function the
+macro expands to (`C.Tcl_GetStringFromObj(obj, nil)`); the bundled
+extensions use the wrappers.
 
-1. If the underlying real function exists in every supported Tcl version,
-   call it directly from Go -- no wrapper. For example,
-   `C.Tcl_GetStringFromObj(obj, nil)` instead of `C.Tcl_GetString(obj)`, and
-   `C.Tcl_PkgProvideEx(..., nil)` instead of `C.Tcl_PkgProvide(...)`.
-2. Otherwise, add a `static inline` wrapper to `tclcgo.h` named
-   `cgo_<Tcl function>` with the same parameters, whose body just calls the
-   Tcl function (the C preprocessor resolves the macro). For example,
-   `cgo_Tcl_Close` exists because `Tcl_CloseEx` is not in Tcl 8.6.
-
-The functions are `static inline`, so each Go package compiles its own copy
-and nothing collides at link time.
+To add a missing wrapper, write a `static inline` function named
+`cgo_<Tcl function>` with the documented parameters whose body just calls
+the Tcl function; the C preprocessor resolves the macro. If the function is
+missing from some Tcl version, guard the wrapper on `TCL_MAJOR_VERSION`
+(`cgo_Tcl_CreateObjCommand2`) or give that version an equivalent body
+(`cgo_Tcl_BounceRefCount`). Being `static inline`, each Go package compiles
+its own copy, so nothing collides at link time.
 
 After building, the extension is available in Tcl:
 ```tcl

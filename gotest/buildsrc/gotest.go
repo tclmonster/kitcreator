@@ -13,7 +13,7 @@ import (
 //export Gotest_Init
 func Gotest_Init(interp *C.Tcl_Interp) C.int {
 	C.cgo_Tcl_CreateObjCommand(interp, C.CString("gotest::hello"), (*C.Tcl_ObjCmdProc)(C.GotestHelloObjCmd), nil, nil)
-	return C.Tcl_PkgProvideEx(interp, C.CString("gotest"), C.CString("1.0"), nil)
+	return C.cgo_Tcl_PkgProvide(interp, C.CString("gotest"), C.CString("1.0"))
 }
 
 //export GotestHelloObjCmd

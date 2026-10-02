@@ -14,7 +14,7 @@ func getArgs(objv C.Tcl_ObjArgs, objc C.int) []*C.Tcl_Obj {
 }
 
 func getString(obj *C.Tcl_Obj) string {
-	return C.GoString(C.Tcl_GetStringFromObj(obj, nil))
+	return C.GoString(C.cgo_Tcl_GetString(obj))
 }
 
 func setError(interp *C.Tcl_Interp, msg string) C.int {
@@ -59,7 +59,7 @@ func Mime_Init(interp *C.Tcl_Interp) C.int {
 
 	C.Mime_SetupEnsemble(interp)
 
-	return C.Tcl_PkgProvideEx(interp, C.CString("mime2"), C.CString("1.0"), nil)
+	return C.cgo_Tcl_PkgProvide(interp, C.CString("mime2"), C.CString("1.0"))
 }
 
 //export MimeTypeCmd

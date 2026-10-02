@@ -24,9 +24,10 @@ Ask whether the new version replaces the old one in CI or is added alongside.
 Diff the old and new source releases (`tcl/src/`, `tk/src/`, or download the
 old one). Most breakage this has caught came from:
 
-- `generic/tclDecls.h`, `tcl.h`: functions that became macro-only (cgo cannot
-  call them; see `docs/go-extensions.md`), fields hidden under
-  `TCL_NO_DEPRECATED` (packages that define it, e.g. cffi), and struct changes.
+- `generic/tclDecls.h`, `tcl.h`: functions that became macros (add a
+  `cgo_Tcl_<Name>` wrapper to `kitsh/buildsrc/kitsh-0.0/tclcgo.h`), fields
+  hidden under `TCL_NO_DEPRECATED` (packages that define it, e.g. cffi), and
+  struct changes.
 - `generic/tclCompile.h`, `tclInt.h`: opcodes and internal structs used by
   tbcload/tclcompiler.
 - `unix/Makefile.in`, `win/Makefile.in`: installed headers and libraries

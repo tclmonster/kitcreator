@@ -52,6 +52,9 @@ Built only with `--with-go`; see `docs/go-extensions.md`. Modelled on `crypto/`:
   (`load {} <Pkg>`).
 - `build.sh` (no marker) copies the `.go`, `.h` and `go.mod` files to
   `inst/go-pkg/` and `pkgIndex.tcl` to `out/lib/<pkg>/`.
+- Tcl macros are available as `C.cgo_Tcl_<Name>` wrappers in
+  `kitsh/buildsrc/kitsh-0.0/tclcgo.h` (add one if missing); the bundled
+  extensions use them.
 
 ## Finishing
 

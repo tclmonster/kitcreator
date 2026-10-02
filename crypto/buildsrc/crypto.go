@@ -112,11 +112,11 @@ func computeHash(h hash.Hash, interp *C.Tcl_Interp, objc C.int, objv C.Tcl_ObjAr
 	}
 
 	if argc == 2 {
-		flag := C.GoString(C.Tcl_GetStringFromObj(args[offset], nil))
+		flag := C.GoString(C.cgo_Tcl_GetString(args[offset]))
 		switch flag {
 		case "-channel":
 			var mode C.int
-			cChanName := C.Tcl_GetStringFromObj(args[offset+1], nil)
+			cChanName := C.cgo_Tcl_GetString(args[offset+1])
 			channel := C.Tcl_GetChannel(interp, cChanName, &mode)
 			if channel == nil {
 				return C.TCL_ERROR
@@ -128,7 +128,7 @@ func computeHash(h hash.Hash, interp *C.Tcl_Interp, objc C.int, objv C.Tcl_ObjAr
 			return tclOk(interp, result)
 
 		case "-file":
-			cFilename := C.Tcl_GetStringFromObj(args[offset+1], nil)
+			cFilename := C.cgo_Tcl_GetString(args[offset+1])
 			result, ok := hashFile(h, interp, cFilename)
 			if !ok {
 				return C.TCL_ERROR // error already set by Tcl_OpenFileChannel
@@ -161,7 +161,7 @@ func Crypto_Init(interp *C.Tcl_Interp) C.int {
 	cHmacName := C.CString("crypto::hmac")
 	C.cgo_Tcl_CreateObjCommand(interp, cHmacName, (*C.Tcl_ObjCmdProc)(C.CryptoHmacCmd), nil, nil)
 
-	return C.Tcl_PkgProvideEx(interp, C.CString("crypto"), C.CString("1.0"), nil)
+	return C.cgo_Tcl_PkgProvide(interp, C.CString("crypto"), C.CString("1.0"))
 }
 
 //export CryptoHashCmd
@@ -184,7 +184,7 @@ func CryptoHmacCmd(clientData C.ClientData, interp *C.Tcl_Interp, objc C.int, ob
 
 	args := unsafe.Slice(objv, int(objc))
 
-	algoName := C.GoString(C.Tcl_GetStringFromObj(args[1], nil))
+	algoName := C.GoString(C.cgo_Tcl_GetString(args[1]))
 	algo, ok := algoNames[algoName]
 	if !ok {
 		return tclError(interp, "unknown algorithm \""+algoName+"\": must be md5, sha1, sha224, sha256, sha384, or sha512")
