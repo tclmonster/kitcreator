@@ -5,7 +5,7 @@ the block for two or more variables and corrupted the heap.
 diff -ruN A/cmpRead.c B/cmpRead.c
 --- A/cmpRead.c
 +++ B/cmpRead.c
-@@ -2366,7 +2366,7 @@
+@@ -2382,7 +2382,7 @@
          return result;
      }
  
@@ -14,7 +14,7 @@ diff -ruN A/cmpRead.c B/cmpRead.c
      infoPtr->length = numVar;
  
      for (i = 0; i < numVar; i++)
-@@ -2468,7 +2468,7 @@
+@@ -2484,7 +2484,7 @@
              goto errorReturn;
          }
  
