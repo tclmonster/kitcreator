@@ -1,0 +1,25 @@
+Size the variable index arrays of DictUpdateInfo and ForeachVarList by their
+element type. They are Tcl_Size in Tcl 9, so allocating them as int overran
+the block for two or more variables and corrupted the heap.
+
+diff -ruN A/cmpRead.c B/cmpRead.c
+--- A/cmpRead.c
++++ B/cmpRead.c
+@@ -2366,7 +2366,7 @@
+         return result;
+     }
+ 
+-    infoPtr = (DictUpdateInfo*)Tcl_Alloc((unsigned)(sizeof(DictUpdateInfo) + numVar * sizeof(int)));
++    infoPtr = (DictUpdateInfo*)Tcl_Alloc((unsigned)(sizeof(DictUpdateInfo) + numVar * sizeof(infoPtr->varIndices[0])));
+     infoPtr->length = numVar;
+ 
+     for (i = 0; i < numVar; i++)
+@@ -2468,7 +2468,7 @@
+             goto errorReturn;
+         }
+ 
+-        varListPtr = (ForeachVarList*)Tcl_Alloc((unsigned)sizeof(ForeachVarList) + numVars * sizeof(int));
++        varListPtr = (ForeachVarList*)Tcl_Alloc((unsigned)sizeof(ForeachVarList) + numVars * sizeof(varListPtr->varIndexes[0]));
+         infoPtr->varLists[i] = varListPtr;
+         varListPtr->numVars = numVars;
+ 
