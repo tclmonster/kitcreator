@@ -106,7 +106,10 @@ func computeHash(h hash.Hash, interp *C.Tcl_Interp, objc C.int, objv C.Tcl_ObjAr
 	if argc == 1 {
 		// Positional data
 		var dataLen C.Tcl_Size
-		dataPtr := C.cgo_Tcl_GetByteArrayFromObj(args[offset], &dataLen)
+		dataPtr := C.CryptoGetBytesFromObj(interp, args[offset], &dataLen)
+		if dataPtr == nil {
+			return C.TCL_ERROR
+		}
 		data := C.GoBytes(unsafe.Pointer(dataPtr), C.int(dataLen))
 		return tclOk(interp, hashBytes(h, data))
 	}
@@ -191,7 +194,10 @@ func CryptoHmacCmd(clientData C.ClientData, interp *C.Tcl_Interp, objc C.int, ob
 	}
 
 	var keyLen C.Tcl_Size
-	keyPtr := C.cgo_Tcl_GetByteArrayFromObj(args[2], &keyLen)
+	keyPtr := C.CryptoGetBytesFromObj(interp, args[2], &keyLen)
+	if keyPtr == nil {
+		return C.TCL_ERROR
+	}
 	key := C.GoBytes(unsafe.Pointer(keyPtr), C.int(keyLen))
 
 	h := hmac.New(func() hash.Hash { return newHash(algo) }, key)

@@ -133,4 +133,21 @@ test hmac-bad-algo {hmac with unknown algorithm} -body {
     crypto::hmac bogus key data
 } -returnCodes error -match glob -result {unknown algorithm*}
 
+# Data is bytes: a code point above 0xFF is refused, not hashed as nothing
+test sha256-bytes {code points up to 0xff are bytes} {
+    crypto::sha256 \xe9
+} {de2e331d891ae267a7009cb45b4e8830f170e0c937288ea2731a1941c7a53b0d}
+
+test sha256-encoded {text encoded first} {
+    crypto::sha256 [encoding convertto utf-8 ═]
+} {38015d718f6285db4072f419ad21cac4e1754f964586d71953d1a39d51c868bc}
+
+test sha256-not-bytes {code point above 0xff} -body {
+    list [catch {crypto::sha256 a═} msg] $msg $::errorCode
+} -result {1 {expected code point values below 0xff but value at byte offset 1 was 0x2550} {TCL VALUE BYTES}}
+
+test hmac-key-not-bytes {hmac key with code point above 0xff} -body {
+    crypto::hmac sha256 ═ message
+} -returnCodes error -match glob -result {expected code point values below 0xff*}
+
 cleanupTests
