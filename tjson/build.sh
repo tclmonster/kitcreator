@@ -1,9 +1,9 @@
 
 # BuildCompatible: KitCreator
 
-version='1.0.25'
+version='1.0.26'
 url="https://github.com/jerily/tjson/archive/refs/tags/v${version}.tar.gz"
-sha256='43644f5f71b6a073d80e8a9dcb32a9c8db0d583f7d2ea1486daa915354492b1b'
+sha256='b5155a804f79666d3059d83ac875e6461e8bc16ae0280d54629140b85f87830d'
 
 case "${CONFIGUREEXTRA}" in
     *--enable-symbols*)
