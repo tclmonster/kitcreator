@@ -1,0 +1,14 @@
+diff -ruN A/pkgIndex.tcl.in B/pkgIndex.tcl.in
+--- A/pkgIndex.tcl.in	2026-10-31 16:55:39.287043480 -0300
++++ B/pkgIndex.tcl.in	2026-10-31 16:55:39.318388235 -0300
+@@ -17,6 +17,10 @@
+ 	if {[file exists $initScript]} {
+ 	    source -encoding utf-8 $initScript
+ 	}
++	set cacert [file join $dir tls-cacert.pem]
++	if {[file exists $cacert]} {
++	    ::tls::init -cafile $cacert
++	}
+     }} $dir]
+ } else {
+     if {![package vsatisfies [package provide Tcl] 8.5]} {return}
