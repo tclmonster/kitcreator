@@ -203,10 +203,9 @@ proc ::vfs::cvfs::matchtype {type types} {
 
 # Follows Tcl_FSMatchInDirectory.3: results include the caller's path prefix;
 # no match, or a missing directory, is an empty result.  An empty pattern
-# checks the path itself.  As in glob.n, Unix names starting with "." match
-# only a pattern starting with "." (or "\."), as tclUnixFile.c does.
-# TCL_GLOB_TYPE_MOUNT is handled by tclvfs, which does not pass the -types
-# permissions (hidden, r, w, x, readonly) to handlers.
+# checks the path itself.  tclvfs handles TCL_GLOB_TYPE_MOUNT, and kitcreator's
+# tclvfs applies glob's Unix hidden-file rule and the -types permissions to
+# what this returns (tclvfs/patches/tclvfs-1.5.0-glob-hidden-and-permissions.diff).
 proc ::vfs::cvfs::vfsop_matchindirectory {hashkey root relative actualpath pattern types} {
 	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
 		return [list]
@@ -229,17 +228,10 @@ proc ::vfs::cvfs::vfsop_matchindirectory {hashkey root relative actualpath patte
 		append actualpath "/"
 	}
 
-	set dotsExplicit [expr {[string index $pattern 0] eq "." || [string range $pattern 0 1] eq "\\."}]
-	set hideDots [expr {$::tcl_platform(platform) eq "unix" && !$dotsExplicit}]
-
 	set ret [list]
 	foreach child [::vfs::cvfs::data::getChildren $hashkey $relative] {
 		# By string, as file tail treats a leading "~" specially in Tcl 8.6
 		set tail [string range $child [expr {[string last "/" $child] + 1}] end]
-
-		if {$hideDots && [string index $tail 0] eq "."} {
-			continue
-		}
 
 		if {![string match $pattern $tail]} {
 			continue
