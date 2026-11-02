@@ -153,90 +153,107 @@ proc ::vfs::cvfs::chanop_seek {hashkey chanId offset origin} {
 
 #### VFS operation handlers
 proc ::vfs::cvfs::vfsop_stat {hashkey root relative actualpath} {
-	catch {
-		set ret [::vfs::cvfs::data::getMetadata $hashkey $relative]
-	}
-
-	if {![info exists ret]} {
+	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
 		vfs::filesystem posixerror $::vfs::posix(ENOENT)
 	}
 
 	return $ret
 }
 
+# mode is a mask of R_OK 4, W_OK 2 and X_OK 1 (Tcl_FSAccess.3); files are 0444
+# and directories 0555
 proc ::vfs::cvfs::vfsop_access {hashkey root relative actualpath mode} {
-	set ret [::vfs::cvfs::data::getMetadata $hashkey $relative]
+	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
+		vfs::filesystem posixerror $::vfs::posix(ENOENT)
+	}
+	array set metadata $ret
 
 	if {$mode & 0x2} {
 		vfs::filesystem posixerror $::vfs::posix(EROFS)
 	}
 
+	if {($mode & 0x1) && $metadata(type) ne "directory"} {
+		vfs::filesystem posixerror $::vfs::posix(EACCES)
+	}
+
 	return 1
 }
 
-proc ::vfs::cvfs::vfsop_matchindirectory {hashkey root relative actualpath pattern types} {
-	set ret [list]
-
-	catch {
-		array set metadata [::vfs::cvfs::data::getMetadata $hashkey $relative]
+# types is a mask of TCL_GLOB_TYPE_* bits (Tcl_FSMatchInDirectory.3); any of
+# them may match, and 0 means any type
+proc ::vfs::cvfs::matchtype {type types} {
+	if {$types == 0} {
+		return 1
 	}
 
-	if {![info exists metadata]} {
+	switch -- $type {
+		"directory" {
+			set bit 0x04
+		}
+		"file" {
+			set bit 0x10
+		}
+		default {
+			return 0
+		}
+	}
+
+	return [expr {($types & $bit) != 0}]
+}
+
+# Follows Tcl_FSMatchInDirectory.3: results include the caller's path prefix;
+# no match, or a missing directory, is an empty result.  An empty pattern
+# checks the path itself.  As in glob.n, Unix names starting with "." match
+# only a pattern starting with "." (or "\."), as tclUnixFile.c does.
+# TCL_GLOB_TYPE_MOUNT is handled by tclvfs, which does not pass the -types
+# permissions (hidden, r, w, x, readonly) to handlers.
+proc ::vfs::cvfs::vfsop_matchindirectory {hashkey root relative actualpath pattern types} {
+	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
+		return [list]
+	}
+	array set metadata $ret
+
+	if {$pattern eq ""} {
+		if {[matchtype $metadata(type) $types]} {
+			return [list $actualpath]
+		}
+
 		return [list]
 	}
 
-	if {$pattern == ""} {
-		set children [list $relative]
-	} else {
-		set children [::vfs::cvfs::data::getChildren $hashkey $relative]
+	if {$metadata(type) ne "directory"} {
+		return [list]
 	}
 
-	foreach child $children {
-		if {$pattern != ""} {
-			if {![string match $pattern $child]} {
-				continue
-			}
-		}
+	if {[string index $actualpath end] ne "/"} {
+		append actualpath "/"
+	}
 
-		unset -nocomplain metadata
-		catch {
-			array set metadata [::vfs::cvfs::data::getMetadata $hashkey $child]
-		}
+	set dotsExplicit [expr {[string index $pattern 0] eq "." || [string range $pattern 0 1] eq "\\."}]
+	set hideDots [expr {$::tcl_platform(platform) eq "unix" && !$dotsExplicit}]
 
-		if {[string index $root end] == "/"} {
-			set child "${root}${child}"
-		} else {
-			set child "${root}/${child}"
-		}
-		if {[string index $child end] == "/"} {
-			set child [string range $child 0 end-1]
-		}
+	set ret [list]
+	foreach child [::vfs::cvfs::data::getChildren $hashkey $relative] {
+		# By string, as file tail treats a leading "~" specially in Tcl 8.6
+		set tail [string range $child [expr {[string last "/" $child] + 1}] end]
 
-		if {![info exists metadata(type)]} {
+		if {$hideDots && [string index $tail 0] eq "."} {
 			continue
 		}
 
-		set filetype 0
-		switch -- $metadata(type) {
-			"directory" {
-				set filetype [expr {$filetype | 0x04}]
-			}
-			"file" {
-				set filetype [expr {$filetype | 0x10}]
-			}
-			"link" {
-				set filetype [expr {$filetype | 0x20}]
-			}
-			default {
-				continue
-			}
-		}
-
-		if {($filetype & $types) != $types} {
+		if {![string match $pattern $tail]} {
 			continue
 		}
 
-		lappend ret $child
+		if {[catch {::vfs::cvfs::data::getMetadata $hashkey $child} childmetadata]} {
+			continue
+		}
+
+		if {![matchtype [dict get $childmetadata type] $types]} {
+			continue
+		}
+
+		lappend ret "${actualpath}${tail}"
 	}
 
 	return $ret
@@ -253,7 +270,10 @@ proc ::vfs::cvfs::vfsop_fileattributes {hashkey root relative actualpath {index 
 		return $attrs
 	}
 
-	array set metadata [::vfs::cvfs::data::getMetadata $hashkey $relative]
+	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
+		vfs::filesystem posixerror $::vfs::posix(ENOENT)
+	}
+	array set metadata $ret
 
 	set attr [lindex $attrs $index]
 
@@ -265,11 +285,9 @@ proc ::vfs::cvfs::vfsop_fileattributes {hashkey root relative actualpath {index 
 			return $metadata(gid)
 		}
 		"-permissions" {
-			if {$metadata(type) == "directory"} {
-				set metadata(mode) [expr {$metadata(mode) | 040000}]
-			}
-
-			return [format {0%o} $metadata(mode)]
+			# The mode includes the type bits; same format as the native
+			# filesystem's -permissions
+			return [format {%0#5o} $metadata(mode)]
 		}
 	}
 
@@ -281,13 +299,10 @@ proc ::vfs::cvfs::vfsop_open {hashkey root relative actualpath mode permissions}
 		vfs::filesystem posixerror $::vfs::posix(EROFS)
 	}
 
-	catch {
-		array set metadata [::vfs::cvfs::data::getMetadata $hashkey $relative]
-	}
-
-	if {![info exists metadata]} {
+	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
 		vfs::filesystem posixerror $::vfs::posix(ENOENT)
 	}
+	array set metadata $ret
 
 	if {$metadata(type) == "directory"} {
 		vfs::filesystem posixerror $::vfs::posix(EISDIR)
@@ -310,7 +325,7 @@ proc ::vfs::cvfs::vfsop_deletefile {args} {
 proc ::vfs::cvfs::vfsop_removedirectory {args} {
 	vfs::filesystem posixerror $::vfs::posix(EROFS)
 }
-proc ::vfs::cvfs::vfsop_utime {} {
+proc ::vfs::cvfs::vfsop_utime {args} {
 	vfs::filesystem posixerror $::vfs::posix(EROFS)
 }
 
