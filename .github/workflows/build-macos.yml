@@ -16,6 +16,7 @@ on:
     branches: [main]
 
 env:
+  MACOSX_DEPLOYMENT_TARGET: '14.0'
   CC: /usr/bin/clang
   CXX: /usr/bin/clang++
   KC_TLS_LINKSSLSTATIC: 1
@@ -36,7 +37,7 @@ env:
 
 jobs:
   build-macos-kits:
-    runs-on: macos-14
+    runs-on: macos-15
     strategy:
       matrix:
         tcl_tk_version: ['8.6.17', '9.0.4']
