@@ -23,7 +23,9 @@ namespace eval ::cvfs_test::test {
 		lassign $case tags command
 		set name [string map {_ -} [lindex $command 0]]
 
-		test $name-1.[dict incr counts $name] "$tags: $command" -body [list run_case $command] -result $expected
+		dict incr counts $name
+
+		test $name-1.[dict get $counts $name] "$tags: $command" -body [list run_case $command] -result $expected
 	}
 
 	cleanupTests
