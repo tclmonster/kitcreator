@@ -141,6 +141,15 @@ foreach path [list {*}[real_paths $root] $root] {
 	}
 }
 
+# The time the kit should report: dir2c.tcl clamps to SOURCE_DATE_EPOCH
+proc kit_mtime {mtime} {
+	if {[info exists ::env(SOURCE_DATE_EPOCH)] && $mtime > $::env(SOURCE_DATE_EPOCH)} {
+		return $::env(SOURCE_DATE_EPOCH)
+	}
+
+	return $mtime
+}
+
 # Manifest entries, following symbolic links as dir2c.tcl does
 proc walk {dir rel} {
 	global entries
@@ -164,12 +173,12 @@ proc walk {dir rel} {
 			set data [read $fd]
 			close $fd
 
-			dict set entries $childrel [dict create type file size $info(size) mtime $info(mtime) crc [zlib crc32 $data]]
+			dict set entries $childrel [dict create type file size $info(size) mtime [kit_mtime $info(mtime)] crc [zlib crc32 $data]]
 		}
 	}
 
 	file stat $dir info
-	dict set entries $rel [dict create type directory mtime $info(mtime) children $children]
+	dict set entries $rel [dict create type directory mtime [kit_mtime $info(mtime)] children $children]
 }
 
 set entries [dict create]

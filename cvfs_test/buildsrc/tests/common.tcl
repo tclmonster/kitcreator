@@ -69,9 +69,3 @@ proc ::cvfs_test::children {path} {
 proc ::cvfs_test::clear_errno {} {
 	catch {open [file join [file dirname [info nameofexecutable]] cvfs_test-no-such-file]}
 }
-
-# The tree's mtime, or later if the kit build copied the tree
-proc ::cvfs_test::mtime_match {built actual} {
-	expr {[string is wide -strict $actual] && $actual >= $built && $actual <= [clock seconds] + 86400}
-}
-::tcltest::customMatch mtime ::cvfs_test::mtime_match

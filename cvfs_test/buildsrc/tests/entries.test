@@ -22,7 +22,7 @@ namespace eval ::cvfs_test::test {
 
 		test exists-1.$idx "F8-F11: \"$rel\" exists" -body [list file exists $path] -result 1
 		test type-1.$idx "F8-F11: type of \"$rel\"" -body [list file type $path] -result [dict get $info type]
-		test mtime-1.$idx "F1: mtime of \"$rel\"" -body [list file mtime $path] -match mtime -result [dict get $info mtime]
+		test mtime-1.$idx "F1: mtime of \"$rel\"" -body [list file mtime $path] -result [dict get $info mtime]
 
 		if {[dict get $info type] eq "directory"} {
 			test children-1.$idx "F3, F9: children of \"$rel\"" -body [list ::cvfs_test::children $path] \
