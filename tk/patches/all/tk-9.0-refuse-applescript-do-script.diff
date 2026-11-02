@@ -1,0 +1,28 @@
+Refuse AppleScript "do script" by default: Tk's default handlers evaluate
+whatever script or file another application sends.  The defaults now return
+an error; an application that wants AppleScript to drive it defines its own
+::tk::mac::DoScriptText and ::tk::mac::DoScriptFile after loading Tk.
+
+diff -ruN A/library/tk.tcl B/library/tk.tcl
+--- A/library/tk.tcl
++++ B/library/tk.tcl
+@@ -712,14 +712,14 @@
+ }
+ 
+ if {[tk windowingsystem] eq "aqua"} {
+-    #stub procedures to respond to "do script" Apple Events
++    # "do script" Apple Events run Tcl code sent by another application.
++    # Refused by default; an application that wants AppleScript to drive it
++    # defines its own handlers after loading Tk.
+     proc ::tk::mac::DoScriptFile {file} {
+-	uplevel #0 $file
+-	source $file
++	return -code error "AppleScript \"do script\" is disabled in this application"
+     }
+     proc ::tk::mac::DoScriptText {script} {
+-	uplevel #0 $script
+-	eval $script
++	return -code error "AppleScript \"do script\" is disabled in this application"
+     }
+     #This procedure is required to silence warnings generated
+     #by inline AppleScript execution.
