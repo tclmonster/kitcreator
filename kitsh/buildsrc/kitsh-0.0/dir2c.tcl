@@ -214,10 +214,8 @@ proc cvfs_hash {path} {
 	set h 0
 	set g 0
 
-	for {set idx 0} {$idx < [string length $path]} {incr idx} {
-		binary scan [string index $path $idx] H* char
-		set char "0x$char"
-
+	binary scan [encoding convertto utf-8 $path] cu* bytes
+	foreach char $bytes {
 		set h [expr {($h << 4) + $char}]
 		set g [expr {$h & 0xf0000000}]
 		if {$g != 0} {
