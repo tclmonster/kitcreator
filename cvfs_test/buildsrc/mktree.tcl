@@ -19,6 +19,12 @@ set outdir [file normalize [lindex $argv 0]]
 set root [file join $outdir tree]
 set unix [expr {$tcl_platform(platform) eq "unix"}]
 
+# Unix file names are bytes; write them as UTF-8, as dir2c.tcl reads them,
+# whatever the locale
+if {$unix} {
+	encoding system utf-8
+}
+
 if {[file exists $root]} {
 	puts stderr "$root already exists"
 
