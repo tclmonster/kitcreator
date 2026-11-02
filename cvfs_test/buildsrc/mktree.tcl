@@ -2,7 +2,7 @@
 #
 # <outdir>/tree is compiled into the kit.  <outdir>/manifest.tcl records each
 # path's type, size, mtime and CRC, and the results of glob, access and open
-# cases run here against the native tree, for cvfs_test::run to repeat against
+# cases run here against the native tree, for tests/*.test to repeat against
 # CVFS.  Names Windows cannot store, and symbolic links, are Unix only.
 
 package require Tcl 8.6-
@@ -70,9 +70,9 @@ set files [dict create \
 	.well-known/acme/token     "token\n" \
 	ab                         "ab\n" \
 	bR                         "bR\n" \
-	"café.txt"            "cafe\n" \
-	"déjà/vu.txt"    "deja vu\n" \
-	"日本.txt"         "nihon\n" \
+	"caf\u00e9.txt"            "cafe\n" \
+	"d\u00e9j\u00e0/vu.txt"    "deja vu\n" \
+	"\u65e5\u672c.txt"         "nihon\n" \
 	{sp ace/f g.txt}           "spaces\n" \
 	{c++/x.h}                  "plus\n" \
 	{a(b)/p.txt}               "parentheses\n" \
@@ -167,7 +167,7 @@ proc walk {dir rel} {
 set entries [dict create]
 walk $root ""
 
-# Case helpers, stored in the manifest so cvfs_test::run uses the same ones
+# Case helpers, stored in the manifest so cases.test uses the same ones
 set helpers {
 	variable root
 
@@ -272,7 +272,7 @@ lappend cases [list F2,F6 [list glob_tails "" */*/* {}]]
 lappend cases [list F6 [list glob_in lib foo/*]]
 lappend cases [list F6 [list glob_in lib/foo *]]
 
-foreach path [list lib empty.txt big.bin .htaccess "café.txt" {sp ace/f g.txt} nope nodir/nope] {
+foreach path [list lib empty.txt big.bin .htaccess "caf\u00e9.txt" {sp ace/f g.txt} nope nodir/nope] {
 	lappend cases [list F7,F14 [list exists $path]]
 	lappend cases [list F14 [list readable $path]]
 }

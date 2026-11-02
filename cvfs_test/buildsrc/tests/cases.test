@@ -1,0 +1,31 @@
+# The glob, access and open cases mktree.tcl ran against the native tree
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	namespace eval case [dict get $::cvfs_test::manifest helpers]
+	set case::root $::cvfs_test::root
+
+	proc run_case {command} {
+		if {[catch {namespace eval case $command} result]} {
+			set result "error: $result"
+		}
+
+		return [string map [list $::cvfs_test::root %ROOT%] $result]
+	}
+
+	variable counts [dict create]
+	foreach case [dict get $::cvfs_test::manifest cases] expected [dict get $::cvfs_test::manifest expected] {
+		lassign $case tags command
+		set name [string map {_ -} [lindex $command 0]]
+
+		test $name-1.[dict incr counts $name] "$tags: $command" -body [list run_case $command] -result $expected
+	}
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test

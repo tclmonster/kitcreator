@@ -1,0 +1,89 @@
+# F4: concurrent first reads from several threads.  Each test runs a new
+# process, so the reads are the first in it and a crash fails only the test;
+# the threads wait on a lock the main thread holds, so they start together.
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	proc thread_script {} {
+		set setup [::tcltest::configure -load]
+		set files [list]
+		set want [list]
+		foreach rel {threads/a.bin threads/b.txt} {
+			lappend files $rel
+			lappend want [dict get $::cvfs_test::manifest entries $rel size] \
+				[dict get $::cvfs_test::manifest entries $rel crc]
+		}
+
+		set worker [join [list $setup [list set ::root $::cvfs_test::root] [list set ::files $files] {
+			proc go {} {
+				thread::rwmutex rlock $::gate
+				thread::rwmutex unlock $::gate
+
+				set ret [list]
+				foreach rel $::files {
+					set fd [open "$::root/$rel"]
+					fconfigure $fd -translation binary
+					set data [read $fd]
+					close $fd
+					lappend ret [string length $data] [zlib crc32 $data]
+				}
+
+				return $ret
+			}
+			thread::wait
+		}] "\n"]
+
+		return [join [list $setup [list set worker $worker] [list set count $::cvfs_test::threads] [list set want $want] {
+			package require Thread
+			set gate [thread::rwmutex create]
+			thread::rwmutex wlock $gate
+
+			set ids [list]
+			for {set idx 0} {$idx < $count} {incr idx} {
+				lappend ids [thread::create "[list set ::gate $gate]\n$worker"]
+			}
+			foreach id $ids {
+				thread::send -async $id go ::result($id)
+			}
+			after 500
+			thread::rwmutex unlock $gate
+
+			after 120000 {
+				puts "timed out waiting for the threads"
+				exit 1
+			}
+			while {[array size ::result] < [llength $ids]} {
+				vwait ::result
+			}
+
+			set bad 0
+			foreach id $ids {
+				if {$::result($id) ne $want} {
+					incr bad
+					puts "thread read <$::result($id)>"
+				}
+			}
+			exit [expr {$bad != 0}]
+		}] "\n"]
+	}
+
+	variable script [thread_script]
+
+	for {variable run 1} {$run <= $::cvfs_test::repeat} {incr run} {
+		test threads-1.$run "F4: $::cvfs_test::threads threads read the same files at once, in a new process" -setup {
+			variable scriptfile [makeFile $script cvfs_threads.tcl]
+		} -body {
+			exec [info nameofexecutable] $scriptfile 2>@1
+		} -cleanup {
+			removeFile cvfs_threads.tcl
+		} -result ""
+	}
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test

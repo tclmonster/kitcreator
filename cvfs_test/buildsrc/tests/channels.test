@@ -1,0 +1,60 @@
+# Reading through channels: chunks, seek and tell, partial reads, lines
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	variable big [::cvfs_test::path big.bin]
+	variable info [dict get $::cvfs_test::manifest entries big.bin]
+	variable open_big {
+		variable whole [::cvfs_test::read_file $big]
+		variable fd [open $big]
+		fconfigure $fd -translation binary
+	}
+	variable close_big {
+		close $fd
+	}
+
+	test channels-1.1 {reading in chunks gives the whole file} -setup $open_big -body {
+		variable chunks ""
+		while {![eof $fd]} {
+			append chunks [read $fd 4099]
+		}
+		zlib crc32 $chunks
+	} -cleanup $close_big -result [dict get $info crc]
+
+	test channels-1.2 {tell after seeking from the end} -setup $open_big -body {
+		seek $fd -10 end
+		tell $fd
+	} -cleanup $close_big -result [expr {[dict get $info size] - 10}]
+
+	test channels-1.3 {read after seeking from the end} -setup $open_big -body {
+		seek $fd -10 end
+		expr {[read $fd] eq [string range $whole end-9 end]}
+	} -cleanup $close_big -result 1
+
+	test channels-1.4 {partial read after seeking from the start} -setup $open_big -body {
+		seek $fd 1000 start
+		expr {[read $fd 16] eq [string range $whole 1000 1015]}
+	} -cleanup $close_big -result 1
+
+	test channels-1.5 {gets reads every line} -body {
+		variable fd [open [::cvfs_test::path lines.txt]]
+		variable count 0
+		while {[gets $fd line] >= 0} {
+			incr count
+		}
+		close $fd
+		set count
+	} -result 20000
+
+	test channels-1.6 {an empty file reads as empty} -body {
+		::cvfs_test::read_file [::cvfs_test::path empty.txt]
+	} -result ""
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test

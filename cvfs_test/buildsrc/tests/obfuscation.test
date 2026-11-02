@@ -1,0 +1,19 @@
+# With -constraints obfuscated: file contents must not appear as plain bytes
+# in the binary.  secret.bin is random, so compression stores it unchanged and
+# only obfuscation hides it.
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	test obfuscation-1.1 {secret.bin is not stored as plain bytes in the binary} -constraints obfuscated -body {
+		variable needle [string range [::cvfs_test::read_file [::cvfs_test::path secret.bin]] 0 63]
+		string first $needle [::cvfs_test::read_file $::cvfs_test::binary]
+	} -result -1
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test
