@@ -1,0 +1,26 @@
+Disable the X11 "send" command: any client that can reach the X display can
+run scripts in a Tk application through it.  Tk_SetAppName no longer registers
+the application or creates "send", as Tk already does on Windows; a build can
+define TK_SEND_ENABLED_ON_UNIX to keep it.
+
+diff -ruN A/unix/tkUnixSend.c B/unix/tkUnixSend.c
+--- A/unix/tkUnixSend.c
++++ B/unix/tkUnixSend.c
+@@ -811,6 +811,17 @@
+     ThreadSpecificData *tsdPtr = (ThreadSpecificData *)
+ 	    Tcl_GetThreadData(&dataKey, sizeof(ThreadSpecificData));
+ 
++#ifndef TK_SEND_ENABLED_ON_UNIX
++    /*
++     * Any client that can reach the X display could run scripts in this
++     * application through "send".  As on Windows, applications are not
++     * registered and no "send" command is created unless the build defines
++     * TK_SEND_ENABLED_ON_UNIX.
++     */
++
++    return name;
++#endif
++
+     interp = winPtr->mainPtr->interp;
+     if (dispPtr->commTkwin == NULL) {
+ 	SendInit(interp, winPtr->dispPtr);
