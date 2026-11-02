@@ -25,13 +25,41 @@ static cmd_decryptFile_t *getCmdDecryptFile(const char *hashkey);
 /* Guards the one-time decrypt and inflate of each file's shared data */
 TCL_DECLARE_MUTEX(cvfsDataMutex)
 
+/* POSIX link count of a directory: 2 plus one per subdirectory.  Call with
+ * cvfsDataMutex held, as it reads the children's type fields. */
+static unsigned long countDirectoryLinks(cmd_getData_t *cmd_getData, cmd_getChildren_t *cmd_getChildren, const char *file) {
+	struct cvfs_data *child;
+	unsigned long num_children, idx, links = 2;
+	unsigned long *children;
+
+	num_children = cmd_getChildren(file, NULL, 0);
+	if (num_children == 0) {
+		return(links);
+	}
+
+	children = (void *) Tcl_Alloc(sizeof(*children) * num_children);
+	num_children = cmd_getChildren(file, children, num_children);
+
+	for (idx = 0; idx < num_children; idx++) {
+		child = cmd_getData(NULL, children[idx]);
+
+		if (child != NULL && (child->type & CVFS_FILETYPE_DIR) == CVFS_FILETYPE_DIR) {
+			links++;
+		}
+	}
+
+	Tcl_Free((void *) children);
+
+	return(links);
+}
+
 /* Tcl Commands */
 static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	cmd_getData_t *cmd_getData;
 	cmd_getChildren_t *cmd_getChildren;
 	struct cvfs_data *finfo = NULL;
 	Tcl_Obj *ret_list, *ret_list_items[20];
-	unsigned long num_children;
+	unsigned long nlink;
 	const char *hashkey;
 	const char *file;
 	int idx, is_dir;
@@ -70,18 +98,17 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	/* getData may be changing other bits of the same type field */
 	Tcl_MutexLock(&cvfsDataMutex);
 	is_dir = ((finfo->type & CVFS_FILETYPE_DIR) == CVFS_FILETYPE_DIR);
-	num_children = is_dir ? cmd_getChildren(file, NULL, 0) : 0;
+	nlink = is_dir ? countDirectoryLinks(cmd_getData, cmd_getChildren, file) : 1;
 	Tcl_MutexUnlock(&cvfsDataMutex);
 
 	if (is_dir) {
 		ret_list_items[1] = Tcl_NewStringObj("directory", 9);
 		ret_list_items[3] = Tcl_NewWideIntObj(040555);
-		ret_list_items[5] = Tcl_NewWideIntObj(num_children);
 	} else {
 		ret_list_items[1] = Tcl_NewStringObj("file", 4);
 		ret_list_items[3] = Tcl_NewWideIntObj(0444);
-		ret_list_items[5] = Tcl_NewWideIntObj(1);
 	}
+	ret_list_items[5] = Tcl_NewWideIntObj(nlink);
 
 	ret_list_items[6] = Tcl_NewStringObj("ino", 3);
 	ret_list_items[7] = Tcl_NewWideIntObj(finfo->index);
@@ -89,7 +116,7 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	ret_list_items[8] = Tcl_NewStringObj("size", 4);
 	ret_list_items[9] = Tcl_NewWideIntObj(finfo->size_inflated);
 
-	/* Dummy values */
+	/* A virtual file has no owner */
 	ret_list_items[10] = Tcl_NewStringObj("uid", 3);
 	ret_list_items[11] = Tcl_NewStringObj("0", 1);
 

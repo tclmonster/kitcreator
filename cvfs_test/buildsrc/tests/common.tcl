@@ -52,6 +52,12 @@ proc ::cvfs_test::read_file {path} {
 	return $data
 }
 
+proc ::cvfs_test::nlink {path} {
+	file stat $path info
+
+	return $info(nlink)
+}
+
 proc ::cvfs_test::children {path} {
 	set ret [list]
 	foreach tail [lsort -unique [glob -nocomplain -tails -directory $path * .*]] {
