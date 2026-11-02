@@ -239,10 +239,50 @@ namespace eval zip {
     proc u_short {n}  { return [expr { ($n+0x10000)%0x10000 }] }
 }
 
+# Decodes a DOS date and time as UTC, like upstream tclvfs's zipvfs.tcl, but
+# with arithmetic rather than "clock", which the pre-VFS environment lacks.
+# Field layout: PKWARE APPNOTE.TXT 4.4.6 (MS-DOS date and time).  Seconds
+# since the epoch: POSIX.1-2017 Base Definitions 4.16, whose formula is used
+# term for term below,
+# https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap04.html#tag_04_16
 proc zip::DosTime {date time} {
-    # The pre-VFS environment will not have access to "clock", so don't even
-    # bother
-    return 0
+    set time [u_short $time]
+    set date [u_short $date]
+
+    # time = fedcba9876543210
+    #	HHHHHmmmmmmSSSSS (sec/2 actually)
+
+    # date = fedcba9876543210
+    #	yyyyyyyMMMMddddd
+
+    set sec  [expr { ($time & 0x1F) * 2 }]
+    set min  [expr { ($time >> 5) & 0x3F }]
+    set hour [expr { ($time >> 11) & 0x1F }]
+
+    set mday [expr { $date & 0x1F }]
+    set mon  [expr { (($date >> 5) & 0xF) }]
+    set year [expr { (($date >> 9) & 0xFF) + 1980 }]
+
+    # Fix up bad date/time data, no need to fail
+    if {$sec  > 59} {set sec  59}
+    if {$min  > 59} {set min  59}
+    if {$hour > 23} {set hour 23}
+    if {$mday < 1}  {set mday 1}
+    if {$mday > 31} {set mday 31}
+    if {$mon  < 1}  {set mon  1}
+    if {$mon > 12}  {set mon  12}
+
+    # struct tm fields: years since 1900, and days since 1 January
+    set tm_year [expr { $year - 1900 }]
+    set tm_yday [expr { [lindex {0 31 59 90 120 151 181 212 243 273 304 334} [expr { $mon - 1 }]] + $mday - 1 }]
+    set leap [expr { ($year % 4 == 0 && $year % 100 != 0) || $year % 400 == 0 }]
+    if {$leap && $mon > 2} {
+	incr tm_yday
+    }
+
+    return [expr { $sec + $min*60 + $hour*3600 + $tm_yday*86400 +
+	($tm_year-70)*31536000 + (($tm_year-69)/4)*86400 -
+	(($tm_year-1)/100)*86400 + (($tm_year+299)/400)*86400 }]
 }
 
 
