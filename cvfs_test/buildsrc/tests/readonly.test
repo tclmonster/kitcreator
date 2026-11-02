@@ -60,6 +60,36 @@ namespace eval ::cvfs_test::test {
 		file attributes $dir -permissions
 	} -result [format %0#5o 0o40555]
 
+	# The permission part of -types, which tclvfs applies with Tcl_FSAccess:
+	# nothing is writable, and only directories are executable
+	variable all [dict get $::cvfs_test::manifest entries lib children]
+	variable dirs [list]
+	foreach child $all {
+		if {[dict get $::cvfs_test::manifest entries lib/$child type] eq "directory"} {
+			lappend dirs $child
+		}
+	}
+
+	test readonly-4.1 {F18: glob -types w finds nothing} -body {
+		lsort [glob -nocomplain -tails -types w -directory $dir *]
+	} -result {}
+
+	test readonly-4.2 {F18: glob -types readonly finds everything} -body {
+		lsort [glob -nocomplain -tails -types readonly -directory $dir *]
+	} -result $all
+
+	test readonly-4.3 {F18: glob -types r finds everything} -body {
+		lsort [glob -nocomplain -tails -types r -directory $dir *]
+	} -result $all
+
+	test readonly-4.4 {F18: glob -types x finds only directories} -body {
+		lsort [glob -nocomplain -tails -types x -directory $dir *]
+	} -result $dirs
+
+	test readonly-4.5 {F18: glob -types {f x} finds nothing} -body {
+		lsort [glob -nocomplain -tails -types {f x} -directory $dir *]
+	} -result {}
+
 	cleanupTests
 }
 namespace delete ::cvfs_test::test

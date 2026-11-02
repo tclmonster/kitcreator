@@ -284,6 +284,17 @@ foreach {dir pattern} $glob_dirs {
 foreach types {{} f d} {
 	lappend cases [list F5,F6 [list glob_self $types]]
 }
+
+# -types hidden: on Unix names starting with "."; on Windows the hidden
+# attribute, which nothing in the tree has
+foreach {dir pattern types} {
+	"" * hidden  "" * {f hidden}  "" * {d hidden}  "" .* hidden  "" b* hidden
+	.well-known * hidden  lib * hidden
+} {
+	lappend cases [list F18 [list glob_tails $dir $pattern $types]]
+	lappend cases [list F18 [list glob_full $dir $pattern $types]]
+}
+lappend cases [list F18 [list glob_self hidden]]
 lappend cases [list F2,F6 [list glob_join * *.txt]]
 lappend cases [list F2,F6 [list glob_tails "" */*/* {}]]
 lappend cases [list F6 [list glob_in lib foo/*]]
