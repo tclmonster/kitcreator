@@ -170,10 +170,10 @@ function strip_library() {
 	mkdir "starpack.vfs/lib"
 
 	## Install "boot.tcl"
-	cp 'boot.tcl' 'starpack.vfs/'
+	cp -p 'boot.tcl' 'starpack.vfs/'
 
 	## Install "tclkit.ico"
-	cp 'tclkit.ico' 'starpack.vfs/'
+	cp -p 'tclkit.ico' 'starpack.vfs/'
 
 	## Strip & sign before copying to preserve signature on "retry"
 	while IFS= read -r file; do
@@ -188,8 +188,8 @@ function strip_library() {
 
 	done < <(find "${OTHERPKGSDIR}"/*/out/* \( -name '*.dll' -o -name '*.so' -o -name '*.dylib' \))
 
-	## Copy in all built directories
-	cp -r "${OTHERPKGSDIR}"/*/out/* 'starpack.vfs/'
+	## Copy in all built directories, keeping file times (the kit reports them)
+	cp -rp "${OTHERPKGSDIR}"/*/out/* 'starpack.vfs/'
 
 	## Rename the "vfs" package directory to what "boot.tcl" expects
 	mv 'starpack.vfs/lib'/vfs* 'starpack.vfs/lib/vfs'

@@ -334,7 +334,7 @@ function createruntime() {
 	local file
 
 	# Install files needed by installation
-	cp -r "${installdir}/lib" "${runtimedir}" || return 1
+	cp -rp "${installdir}/lib" "${runtimedir}" || return 1
 
 	# Create pkgIndex files if needed
 	if [ -z "${tclpkg}" ]; then
