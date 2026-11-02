@@ -32,7 +32,15 @@ proc shorten_file {dir file} {
 	return $file
 }
 
-proc recursive_glob {dir} {
+# Path of a directory with every symbolic link resolved, including its last
+# component (file normalize leaves the last one alone)
+proc real_dir {dir} {
+	return [file dirname [file normalize [file join $dir __real_dir__]]]
+}
+
+proc recursive_glob {dir {ancestors {}}} {
+	lappend ancestors [real_dir $dir]
+
 	set children [glob -nocomplain -directory $dir *]
 
 	set ret [list $dir]
@@ -47,7 +55,11 @@ proc recursive_glob {dir} {
 		}
 
 		if {$childinfo(type) == "directory"} {
-			foreach add [recursive_glob $child] {
+			if {[real_dir $child] in $ancestors} {
+				error "directory loop at $child"
+			}
+
+			foreach add [recursive_glob $child $ancestors] {
 				lappend ret $add
 			}
 
@@ -60,6 +72,23 @@ proc recursive_glob {dir} {
 
 		lappend ret $child
 	}
+
+	return $ret
+}
+
+# Quote a file name as a C string literal of its UTF-8 bytes; octal escapes
+# for quotes, backslashes, "?" (trigraphs) and bytes outside printable ASCII
+proc cname {name} {
+	set ret "\""
+	foreach byte [split [encoding convertto utf-8 $name] ""] {
+		scan $byte %c code
+		if {$code < 32 || $code > 126 || $byte in {\" \\ ?}} {
+			append ret [format {\%03o} $code]
+		} else {
+			append ret $byte
+		}
+	}
+	append ret "\""
 
 	return $ret
 }
@@ -96,7 +125,7 @@ proc encrypt_key_generate {method} {
 	switch -- $method {
 		"rotate_subst" {
 			set key(method) $method
-			set key(rotate_length) [random_byte]
+			set key(rotate_length) [expr {1 + int(255 * rand())}]
 
 			set key_data [list]
 			while {[llength $key_data] != 256} {
@@ -363,7 +392,7 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 	}
 
 	puts "\t{"
-	puts "\t\t.name  = \"$shortfile\","
+	puts "\t\t.name  = [cname $shortfile],"
 	puts "\t\t.index = $idx,"
 	puts "\t\t.type  = $type,"
 	puts "\t\t.size  = $size,"
@@ -398,7 +427,7 @@ foreach {hash idx_list} [array get indexes_per_hash] {
 			set shortfile [lindex $idx_ent 0]
 			set idx [lindex $idx_ent 1]
 
-			puts "\t\t\tif (strcmp(path, \"$shortfile\") == 0) return($idx);"
+			puts "\t\t\tif (strcmp(path, [cname $shortfile]) == 0) return($idx);"
 		}
 		puts "\t\t\tbreak;"
 	}
@@ -453,27 +482,25 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 	set file [lindex $files $idx]
 	set shortfile [shorten_file $startdir $file]
 
-	unset -nocomplain finfo type
-	file stat $file finfo
-
-	if {$finfo(type) != "directory"} {
-		continue;
+	set index_of($shortfile) $idx
+	if {[file isdirectory $file]} {
+		set children($idx) [list]
 	}
+}
 
-	# Determine which children are under this directory
-	## Convert the current pathname to a regular expression that matches exactly
-	set file_regexp [string map [list "\\" "\\\\" "." "\\." "\{" "\\\{" "\}" "\\\}" "*" "\\*"] $file]
+# Each entry's parent is the part of its name before the last slash; the
+# start directory itself (index 1) has the empty name
+for {set idx 2} {$idx < [llength $files]} {incr idx} {
+	set shortfile [shorten_file $startdir [lindex $files $idx]]
+	set parent [string range $shortfile 0 [expr {[string last "/" $shortfile] - 1}]]
 
-	## Search for pathnames which start with exactly our name, followed by a slash
-	## followed by no more slashes (direct descendants)
-	set child_idx_list [lsearch -regexp -all $files "^${file_regexp}/\[^/\]*$"]
+	lappend children($index_of($parent)) $idx
+}
 
-	set children($idx) $child_idx_list
-
+foreach idx [lsort -integer [array names children]] {
 	puts "\t\tcase $idx:"
-	puts "\t\t\tnum_children = [llength $child_idx_list];"
+	puts "\t\t\tnum_children = [llength $children($idx)];"
 	puts "\t\t\tbreak;"
-	
 }
 
 puts "\t}"
