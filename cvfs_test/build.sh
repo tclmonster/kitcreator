@@ -12,10 +12,7 @@ runtimepkgdir="${runtimedir}/lib/cvfs_test"
 rm -rf "${runtimedir}"
 mkdir -p "${runtimedir}/lib" || exit 1
 
-"${TCLSH_NATIVE}" "${buildsrcdir}/mktree.tcl" "${runtimepkgdir}" || exit 1
+# mktree.tcl is UTF-8; Tcl 8.6 would otherwise read it in the system encoding
+"${TCLSH_NATIVE}" -encoding utf-8 "${buildsrcdir}/mktree.tcl" "${runtimepkgdir}" || exit 1
 cp "${buildsrcdir}/cvfs_test.tcl" "${buildsrcdir}/pkgIndex.tcl" "${runtimepkgdir}/" || exit 1
 cp -r "${buildsrcdir}/tests" "${runtimepkgdir}/" || exit 1
-
-# cvfs_test::run reads the test file names from here: in the kit, tests/ is on
-# the CVFS under test, and a broken glob there could skip test files unnoticed
-(cd "${runtimepkgdir}/tests" && ls) > "${runtimepkgdir}/tests.txt" || exit 1

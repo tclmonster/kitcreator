@@ -3,7 +3,9 @@
 # <outdir>/tree is compiled into the kit.  <outdir>/manifest.tcl records each
 # path's type, size, mtime and CRC, and the results of glob, access and open
 # cases run here against the native tree, for tests/*.test to repeat against
-# CVFS.  Names Windows cannot store, and symbolic links, are Unix only.
+# CVFS, and the names of the test files.  Names Windows cannot store, and
+# symbolic links, are Unix only.  This file is UTF-8: on Tcl 8.6 run it with
+# "tclsh -encoding utf-8", or the names below are read in the system encoding.
 
 package require Tcl 8.6-
 
@@ -70,9 +72,9 @@ set files [dict create \
 	.well-known/acme/token     "token\n" \
 	ab                         "ab\n" \
 	bR                         "bR\n" \
-	"caf\u00e9.txt"            "cafe\n" \
-	"d\u00e9j\u00e0/vu.txt"    "deja vu\n" \
-	"\u65e5\u672c.txt"         "nihon\n" \
+	"café.txt"                 "cafe\n" \
+	"déjà/vu.txt"              "deja vu\n" \
+	"日本.txt"                 "nihon\n" \
 	{sp ace/f g.txt}           "spaces\n" \
 	{c++/x.h}                  "plus\n" \
 	{a(b)/p.txt}               "parentheses\n" \
@@ -272,7 +274,7 @@ lappend cases [list F2,F6 [list glob_tails "" */*/* {}]]
 lappend cases [list F6 [list glob_in lib foo/*]]
 lappend cases [list F6 [list glob_in lib/foo *]]
 
-foreach path [list lib empty.txt big.bin .htaccess "caf\u00e9.txt" {sp ace/f g.txt} nope nodir/nope] {
+foreach path [list lib empty.txt big.bin .htaccess "café.txt" {sp ace/f g.txt} nope nodir/nope] {
 	lappend cases [list F7,F14 [list exists $path]]
 	lappend cases [list F14 [list readable $path]]
 }
@@ -307,7 +309,11 @@ foreach case $cases {
 	lappend expected [string map [list $root %ROOT%] $result]
 }
 
+# In a kit, tests/ is on the CVFS under test, where a broken glob could leave
+# test files out unnoticed, so cvfs_test::run takes their names from here
+set tests [lsort [glob -tails -directory [file join [file dirname [file normalize [info script]]] tests] *]]
+
 set fd [open [file join $outdir manifest.tcl] w]
 fconfigure $fd -encoding utf-8 -translation lf
-puts $fd [list platform $tcl_platform(platform) entries $entries helpers $helpers cases $cases expected $expected]
+puts $fd [list platform $tcl_platform(platform) entries $entries helpers $helpers cases $cases expected $expected tests $tests]
 close $fd

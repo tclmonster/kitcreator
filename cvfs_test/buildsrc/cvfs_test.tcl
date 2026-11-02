@@ -15,8 +15,8 @@ namespace eval ::cvfs_test {
 
 # Names of the files in tests/.  In a kit they are on the CVFS under test, where
 # a broken glob could leave test files out and the suite still pass, so they
-# come from tests.txt, listed by build.sh on the native filesystem.  A checkout
-# has no tests.txt; its tests/ is native, so glob is safe there.
+# come from the manifest, listed by mktree.tcl on the native filesystem.  A
+# checkout's tests/ is native, so glob is safe there.
 proc ::cvfs_test::test_files {} {
 	variable dir
 
@@ -24,11 +24,12 @@ proc ::cvfs_test::test_files {} {
 		return [glob -tails -directory [file join $dir tests] *]
 	}
 
-	set fd [open [file join $dir tests.txt]]
-	set names [split [string trim [read $fd]] "\n"]
+	set fd [open [file join $dir manifest.tcl]]
+	fconfigure $fd -encoding utf-8
+	set manifest [read $fd]
 	close $fd
 
-	return $names
+	return [dict get $manifest tests]
 }
 
 # runAllTests also finds test files with glob, so it runs them from a native
