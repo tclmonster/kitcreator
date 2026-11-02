@@ -22,6 +22,9 @@ static cmd_getData_t *getCmdData(const char *hashkey);
 static cmd_getChildren_t *getCmdChildren(const char *hashkey);
 static cmd_decryptFile_t *getCmdDecryptFile(const char *hashkey);
 
+/* Guards the one-time decrypt and inflate of each file's shared data */
+TCL_DECLARE_MUTEX(cvfsDataMutex)
+
 /* Tcl Commands */
 static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	cmd_getData_t *cmd_getData;
@@ -31,7 +34,7 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	unsigned long num_children;
 	const char *hashkey;
 	const char *file;
-	int idx;
+	int idx, is_dir;
 
 	if (objc != 3) {
 		Tcl_SetResult(interp, "wrong # args: should be \"getMetadata hashKey fileName\"", TCL_STATIC);
@@ -64,9 +67,13 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	ret_list_items[2] = Tcl_NewStringObj("mode", 4);
 	ret_list_items[4] = Tcl_NewStringObj("nlink", 5);
 
-	if ((finfo->type & CVFS_FILETYPE_DIR) == CVFS_FILETYPE_DIR) {
-		num_children = cmd_getChildren(file, NULL, 0);
+	/* getData may be changing other bits of the same type field */
+	Tcl_MutexLock(&cvfsDataMutex);
+	is_dir = ((finfo->type & CVFS_FILETYPE_DIR) == CVFS_FILETYPE_DIR);
+	num_children = is_dir ? cmd_getChildren(file, NULL, 0) : 0;
+	Tcl_MutexUnlock(&cvfsDataMutex);
 
+	if (is_dir) {
 		ret_list_items[1] = Tcl_NewStringObj("directory", 9);
 		ret_list_items[3] = Tcl_NewWideIntObj(040555);
 		ret_list_items[5] = Tcl_NewWideIntObj(num_children);
@@ -90,13 +97,13 @@ static int getMetadata(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	ret_list_items[13] = Tcl_NewStringObj("0", 1);
 
 	ret_list_items[14] = Tcl_NewStringObj("atime", 5);
-	ret_list_items[15] = Tcl_NewStringObj("0", 1);
+	ret_list_items[15] = Tcl_NewWideIntObj(finfo->mtime);
 
 	ret_list_items[16] = Tcl_NewStringObj("mtime", 5);
-	ret_list_items[17] = Tcl_NewStringObj("0", 1);
+	ret_list_items[17] = Tcl_NewWideIntObj(finfo->mtime);
 
 	ret_list_items[18] = Tcl_NewStringObj("ctime", 5);
-	ret_list_items[19] = Tcl_NewStringObj("0", 1);
+	ret_list_items[19] = Tcl_NewWideIntObj(finfo->mtime);
 
 	for (idx = 0; idx < (sizeof(ret_list_items) / sizeof(ret_list_items[0])); idx++) {
 		Tcl_IncrRefCount(ret_list_items[idx]);
@@ -125,8 +132,9 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 	const char *file;
 	const char *end_str;
 	Tcl_Obj *ret_str;
-	long start = 0;
-	long end = -1;
+	Tcl_WideInt start = 0;
+	Tcl_WideInt end = -1;
+	Tcl_WideInt size;
 	int tclGetLFO_ret;
 	Tcl_Obj *decompressed;
 	Tcl_Size decompressed_len = 0;
@@ -142,7 +150,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 	file = Tcl_GetString(objv[2]);
 
 	if (objc > 3) {
-		tclGetLFO_ret = Tcl_GetLongFromObj(interp, objv[3], &start);
+		tclGetLFO_ret = Tcl_GetWideIntFromObj(interp, objv[3], &start);
 
 		if (tclGetLFO_ret != TCL_OK) {
 			return(tclGetLFO_ret);
@@ -154,7 +162,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 		if (strcmp(end_str, "end") == 0) {
 			end = -1;
 		} else {
-			tclGetLFO_ret = Tcl_GetLongFromObj(interp, objv[4], &end);
+			tclGetLFO_ret = Tcl_GetWideIntFromObj(interp, objv[4], &end);
 
 			if (tclGetLFO_ret != TCL_OK) {
 				return(tclGetLFO_ret);
@@ -178,6 +186,8 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 		return(TCL_ERROR);
 	}
 
+	Tcl_MutexLock(&cvfsDataMutex);
+
 	if ((finfo->type & CVFS_FILETYPE_ENCRYPTED_FILE) == CVFS_FILETYPE_ENCRYPTED_FILE) {
 		cmd_decryptFile = getCmdDecryptFile(hashkey);
 
@@ -187,6 +197,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 	}
 
 	if ((finfo->type & CVFS_FILETYPE_FILE) == 0) {
+		Tcl_MutexUnlock(&cvfsDataMutex);
 		Tcl_SetResult(interp, "Not a file", TCL_STATIC);
 
 		return(TCL_ERROR);
@@ -198,6 +209,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 
 		if (Tcl_ZlibInflate(interp, TCL_ZLIB_FORMAT_AUTO,
 				    decompressed, finfo->size_inflated, NULL) != TCL_OK) {
+			Tcl_MutexUnlock(&cvfsDataMutex);
 			Tcl_SetResult(interp, "Could not decompress file", TCL_STATIC);
 			Tcl_DecrRefCount(decompressed);
 
@@ -226,12 +238,13 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 		finfo->type &= ~CVFS_FILETYPE_COMPRESSED_FILE;
 	}
 
-	if (end == -1) {
-		end = finfo->size;
-	}
+	/* Once decoded, a file's data and size never change again */
+	Tcl_MutexUnlock(&cvfsDataMutex);
 
-	if (end > finfo->size) {
-		end = finfo->size;
+	size = (Tcl_WideInt) finfo->size;
+
+	if (end == -1 || end > size) {
+		end = size;
 	}
 
 	if (start < 0) {
@@ -248,7 +261,7 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 		return(TCL_ERROR);
 	}
 
-	ret_str = Tcl_NewByteArrayObj(finfo->data + start, (end - start));
+	ret_str = Tcl_NewByteArrayObj(finfo->data + start, (Tcl_Size) (end - start));
 
 	Tcl_IncrRefCount(ret_str);
 
@@ -296,7 +309,11 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 		return(TCL_ERROR);
 	}
 
+	/* getData may be changing other bits of the type fields read here */
+	Tcl_MutexLock(&cvfsDataMutex);
+
 	if ((finfo->type & CVFS_FILETYPE_DIR) == 0) {
+		Tcl_MutexUnlock(&cvfsDataMutex);
 		Tcl_SetResult(interp, "Not a directory", TCL_STATIC);
 
 		return(TCL_ERROR);
@@ -305,6 +322,8 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	num_children = cmd_getChildren(file, NULL, 0);
 
 	if (num_children == 0) {
+		Tcl_MutexUnlock(&cvfsDataMutex);
+
 		/* Return immediately if there are no children */
 		Tcl_SetResult(interp, "", TCL_STATIC);
 
@@ -313,6 +332,7 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 
 	ret_list = Tcl_NewObj();
 	if (ret_list == NULL) {
+		Tcl_MutexUnlock(&cvfsDataMutex);
 		Tcl_SetResult(interp, "Failed to allocate new object", TCL_STATIC);
 
 		return(TCL_ERROR);
@@ -323,6 +343,8 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	children = (void *) Tcl_Alloc(sizeof(*children) * num_children);
 
 	num_children = cmd_getChildren(file, children, num_children);
+
+	Tcl_MutexUnlock(&cvfsDataMutex);
 
 	for (idx = 0; idx < num_children; idx++) {
 		finfo = cmd_getData(NULL, children[idx]);
@@ -337,7 +359,7 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 
 		Tcl_IncrRefCount(ret_curr_obj);
 
-		Tcl_ListObjAppendList(interp, ret_list, ret_curr_obj);
+		Tcl_ListObjAppendElement(interp, ret_list, ret_curr_obj);
 
 		Tcl_DecrRefCount(ret_curr_obj);
 	}

@@ -19,6 +19,12 @@ if {[llength $argv] != 2} {
 set hashkey [lindex $argv 0]
 set startdir [lindex $argv 1]
 
+# Unix file names are bytes, nearly always UTF-8; without a UTF-8 locale Tcl
+# would decode them as iso8859-1 and the kit would store them double-encoded
+if {$tcl_platform(platform) eq "unix"} {
+	encoding system utf-8
+}
+
 proc shorten_file {dir file} {
 	set dirNameLen [string length $dir]
 
@@ -41,10 +47,16 @@ proc real_dir {dir} {
 proc recursive_glob {dir {ancestors {}}} {
 	lappend ancestors [real_dir $dir]
 
-	set children [glob -nocomplain -directory $dir *]
+	# ".*" for dotfiles, which "*" skips on Unix but not on Windows; sorted so
+	# every build of the same tree produces the same output
+	set children [lsort -unique [glob -nocomplain -directory $dir * .*]]
 
 	set ret [list $dir]
 	foreach child $children {
+		if {[file tail $child] in {. ..}} {
+			continue
+		}
+
 		unset -nocomplain childinfo
 		catch {
 			file stat $child childinfo
@@ -267,6 +279,11 @@ puts {
 #  ifdef HAVE_STDLIB_H
 #    include <stdlib.h>
 #  endif
+/* Without TCL_THREADS, Tcl 8.6's tcl.h makes Tcl_MutexLock a no-op even when
+ * Tcl has threads; a Tcl without threads still provides it, doing nothing */
+#  ifndef TCL_THREADS
+#    define TCL_THREADS 1
+#  endif
 #  include <tcl.h>
 
 #  ifndef LOADED_CVFS_COMMON
@@ -284,6 +301,7 @@ struct cvfs_data {
 	unsigned long            index;
 	unsigned long            size;
 	unsigned long            size_inflated;
+	Tcl_WideInt              mtime;
 	cvfs_filetype_t          type;
 	const unsigned char *    data;
 	int                      free;
@@ -346,6 +364,7 @@ puts "\t\t.index = 0,"
 puts "\t\t.type  = 0,"
 puts "\t\t.size  = 0,"
 puts "\t\t.size_inflated = 0,"
+puts "\t\t.mtime = 0,"
 puts "\t\t.data  = NULL,"
 puts "\t\t.free  = 0,"
 puts "\t},"
@@ -389,12 +408,19 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 		}
 	}
 
+	# Clamped to SOURCE_DATE_EPOCH when set, so builds can be reproducible
+	set mtime $finfo(mtime)
+	if {[info exists ::env(SOURCE_DATE_EPOCH)] && $mtime > $::env(SOURCE_DATE_EPOCH)} {
+		set mtime $::env(SOURCE_DATE_EPOCH)
+	}
+
 	puts "\t{"
 	puts "\t\t.name  = [cname $shortfile],"
 	puts "\t\t.index = $idx,"
 	puts "\t\t.type  = $type,"
 	puts "\t\t.size  = $size,"
 	puts "\t\t.size_inflated = $size_inflated,"
+	puts "\t\t.mtime = $mtime,"
 	puts "\t\t.data  = $data,"
 	puts "\t\t.free  = 0,"
 	puts "\t},"
@@ -413,7 +439,9 @@ for {set idx 1} {$idx < [llength $files]} {incr idx} {
 	lappend indexes_per_hash($hash) [list $shortfile $idx]
 }
 
-foreach {hash idx_list} [array get indexes_per_hash] {
+foreach hash [lsort -integer [array names indexes_per_hash]] {
+	set idx_list $indexes_per_hash($hash)
+
 	puts "\t\tcase $hash:"
 
 	if {[llength $idx_list] == 1} {
@@ -521,7 +549,9 @@ puts "\t}"
 puts ""
 puts "\tswitch (index) {"
 
-foreach {idx child_idx_list} [array get children] {
+foreach idx [lsort -integer [array names children]] {
+	set child_idx_list $children($idx)
+
 	if {[llength $child_idx_list] == 0} {
 		continue
 	}
