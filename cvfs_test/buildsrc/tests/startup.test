@@ -55,15 +55,15 @@ namespace eval ::cvfs_test::test {
 		}
 	}
 
-	test startup-1.1 {S7: module paths are all inside the kit} -constraints inKit -setup $setup -body {
+	test startup-1.1 {module paths are all inside the kit} -constraints inKit -setup $setup -body {
 		run_kit {puts [outside [tcl::tm::path list]]}
 	} -cleanup $cleanup -result ""
 
-	test startup-1.2 {S7: a module planted through TCLx.y_TM_PATH is not loaded} -constraints inKit -setup $setup -body {
+	test startup-1.2 {a module planted through TCLx.y_TM_PATH is not loaded} -constraints inKit -setup $setup -body {
 		run_kit {puts [package require tcltest]}
 	} -cleanup $cleanup -match regexp -result {^2\.}
 
-	test startup-1.3 {S7: module paths in a Thread worker are all inside the kit} -constraints inKit -setup $setup -body {
+	test startup-1.3 {module paths in a Thread worker are all inside the kit} -constraints inKit -setup $setup -body {
 		run_kit {
 			package require Thread
 			set id [thread::create]
@@ -71,7 +71,7 @@ namespace eval ::cvfs_test::test {
 		}
 	} -cleanup $cleanup -result ""
 
-	test startup-1.4 {S7: module paths in a child interpreter are all inside the kit} -constraints inKit -setup $setup -body {
+	test startup-1.4 {module paths in a child interpreter are all inside the kit} -constraints inKit -setup $setup -body {
 		run_kit {
 			interp create child
 			puts [outside [child eval {tcl::tm::path list}]]

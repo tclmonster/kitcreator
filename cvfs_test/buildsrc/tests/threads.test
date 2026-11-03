@@ -1,4 +1,4 @@
-# F4: concurrent first reads from several threads.  Each test runs a new
+# Concurrent first reads from several threads.  Each test runs a new
 # process, so the reads are the first in it and a crash fails only the test;
 # the threads wait on a lock the main thread holds, so they start together.
 
@@ -75,7 +75,7 @@ namespace eval ::cvfs_test::test {
 	variable script [thread_script]
 
 	for {variable run 1} {$run <= $::cvfs_test::repeat} {incr run} {
-		test threads-1.$run "F4: $::cvfs_test::threads threads read the same files at once, in a new process" -setup {
+		test threads-1.$run "$::cvfs_test::threads threads read the same files at once, in a new process" -setup {
 			variable scriptfile [makeFile $script cvfs_threads.tcl]
 		} -body {
 			exec [info nameofexecutable] $scriptfile 2>@1

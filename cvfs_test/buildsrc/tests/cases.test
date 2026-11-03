@@ -20,12 +20,11 @@ namespace eval ::cvfs_test::test {
 
 	variable counts [dict create]
 	foreach case [dict get $::cvfs_test::manifest cases] expected [dict get $::cvfs_test::manifest expected] {
-		lassign $case tags command
-		set name [string map {_ -} [lindex $command 0]]
+		set name [string map {_ -} [lindex $case 0]]
 
 		dict incr counts $name
 
-		test $name-1.[dict get $counts $name] "$tags: $command" -body [list run_case $command] -result $expected
+		test $name-1.[dict get $counts $name] $case -body [list run_case $case] -result $expected
 	}
 
 	cleanupTests

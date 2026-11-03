@@ -257,8 +257,8 @@ set helpers {
 namespace eval case $helpers
 set case::root $root
 
-# Cases: {tags command}.  Native ".*" also lists "." and ".."; glob.n says
-# they must be matched explicitly, and VFSes do not return them, so they are
+# Cases are commands.  Native ".*" also lists "." and ".."; glob.n says they
+# must be matched explicitly, and VFSes do not return them, so they are
 # dropped from the expected results.
 set cases [list]
 
@@ -276,13 +276,13 @@ if {$unix} {
 
 foreach {dir pattern} $glob_dirs {
 	foreach types {{} f d {f d}} {
-		lappend cases [list F2,F5,F6,F7,F18 [list glob_tails $dir $pattern $types]]
-		lappend cases [list F2,F5,F6,F7,F18 [list glob_full $dir $pattern $types]]
+		lappend cases [list glob_tails $dir $pattern $types]
+		lappend cases [list glob_full $dir $pattern $types]
 	}
 }
 
 foreach types {{} f d} {
-	lappend cases [list F5,F6 [list glob_self $types]]
+	lappend cases [list glob_self $types]
 }
 
 # -types hidden: on Unix names starting with "."; on Windows the hidden
@@ -291,24 +291,24 @@ foreach {dir pattern types} {
 	"" * hidden  "" * {f hidden}  "" * {d hidden}  "" .* hidden  "" b* hidden
 	.well-known * hidden  lib * hidden
 } {
-	lappend cases [list F18 [list glob_tails $dir $pattern $types]]
-	lappend cases [list F18 [list glob_full $dir $pattern $types]]
+	lappend cases [list glob_tails $dir $pattern $types]
+	lappend cases [list glob_full $dir $pattern $types]
 }
-lappend cases [list F18 [list glob_self hidden]]
-lappend cases [list F2,F6 [list glob_join * *.txt]]
-lappend cases [list F2,F6 [list glob_tails "" */*/* {}]]
-lappend cases [list F6 [list glob_in lib foo/*]]
-lappend cases [list F6 [list glob_in lib/foo *]]
+lappend cases [list glob_self hidden]
+lappend cases [list glob_join * *.txt]
+lappend cases [list glob_tails "" */*/* {}]
+lappend cases [list glob_in lib foo/*]
+lappend cases [list glob_in lib/foo *]
 
 foreach path [list lib empty.txt big.bin .htaccess "café.txt" {sp ace/f g.txt} nope nodir/nope] {
-	lappend cases [list F7,F14 [list exists $path]]
-	lappend cases [list F14 [list readable $path]]
+	lappend cases [list exists $path]
+	lappend cases [list readable $path]
 }
 foreach path {nope nodir/nope lib/foo/a.txt} {
-	lappend cases [list F7 [list open_error $path]]
+	lappend cases [list open_error $path]
 }
-lappend cases [list F14 [list executable lib/foo/a.txt]]
-lappend cases [list F14 [list executable lib]]
+lappend cases [list executable lib/foo/a.txt]
+lappend cases [list executable lib]
 
 proc without_dots {list} {
 	set ret [list]
@@ -323,9 +323,7 @@ proc without_dots {list} {
 }
 
 set expected [list]
-foreach case $cases {
-	set command [lindex $case 1]
-
+foreach command $cases {
 	if {[catch {namespace eval case $command} result]} {
 		set result "error: $result"
 	} elseif {[string match glob_* [lindex $command 0]]} {

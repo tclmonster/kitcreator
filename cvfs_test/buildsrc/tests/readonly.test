@@ -11,7 +11,7 @@ namespace eval ::cvfs_test::test {
 	variable file [::cvfs_test::path lib/foo/a.txt]
 	variable dir [::cvfs_test::path lib]
 
-	test readonly-1.1 {F7: opening a directory fails with EISDIR} -setup ::cvfs_test::clear_errno -body {
+	test readonly-1.1 {opening a directory fails with EISDIR} -setup ::cvfs_test::clear_errno -body {
 		open $dir
 	} -errorCode {POSIX EISDIR *} -match glob -result *
 
@@ -35,7 +35,7 @@ namespace eval ::cvfs_test::test {
 		file mkdir [::cvfs_test::path newdir]
 	} -errorCode {POSIX EROFS *} -match glob -result *
 
-	test readonly-1.7 {F15: setting the mtime fails with EROFS} -setup ::cvfs_test::clear_errno -body {
+	test readonly-1.7 {setting the mtime fails with EROFS} -setup ::cvfs_test::clear_errno -body {
 		file mtime $file 5
 	} -errorCode {POSIX EROFS *} -match glob -result *
 
@@ -43,20 +43,20 @@ namespace eval ::cvfs_test::test {
 		file attributes $file -permissions 0o777
 	} -errorCode {POSIX EROFS *} -match glob -result *
 
-	test readonly-2.1 {F14: a file is not writable} -body {
+	test readonly-2.1 {a file is not writable} -body {
 		file writable $file
 	} -result 0
 
-	test readonly-2.2 {F14: a directory is not writable} -body {
+	test readonly-2.2 {a directory is not writable} -body {
 		file writable $dir
 	} -result 0
 
 	# Same format as the native filesystem's -permissions
-	test readonly-3.1 {F16: permissions of a file} -body {
+	test readonly-3.1 {permissions of a file} -body {
 		file attributes $file -permissions
 	} -result [format %0#5o 0o444]
 
-	test readonly-3.2 {F16: permissions of a directory} -body {
+	test readonly-3.2 {permissions of a directory} -body {
 		file attributes $dir -permissions
 	} -result [format %0#5o 0o40555]
 
@@ -70,23 +70,23 @@ namespace eval ::cvfs_test::test {
 		}
 	}
 
-	test readonly-4.1 {F18: glob -types w finds nothing} -body {
+	test readonly-4.1 {glob -types w finds nothing} -body {
 		lsort [glob -nocomplain -tails -types w -directory $dir *]
 	} -result {}
 
-	test readonly-4.2 {F18: glob -types readonly finds everything} -body {
+	test readonly-4.2 {glob -types readonly finds everything} -body {
 		lsort [glob -nocomplain -tails -types readonly -directory $dir *]
 	} -result $all
 
-	test readonly-4.3 {F18: glob -types r finds everything} -body {
+	test readonly-4.3 {glob -types r finds everything} -body {
 		lsort [glob -nocomplain -tails -types r -directory $dir *]
 	} -result $all
 
-	test readonly-4.4 {F18: glob -types x finds only directories} -body {
+	test readonly-4.4 {glob -types x finds only directories} -body {
 		lsort [glob -nocomplain -tails -types x -directory $dir *]
 	} -result $dirs
 
-	test readonly-4.5 {F18: glob -types {f x} finds nothing} -body {
+	test readonly-4.5 {glob -types {f x} finds nothing} -body {
 		lsort [glob -nocomplain -tails -types {f x} -directory $dir *]
 	} -result {}
 
