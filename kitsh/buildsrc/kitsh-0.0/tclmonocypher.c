@@ -23,15 +23,15 @@
 #include <tcl.h>
 #include <tclOO.h>
 
-#include "monocypher.h"
-#include "monocypher-ed25519.h"
+#include "monocypher/monocypher.h"
+#include "monocypher/monocypher-ed25519.h"
 
 #ifdef _WIN32
 #  include <windows.h>
 #  include <bcrypt.h>
-#elif defined(MONOCYPHER_HAVE_GETENTROPY)
+#elif defined(HAVE_GETENTROPY)
 #  include <unistd.h>
-#  if defined(__APPLE__) || defined(__linux__)
+#  ifdef HAVE_SYS_RANDOM_H
 #    include <sys/random.h>
 #  endif
 #else
@@ -201,7 +201,7 @@ FillRandom(
 		buffer += chunk;
 		length -= chunk;
 	}
-#elif defined(MONOCYPHER_HAVE_GETENTROPY)
+#elif defined(HAVE_GETENTROPY)
 	/* getentropy() returns at most 256 bytes per call */
 	while (length > 0) {
 		size_t chunk = (length > 256) ? 256 : length;
@@ -977,14 +977,6 @@ CreateClass(
 	return classPtr;
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-DLLEXPORT int Monocypher_Init(Tcl_Interp *interp);
-#ifdef __cplusplus
-}
-#endif
-
 int
 Monocypher_Init(
 	Tcl_Interp *interp)
@@ -996,15 +988,6 @@ Monocypher_Init(
 	static const Tcl_MethodType *const signerMethods[] = {&publicType, &signType, &exportType, NULL};
 	Tcl_Class keyClass;
 
-#ifdef USE_TCL_STUBS
-	if (Tcl_InitStubs(interp, "8.6-", 0) == NULL) {
-		return TCL_ERROR;
-	}
-#else
-	if (Tcl_PkgRequire(interp, "Tcl", "8.6-", 0) == NULL) {
-		return TCL_ERROR;
-	}
-#endif
 	if (Tcl_OOInitStubs(interp) == NULL) {
 		return TCL_ERROR;
 	}
@@ -1023,5 +1006,5 @@ Monocypher_Init(
 		return TCL_ERROR;
 	}
 
-	return Tcl_PkgProvide(interp, "monocypher", "1.0");
+	return Tcl_PkgProvide(interp, "monocypher", KIT_MONOCYPHER_VERSION);
 }

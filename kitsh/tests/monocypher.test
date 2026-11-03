@@ -1,6 +1,6 @@
-# Tests for the monocypher package.  Known answers come from the standards
+# Tests for the monocypher extension.  Known answers come from the standards
 # (RFC 7693, 7748, 8032, 9106 and draft-irtf-cfrg-xchacha-03) or, where noted,
-# from Python's hashlib.  Run from a kit that includes the package:
+# from Python's hashlib.  Run from a kit built with --enable-monocypher:
 #   tclkit monocypher.test ?tcltest options?
 # or load a build with -load, e.g. -load {load ./monocypher.so Monocypher}.
 

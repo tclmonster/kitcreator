@@ -209,6 +209,12 @@ Kitsh Configure Options:
 		included with a KitDLL. This is required when building some
 		extensions.
 
+	5. --enable-monocypher
+		Link in the "monocypher" extension, built statically from the
+		copy of Monocypher in kitsh.  It provides the "monocypher"
+		package: ::monocypher commands for random bytes, encryption,
+		hashing, key exchange and signatures.
+
 --------------------
 Using the KitDLL SDK
 --------------------
