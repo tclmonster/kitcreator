@@ -105,7 +105,7 @@ jobs:
           STRIP:  ${{matrix.platform.cross_pfx}}-strip
         run: |
           ./build/pre.sh
-          ./kitcreator build ${{matrix.tcl_tk_version}} --enable-tclkitrc
+          ./kitcreator build ${{matrix.tcl_tk_version}} --enable-tclkitrc --enable-monocypher
           mv tclkit-${{matrix.tcl_tk_version}} tclkitsh-${{matrix.tcl_tk_version}}-${{env.arch}}-base
           cat <<EOF > $GITHUB_ENV
           TCLKIT=$(pwd)/tclkitsh-${{matrix.tcl_tk_version}}-${{env.arch}}-base
@@ -116,7 +116,7 @@ jobs:
         run: |
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui.txt)"
           ./kitcreator clean
-          ./kitcreator build ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc
+          ./kitcreator build ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc --enable-monocypher
           mv tclkit-${{matrix.tcl_tk_version}} tclkitsh-${{matrix.tcl_tk_version}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkitsh-${{matrix.tcl_tk_version}}-${{env.suffix}}.kc_packages
 
@@ -128,6 +128,14 @@ jobs:
           mv tclkit-${{matrix.tcl_tk_version}} "${RUNNER_TEMP}/cvfs_test/"
           rm -rf cvfs_test/out cvfs_test/.success
 
+      - name: Encrypted CVFS test kit
+        run: |
+          export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' .github/workflows/pkgs-nogui.txt) cvfs_test"
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc --with-encrypted-cvfs
+          mkdir -p "${RUNNER_TEMP}/cvfs_test_encrypted"
+          mv tclkit-${{matrix.tcl_tk_version}} "${RUNNER_TEMP}/cvfs_test_encrypted/"
+          rm -rf cvfs_test/out cvfs_test/.success
+
       - name: Full kit (with GUI)
         run: |
           case "${{matrix.tcl_tk_version}}" in
@@ -135,7 +143,7 @@ jobs:
             *)   gui_pkgs=.github/workflows/pkgs-gui.txt ;;
           esac
           export KITCREATOR_PKGS="$(awk '{printf "%s ", $0}' "${gui_pkgs}")"
-          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc --enable-monocypher
           mv tclkit-${{matrix.tcl_tk_version}} tclkit-${{matrix.tcl_tk_version}}-${{env.suffix}}
           echo "$KITCREATOR_PKGS" > tclkit-${{matrix.tcl_tk_version}}-${{env.suffix}}.kc_packages
 
@@ -155,7 +163,7 @@ jobs:
             done
           }
           clean_dynamic_tk_pkgs
-          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc
+          ./kitcreator retry ${{matrix.tcl_tk_version}} --host=${{ env.HOST }} --enable-64bit --enable-tcl-private-headers --enable-kit-storage=cvfs --with-compressed-cvfs --with-go="${GO_BINARY}" --enable-tclkitrc --enable-monocypher
           mv libtclkit-sdk-${{matrix.tcl_tk_version}}.tar.gz libtclkit-sdk-${{matrix.tcl_tk_version}}-${{env.suffix}}.tar.gz
           echo "$KITCREATOR_PKGS" > libtclkit-sdk-${{matrix.tcl_tk_version}}-${{env.suffix}}.tar.gz.kc_packages
 
@@ -163,6 +171,12 @@ jobs:
         run: |
           cd "${RUNNER_TEMP}/cvfs_test"
           echo 'package require cvfs_test; cvfs_test::run' > run.tcl
+          ./tclkit-${{matrix.tcl_tk_version}} run.tcl
+
+      - name: Encrypted CVFS tests
+        run: |
+          cd "${RUNNER_TEMP}/cvfs_test_encrypted"
+          echo 'package require cvfs_test; cvfs_test::run -constraints encrypted' > run.tcl
           ./tclkit-${{matrix.tcl_tk_version}} run.tcl
 
       - name: monocypher tests

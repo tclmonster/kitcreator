@@ -300,6 +300,17 @@ proc ::vfs::cvfs::vfsop_open {hashkey root relative actualpath mode permissions}
 		vfs::filesystem posixerror $::vfs::posix(EISDIR)
 	}
 
+	# An encrypted VFS opens files in C, into a buffer wiped on close; a file
+	# that does not decrypt (changed or damaged) is an I/O error
+	set open "::vfs::cvfs::data::${hashkey}::open"
+	if {[info commands $open] ne ""} {
+		if {[catch {$open $hashkey $relative} chan]} {
+			vfs::filesystem posixerror $::vfs::posix(EIO)
+		}
+
+		return [list $chan]
+	}
+
 	set chan [chan create [list "read"] [list ::vfs::cvfs::chanhandler $hashkey]]
 
 	set ::vfs::cvfs::chandata([list $hashkey $chan]) [list file $relative pos 0 len $metadata(size) watching ""]

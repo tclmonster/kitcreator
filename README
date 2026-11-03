@@ -195,11 +195,17 @@ Kitsh Configure Options:
 		default is to auto-detect.  Auto-detection uses Mk4 if
 		available and built statically, otherwise it falls back to Zip.
 
-	2. --with-obsfucated-cvfs
-		Specify that CVFS should be obsfucated.  The contents of the
-		CVFS are encrypted on disk and the encryption key is included
-		in the executable.  Files are then transparently decrypted on
-		access.
+	2. --with-encrypted-cvfs (or the older name --with-obsfucated-cvfs)
+		Encrypt the CVFS: file names and contents are stored with
+		XChaCha20-Poly1305 (Monocypher), and a changed or damaged file
+		fails to open.  The number of files and directories, which
+		entries share a directory, and each file's size and
+		modification time stay readable.  The key is in the
+		executable, so this keeps the contents from casual
+		extraction, not from someone willing to take the executable
+		apart.  Links in the monocypher extension
+		(--enable-monocypher), and needs a TCLSH_NATIVE that has it:
+		build a kit with --enable-monocypher first and use it.
 
 	3. --with-compressed-cvfs
 		Specify that CVFS should be compressed.

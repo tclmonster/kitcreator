@@ -1,0 +1,45 @@
+# With -constraints encrypted (a kit built with --with-encrypted-cvfs): file
+# contents and names must not appear as plain bytes in the binary.  secret.bin
+# is random, so compression stores it unchanged and only encryption hides it;
+# every name in the tree contains "cvfs_test/tree/".
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	# A kit is mounted on its own path, so reading the executable reaches the
+	# VFS root; read the file underneath with the mount removed for the moment
+	proc read_native {path} {
+		if {[lindex [file system $path] 0] ne "tclvfs"} {
+			return [::cvfs_test::read_file $path]
+		}
+
+		set handler [vfs::filesystem info $path]
+		vfs::filesystem unmount $path
+		try {
+			return [::cvfs_test::read_file $path]
+		} finally {
+			vfs::filesystem mount $path $handler
+		}
+	}
+
+	test encryption-1.1 {secret.bin is not stored as plain bytes in the binary} -constraints encrypted -body {
+		variable needle [string range [::cvfs_test::read_file [::cvfs_test::path secret.bin]] 0 63]
+		string first $needle [read_native $::cvfs_test::binary]
+	} -result -1
+
+	test encryption-1.2 {file names are not stored as plain text in the binary} -constraints encrypted -body {
+		string first [encoding convertto utf-8 cvfs_test/tree/] [read_native $::cvfs_test::binary]
+	} -result -1
+
+	test encryption-1.3 {the names still list and open} -constraints encrypted -body {
+		list [expr {"secret.bin" in [::cvfs_test::children [::cvfs_test::path ""]]}] \
+			[string length [::cvfs_test::read_file [::cvfs_test::path secret.bin]]]
+	} -result [list 1 [dict get $::cvfs_test::manifest entries secret.bin size]]
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test

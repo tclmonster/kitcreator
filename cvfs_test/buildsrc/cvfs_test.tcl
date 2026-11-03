@@ -2,7 +2,7 @@
 #
 # Runs the tcltest files in tests/ against this package's tree in the kit and
 # exits 1 if any test failed.  Options are tcltest configure options, such as
-# -match mtime-*, -verbose pass or -constraints obfuscated.  To test another
+# -match mtime-*, -verbose pass or -constraints encrypted.  To test another
 # CVFS, pass -load with a script that mounts it and sets the variables listed
 # in tests/common.tcl.
 

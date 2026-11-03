@@ -1,6 +1,6 @@
 # Shared by the test files: settings, the manifest and helpers.  The tcltest
 # -load script may set these in ::cvfs_test first: root (CVFS directory holding
-# the tree), manifest_file, binary (searched by obfuscation.test), and threads
+# the tree), manifest_file, binary (searched by encryption.test), and threads
 # and repeat (threads.test).
 
 ::tcltest::loadTestedCommands

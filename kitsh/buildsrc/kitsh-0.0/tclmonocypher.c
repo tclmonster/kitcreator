@@ -20,6 +20,12 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* kitsh defines BUILD_tcl on Windows, and Tcl 8.6's tcl.h then declares the
+ * TclOO functions MODULE_SCOPE, which only tclInt.h defines */
+#ifndef MODULE_SCOPE
+#  define MODULE_SCOPE extern
+#endif
 #include <tcl.h>
 #include <tclOO.h>
 

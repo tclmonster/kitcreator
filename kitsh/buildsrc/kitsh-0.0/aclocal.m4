@@ -707,24 +707,38 @@ AC_DEFUN(DC_SETLDRUNPATH, [
 ])
 
 AC_DEFUN(DC_SET_DIR2C_FLAGS, [
-	AC_MSG_CHECKING([if we should obsufcate the CVFS])
+	AC_MSG_CHECKING([whether to encrypt the CVFS])
 
-	AC_ARG_WITH(obsfucated-cvfs, AS_HELP_STRING([--with-obsfucated-cvfs], [Obsfucate CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
-		obsfucate_cvfs=$withval
-	], [
-		obsfucate_cvfs='no'
+	dnl --with-obsfucated-cvfs is the old name, from before real encryption
+	encrypt_cvfs='no'
+	AC_ARG_WITH(encrypted-cvfs, AS_HELP_STRING([--with-encrypted-cvfs], [Encrypt the CVFS filesystem (requires --enable-kit-storage=cvfs; links in the monocypher extension)]), [
+		encrypt_cvfs=$withval
+	])
+	AC_ARG_WITH(obsfucated-cvfs, AS_HELP_STRING([--with-obsfucated-cvfs], [Same as --with-encrypted-cvfs]), [
+		encrypt_cvfs=$withval
 	])
 
 	DIR2C_FLAGS=''
-	case "$obsfucate_cvfs" in
+	case "$encrypt_cvfs" in
 		yes)
 			AC_MSG_RESULT([yes])
-			DIR2C_FLAGS='--obsfucate'
+			DIR2C_FLAGS='--encrypt'
 			;;
 		*)
 			AC_MSG_RESULT([no])
 			;;
 	esac
+
+	dnl dir2c.tcl encrypts with the monocypher package in the build tclsh
+	AS_IF([test "$encrypt_cvfs" = 'yes'], [
+		AC_MSG_CHECKING([whether $TCLSH_PROG has the monocypher package])
+		AS_IF([echo 'exit [[catch {package require monocypher}]]' | "$TCLSH_PROG" >/dev/null 2>&1], [
+			AC_MSG_RESULT([yes])
+		], [
+			AC_MSG_RESULT([no])
+			AC_MSG_ERROR([--with-encrypted-cvfs needs a TCLSH_NATIVE with the monocypher package: build a kit with --enable-monocypher and use it as TCLSH_NATIVE])
+		])
+	])
 
 	AC_ARG_WITH(compressed-cvfs, AS_HELP_STRING([--with-compressed-cvfs], [Compress CVFS filesystem (requires --enable-kit-storage=cvfs)]), [
 		compress_cvfs=$withval
