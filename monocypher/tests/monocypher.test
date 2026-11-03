@@ -1,0 +1,336 @@
+# Tests for the monocypher package.  Known answers come from the standards
+# (RFC 7693, 7748, 8032, 9106 and draft-irtf-cfrg-xchacha-03) or, where noted,
+# from Python's hashlib.  Run from a kit that includes the package:
+#   tclkit monocypher.test ?tcltest options?
+# or load a build with -load, e.g. -load {load ./monocypher.so Monocypher}.
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+::tcltest::loadTestedCommands
+package require monocypher
+
+namespace eval ::monocypher::test {
+	namespace import ::tcltest::*
+
+	proc hex {bytes} {
+		binary encode hex $bytes
+	}
+
+	proc bytes {hex} {
+		binary decode hex $hex
+	}
+
+	# A 16-byte string of a byte value, as RFC 9106 uses
+	proc fill {byte count} {
+		string repeat [binary format c $byte] $count
+	}
+
+	# Every byte array the size of a box, each with one byte changed
+	proc tampered {box} {
+		set ret [list]
+		foreach index [list 0 1 25 41 [expr {[string length $box] - 1}]] {
+			binary scan [string index $box $index] cu byte
+			lappend ret [string replace $box $index $index [binary format c [expr {$byte ^ 1}]]]
+		}
+
+		return $ret
+	}
+
+	testConstraint tcl9 [package vsatisfies [info patchlevel] 9-]
+
+	# monocypher::random
+
+	test random-1.1 {random returns the requested number of bytes} -body {
+		string length [monocypher::random 32]
+	} -result 32
+
+	test random-1.2 {random 0 returns nothing} -body {
+		monocypher::random 0
+	} -result {}
+
+	test random-1.3 {two random strings differ} -body {
+		expr {[monocypher::random 32] ne [monocypher::random 32]}
+	} -result 1
+
+	test random-1.4 {random refuses a negative count} -body {
+		monocypher::random -1
+	} -returnCodes error -errorCode {MONOCYPHER SIZE} -match glob -result {size must be *}
+
+	test random-1.5 {random needs one argument} -body {
+		monocypher::random
+	} -returnCodes error -result {wrong # args: should be "monocypher::random count"}
+
+	# monocypher::hash (BLAKE2b)
+
+	test hash-1.1 {BLAKE2b-512 of "abc" (RFC 7693, Appendix A)} -body {
+		hex [monocypher::hash abc]
+	} -result ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923
+
+	test hash-1.2 {BLAKE2b-256 of "abc" (Python hashlib)} -body {
+		hex [monocypher::hash abc -size 32]
+	} -result bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319
+
+	test hash-1.3 {BLAKE2b-512 of nothing (Python hashlib)} -body {
+		hex [monocypher::hash {}]
+	} -result 786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce
+
+	test hash-1.4 {-size must be 1 to 64} -body {
+		monocypher::hash abc -size 65
+	} -returnCodes error -errorCode {MONOCYPHER SIZE} -result {size must be from 1 to 64, got 65}
+
+	test hash-1.5 {unknown option} -body {
+		monocypher::hash abc -length 32
+	} -returnCodes error -result {bad option "-length": must be -size}
+
+	test hash-2.1 {data must be bytes, on 8.6 as on 9} -body {
+		monocypher::hash "café 日"
+	} -returnCodes error -errorCode {TCL VALUE BYTES} -result {expected code point values below 0xff but value at byte offset 5 was 0x65e5}
+
+	# monocypher::key: XChaCha20-Poly1305
+
+	variable xKey [bytes 808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f]
+	variable xNonce [bytes 404142434445464748494a4b4c4d4e4f5051525354555657]
+	variable xAd [bytes 50515253c0c1c2c3c4c5c6c7]
+	variable xTag [bytes c0875924c1c7987947deafd8780acf49]
+	variable xCipher [bytes bd6d179d3e83d43b9576579493c0e939572a1700252bfaccbed2902c21396cbb731c7f1b0b4aa6440bf3a82f4eda7e39ae64c6708c54c216cb96b72e1213b4522f8c9ba40db5d945b11b69b982c1bb9e3f3fac2bc369488f76b2383565d3fff921f9664c97637da9768812f615c68b13b52e]
+	variable xPlain "Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it."
+
+	# version 1, nonce, tag, ciphertext
+	variable xBox "\x01$xNonce$xTag$xCipher"
+
+	variable newKey {
+		variable key [monocypher::key new -bytes $xKey]
+	}
+	variable destroyKey {
+		$key destroy
+	}
+
+	test key-1.1 {decrypt the AEAD_XChaCha20_Poly1305 vector (draft-irtf-cfrg-xchacha-03, A.3.1)} -setup $newKey -body {
+		$key decrypt $xBox -ad $xAd
+	} -cleanup $destroyKey -result $xPlain
+
+	test key-1.2 {encrypt then decrypt} -setup $newKey -body {
+		$key decrypt [$key encrypt $xPlain -ad $xAd] -ad $xAd
+	} -cleanup $destroyKey -result $xPlain
+
+	test key-1.3 {a box is version 1, nonce, tag and ciphertext} -setup $newKey -body {
+		set box [$key encrypt abc]
+		list [string length $box] [hex [string index $box 0]]
+	} -cleanup $destroyKey -result {44 01}
+
+	test key-1.4 {each encryption uses a new nonce} -setup $newKey -body {
+		expr {[$key encrypt abc] ne [$key encrypt abc]}
+	} -cleanup $destroyKey -result 1
+
+	test key-1.5 {any changed byte is detected} -setup $newKey -body {
+		set codes [list]
+		foreach box [tampered $xBox] {
+			catch {$key decrypt $box -ad $xAd} message options
+			lappend codes [dict get $options -errorcode]
+		}
+		lsort -unique $codes
+	} -cleanup $destroyKey -result {{MONOCYPHER DECRYPT}}
+
+	test key-1.6 {wrong associated data is detected} -setup $newKey -body {
+		$key decrypt $xBox -ad wrong
+	} -cleanup $destroyKey -returnCodes error -errorCode {MONOCYPHER DECRYPT} -result {wrong key or associated data, or the box was changed}
+
+	test key-1.7 {missing associated data is detected} -setup $newKey -body {
+		$key decrypt $xBox
+	} -cleanup $destroyKey -returnCodes error -errorCode {MONOCYPHER DECRYPT} -match glob -result *
+
+	test key-1.8 {a different key cannot decrypt} -setup $newKey -body {
+		set other [monocypher::key new]
+		$other decrypt [$key encrypt abc]
+	} -cleanup {
+		$other destroy
+		$key destroy
+	} -returnCodes error -errorCode {MONOCYPHER DECRYPT} -match glob -result *
+
+	test key-1.9 {too short to be a box} -setup $newKey -body {
+		$key decrypt [string range $xBox 0 39]
+	} -cleanup $destroyKey -returnCodes error -errorCode {MONOCYPHER DECRYPT} -result {not an encrypted box}
+
+	test key-1.10 {encrypt needs data} -setup $newKey -body {
+		$key encrypt
+	} -cleanup $destroyKey -returnCodes error -match glob -result {wrong # args: should be "* encrypt data ?-ad bytes?"}
+
+	# monocypher::key: keyed BLAKE2b
+
+	variable macKey [bytes 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f]
+	variable newMacKey {
+		variable key [monocypher::key new -bytes $macKey]
+	}
+
+	test key-2.1 {keyed BLAKE2b-512 (Python hashlib)} -setup $newMacKey -body {
+		hex [$key mac abc]
+	} -cleanup $destroyKey -result 9af0244b7da7fe29d90a89727e06a0c93977ce1ad7edcb76ac0b24142194ea00c77be4a1d3fededd31d5a593625a508e742fc90d708f8b48a5c246e4e8e42d94
+
+	test key-2.2 {keyed BLAKE2b-128 (Python hashlib)} -setup $newMacKey -body {
+		hex [$key mac abc -size 16]
+	} -cleanup $destroyKey -result 1a64be47e4729d951c302ee543f97cf3
+
+	test key-2.3 {verify accepts the right mac} -setup $newMacKey -body {
+		$key verify abc [$key mac abc -size 16]
+	} -cleanup $destroyKey -result 1
+
+	test key-2.4 {verify rejects a changed message or mac} -setup $newMacKey -body {
+		set mac [$key mac abc]
+		list [$key verify abd $mac] [$key verify abc [string replace $mac 0 0 x]]
+	} -cleanup $destroyKey -result {0 0}
+
+	# monocypher::key: Argon2id
+
+	test key-3.1 {Argon2id (RFC 9106, section 5.3)} -body {
+		set key [monocypher::key new -password [fill 1 32] -salt [fill 2 16] \
+			-secret [fill 3 8] -ad [fill 4 12] -memory 32 -passes 3]
+		hex [$key export]
+	} -cleanup $destroyKey -result 0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659
+
+	test key-3.2 {the same password and salt give the same key} -body {
+		set a [monocypher::key new -password secret -salt saltsalt -memory 32 -passes 1]
+		set b [monocypher::key new -password secret -salt saltsalt -memory 32 -passes 1]
+		expr {[$a export] eq [$b export]}
+	} -cleanup {
+		$a destroy
+		$b destroy
+	} -result 1
+
+	test key-3.3 {the salt must be at least 8 bytes} -body {
+		monocypher::key new -password secret -salt short
+	} -returnCodes error -errorCode {MONOCYPHER LENGTH} -result {salt must be at least 8 bytes}
+
+	test key-3.4 {-salt needs -password} -body {
+		monocypher::key new -salt saltsalt
+	} -returnCodes error -errorCode {MONOCYPHER ARGUMENT} -match glob -result {* need -password}
+
+	test key-3.5 {only one source of key} -body {
+		monocypher::key new -random -bytes [fill 0 32]
+	} -returnCodes error -errorCode {MONOCYPHER ARGUMENT} -result {use only one of -random, -bytes and -password}
+
+	test key-3.6 {-memory is at least 32 KiB} -body {
+		monocypher::key new -password secret -salt saltsalt -memory 31
+	} -returnCodes error -errorCode {MONOCYPHER SIZE} -match glob -result {size must be from 32 to *}
+
+	# monocypher::key: lifetime
+
+	test key-4.1 {export returns the key given with -bytes} -setup $newKey -body {
+		expr {[$key export] eq $xKey}
+	} -cleanup $destroyKey -result 1
+
+	test key-4.2 {-bytes must be 32 bytes} -body {
+		monocypher::key new -bytes abc
+	} -returnCodes error -errorCode {MONOCYPHER LENGTH} -result {key must be 32 bytes, got 3}
+
+	test key-4.3 {destroy removes the object} -body {
+		set key [monocypher::key new]
+		$key destroy
+		info object isa object $key
+	} -result 0
+
+	test key-4.4 {a copy has its own key, which outlives the original} -setup $newKey -body {
+		set copy [oo::copy $key]
+		set box [$key encrypt abc]
+		$key destroy
+		$copy decrypt $box
+	} -cleanup {
+		$copy destroy
+	} -result abc
+
+	test key-4.5 {data must be bytes, on 8.6 as on 9} -setup $newKey -body {
+		$key encrypt "日本"
+	} -cleanup $destroyKey -returnCodes error -errorCode {TCL VALUE BYTES} -result {expected code point values below 0xff but value at byte offset 0 was 0x65e5}
+
+	# monocypher::keypair: X25519 (RFC 7748, section 6.1)
+
+	variable aliceSecret [bytes 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a]
+	variable alicePublic 8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a
+	variable bobSecret [bytes 5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb]
+	variable bobPublic de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f
+	variable newPairs {
+		variable alice [monocypher::keypair new -bytes $aliceSecret]
+		variable bob [monocypher::keypair new -bytes $bobSecret]
+	}
+	variable destroyPairs {
+		$alice destroy
+		$bob destroy
+	}
+
+	test keypair-1.1 {public keys (RFC 7748, section 6.1)} -setup $newPairs -body {
+		list [hex [$alice public]] [hex [$bob public]]
+	} -cleanup $destroyPairs -result [list $alicePublic $bobPublic]
+
+	test keypair-1.2 {both sides derive the same key, BLAKE2b-256 of K and the sorted public keys (Python hashlib)} -setup $newPairs -body {
+		set a [$alice sharedkey [$bob public]]
+		set b [$bob sharedkey [$alice public]]
+		list [hex [$a export]] [expr {[$a export] eq [$b export]}] [info object class $a]
+	} -cleanup {
+		$a destroy
+		$b destroy
+		$alice destroy
+		$bob destroy
+	} -result {519fb3af2f3f9e310718cf1f8bdec6e26ab64affe730f0f8b43c43b0e8ee52be 1 ::monocypher::key}
+
+	test keypair-1.3 {a public key giving an all-zero secret is refused (RFC 7748, section 6.1)} -setup $newPairs -body {
+		$alice sharedkey [fill 0 32]
+	} -cleanup $destroyPairs -returnCodes error -errorCode {MONOCYPHER KEYEXCHANGE} -result {invalid public key}
+
+	test keypair-1.4 {export returns the secret} -setup $newPairs -body {
+		expr {[$alice export] eq $aliceSecret}
+	} -cleanup $destroyPairs -result 1
+
+	test keypair-1.5 {constructor options} -body {
+		monocypher::keypair new -seed [fill 0 32]
+	} -returnCodes error -result {bad option "-seed": must be -random or -bytes}
+
+	# monocypher::signer and monocypher::verify: Ed25519 (RFC 8032, section 7.1)
+
+	variable ed25519 {
+		1 9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60
+		  d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a
+		  {}
+		  e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b
+		2 4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb
+		  3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c
+		  72
+		  92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00
+		3 c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7
+		  fc51cd8e6218a1a38da47ed00230f0580816ed13ba3303ac5deb911548908025
+		  af82
+		  6291d657deec24024827e69c3abe01a30ce548a284743a445e3680d7db5ac3ac18ff9b538d16f290ae67f760984dc6594a7c15e9716ed28dc027beceea1ec40a
+	}
+
+	foreach {n seed public message signature} $ed25519 {
+		test signer-1.$n "Ed25519 TEST $n: public key, signature and verify (RFC 8032, section 7.1)" -body {
+			set signer [monocypher::signer new -seed [bytes $seed]]
+			list [hex [$signer public]] [hex [$signer sign [bytes $message]]] \
+				[monocypher::verify [bytes $public] [bytes $message] [bytes $signature]]
+		} -cleanup {
+			$signer destroy
+		} -result [list $public $signature 1]
+	}
+
+	test signer-2.1 {verify rejects a changed message or signature} -body {
+		set signer [monocypher::signer new]
+		set signature [$signer sign abc]
+		list [monocypher::verify [$signer public] abd $signature] \
+			[monocypher::verify [$signer public] abc [string replace $signature 0 0 x]]
+	} -cleanup {
+		$signer destroy
+	} -result {0 0}
+
+	test signer-2.2 {export returns the seed} -body {
+		set seed [monocypher::random 32]
+		set signer [monocypher::signer new -seed $seed]
+		expr {[$signer export] eq $seed}
+	} -cleanup {
+		$signer destroy
+	} -result 1
+
+	test verify-1.1 {a signature must be 64 bytes} -body {
+		monocypher::verify [fill 0 32] abc short
+	} -returnCodes error -errorCode {MONOCYPHER LENGTH} -result {signature must be 64 bytes, got 5}
+
+	cleanupTests
+}
+namespace delete ::monocypher::test
