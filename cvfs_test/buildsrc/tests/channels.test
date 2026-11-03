@@ -57,19 +57,18 @@ namespace eval ::cvfs_test::test {
 	} -result ""
 
 	# Seeking as for a native file (seek.n, CrtChannel.3): past the end is
-	# allowed and reads nothing; before the start is EINVAL and does not move.
-	# knownBug: the channel in cvfs.tcl clamps both
-	test channels-2.1 {seeking past the end, as for a native file} -constraints knownBug -setup $open_big -body {
+	# allowed and reads nothing; before the start is EINVAL and does not move
+	test channels-2.1 {seeking past the end, as for a native file} -setup $open_big -body {
 		seek $fd 10 end
 		list [expr {[tell $fd] - [dict get $info size]}] [read $fd] [eof $fd]
 	} -cleanup $close_big -result {10 {} 1}
 
-	test channels-2.2 {seeking before the start is EINVAL} -constraints knownBug -setup $open_big -body {
+	test channels-2.2 {seeking before the start is EINVAL} -setup $open_big -body {
 		seek $fd 100 start
 		list [catch {seek $fd -5 start} msg opts] [dict get $opts -errorcode] [tell $fd]
 	} -cleanup $close_big -result {1 {POSIX EINVAL {invalid argument}} 100}
 
-	test channels-2.3 {seeking from the current position before the start is EINVAL} -constraints knownBug -setup $open_big -body {
+	test channels-2.3 {seeking from the current position before the start is EINVAL} -setup $open_big -body {
 		seek $fd 100 start
 		list [catch {seek $fd -200 current} msg opts] [dict get $opts -errorcode] [tell $fd]
 	} -cleanup $close_big -result {1 {POSIX EINVAL {invalid argument}} 100}
@@ -159,9 +158,9 @@ namespace eval ::cvfs_test::test {
 		thread::release $worker
 	} -result {{line 1 of 20000} 0 {}}
 
-	# knownBug: the channel's handlers run in the thread that opened it, which
-	# is blocked in a synchronous thread::send, so the read never returns.  A
-	# new process, with a watchdog thread that exits it after 10 seconds
+	# A channel whose handlers run in the thread that opened it would hang
+	# here, as that thread is blocked in the synchronous thread::send.  A new
+	# process, with a watchdog thread that exits it after 10 seconds
 	variable sync_script [join [list [::tcltest::configure -load] \
 		[list set path [::cvfs_test::path lines.txt]] {
 		package require Thread
@@ -180,7 +179,7 @@ namespace eval ::cvfs_test::test {
 		exit 0
 	}] "\n"]
 
-	test channels-4.4 {a channel moved to another thread works with a synchronous send, in a new process} -constraints {thread knownBug} -setup {
+	test channels-4.4 {a channel moved to another thread works with a synchronous send, in a new process} -constraints thread -setup {
 		variable scriptfile [makeFile $sync_script cvfs_channels.tcl]
 	} -body {
 		exec [info nameofexecutable] $scriptfile 2>@1

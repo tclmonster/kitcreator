@@ -3,10 +3,8 @@
 #ifdef HAVE_STDLIB_H
 #  include <stdlib.h>
 #endif
-#ifdef CVFS_ENCRYPTED
-#  include <errno.h>
-#  include <stdio.h>
-#endif
+#include <errno.h>
+#include <stdio.h>
 
 typedef struct cvfs_data *(cmd_getData_t)(const char *, unsigned long);
 typedef unsigned long (cmd_getChildren_t)(const char *, unsigned long *, unsigned long);
@@ -20,12 +18,64 @@ static const unsigned char *getCmdKey(const char *hashkey);
 /* Guards the one-time inflate of each file's shared data */
 TCL_DECLARE_MUTEX(cvfsDataMutex)
 
-#ifdef CVFS_ENCRYPTED
 /* Leaves message in interp, with the error code {CVFS code} */
 static void cvfs_error(Tcl_Interp *interp, const char *message, const char *code) {
 	Tcl_SetObjResult(interp, Tcl_NewStringObj(message, -1));
 	Tcl_SetErrorCode(interp, "CVFS", code, (char *) NULL);
 }
+
+/* Makes an unencrypted file's data plain: the first call for a compressed
+ * file inflates it into memory kept for the life of the process.  Once this
+ * returns TCL_OK, finfo->data and finfo->size never change again */
+static int cvfs_decode_cached(Tcl_Interp *interp, struct cvfs_data *finfo) {
+	Tcl_Obj *compressed, *decompressed;
+	unsigned char *bytes, *inflated;
+	Tcl_Size length;
+
+	Tcl_MutexLock(&cvfsDataMutex);
+
+	if ((finfo->type & CVFS_FILETYPE_FILE) == 0) {
+		Tcl_MutexUnlock(&cvfsDataMutex);
+		cvfs_error(interp, "Not a file", "NOTFILE");
+
+		return(TCL_ERROR);
+	}
+
+	if ((finfo->type & CVFS_FILETYPE_COMPRESSED_FILE) != 0) {
+		compressed = Tcl_NewByteArrayObj(finfo->data, finfo->size);
+		Tcl_IncrRefCount(compressed);
+
+		if (Tcl_ZlibInflate(interp, TCL_ZLIB_FORMAT_AUTO, compressed, finfo->size_inflated, NULL) != TCL_OK) {
+			Tcl_MutexUnlock(&cvfsDataMutex);
+			Tcl_DecrRefCount(compressed);
+			cvfs_error(interp, "Could not decompress file", "DECOMPRESS");
+
+			return(TCL_ERROR);
+		}
+		Tcl_DecrRefCount(compressed);
+
+		decompressed = Tcl_GetObjResult(interp);
+		Tcl_IncrRefCount(decompressed);
+		Tcl_ResetResult(interp);
+
+		bytes = Tcl_GetByteArrayFromObj(decompressed, &length);
+		inflated = (unsigned char *) Tcl_Alloc(length ? length : 1);
+		memcpy(inflated, bytes, (size_t) length);
+		Tcl_DecrRefCount(decompressed);
+
+		/* data pointed at the compressed bytes in the generated table */
+		finfo->data = inflated;
+		finfo->free = 1;
+		finfo->size = length;
+		finfo->type &= ~CVFS_FILETYPE_COMPRESSED_FILE;
+	}
+
+	Tcl_MutexUnlock(&cvfsDataMutex);
+
+	return(TCL_OK);
+}
+
+#ifdef CVFS_ENCRYPTED
 
 /* Decrypts, and inflates if compressed, an encrypted file into a new byte
  * array of size_inflated bytes with a reference held, for cvfs_free_plain;
@@ -92,17 +142,19 @@ static Tcl_Obj *cvfs_decode_encrypted(Tcl_Interp *interp, const char *path, cons
 
 	return(inflated);
 }
+#endif /* CVFS_ENCRYPTED */
 
-/* A read-only channel on a plaintext byte array, which an encrypted VFS's
- * open command hands over and close wipes.  Reads use bytes, taken at open,
- * and only close touches the Tcl value, so the channel can move between
- * threads.  Seeks behave as for a native file; the data is always readable,
- * so readable events come from a timer (CrtChannel.3) */
-#  define CVFS_WIDE_MAX ((Tcl_WideInt) (~(Tcl_WideUInt) 0 >> 1))
+/* A read-only channel on a file's plain data: for an encrypted file a byte
+ * array the channel owns and close wipes, otherwise the decoded data, which
+ * it only reads.  Reads use bytes, taken at open, and only close touches the
+ * Tcl value, so the channel can move between threads.  Seeks behave as for a
+ * native file; the data is always readable, so readable events come from a
+ * timer (CrtChannel.3) */
+#define CVFS_WIDE_MAX ((Tcl_WideInt) (~(Tcl_WideUInt) 0 >> 1))
 
 struct cvfs_channel {
 	Tcl_Channel              channel;
-	Tcl_Obj *                data;
+	Tcl_Obj *                owned;
 	const unsigned char *    bytes;
 	Tcl_WideInt              size;
 	Tcl_WideInt              position;
@@ -157,12 +209,12 @@ static Tcl_WideInt cvfs_channel_wide_seek(void *instance, Tcl_WideInt offset, in
 	return(chan->position);
 }
 
-#  if TCL_MAJOR_VERSION < 9
+#if TCL_MAJOR_VERSION < 9
 /* Tcl 8.6 needs a seekProc as well as the wideSeekProc it prefers */
 static int cvfs_channel_seek(void *instance, long offset, int mode, int *error_code) {
 	return((int) cvfs_channel_wide_seek(instance, offset, mode, error_code));
 }
-#  endif
+#endif
 
 static void cvfs_channel_timer(void *instance) {
 	struct cvfs_channel *chan = instance;
@@ -210,7 +262,11 @@ static int cvfs_channel_close2(void *instance, Tcl_Interp *interp, int flags) {
 		Tcl_DeleteTimerHandler(chan->timer);
 	}
 
-	cvfs_free_plain(chan->data);
+#ifdef CVFS_ENCRYPTED
+	if (chan->owned != NULL) {
+		cvfs_free_plain(chan->owned);
+	}
+#endif
 	Tcl_Free((char *) chan);
 
 	return(0);
@@ -222,11 +278,11 @@ static const Tcl_ChannelType cvfs_channel_type = {
 	TCL_CLOSE2PROC,
 	cvfs_channel_input,
 	NULL,
-#  if TCL_MAJOR_VERSION < 9
+#if TCL_MAJOR_VERSION < 9
 	cvfs_channel_seek,
-#  else
+#else
 	NULL,
-#  endif
+#endif
 	NULL,
 	NULL,
 	cvfs_channel_watch,
@@ -241,7 +297,6 @@ static const Tcl_ChannelType cvfs_channel_type = {
 };
 
 TCL_DECLARE_MUTEX(cvfsChannelMutex)
-#endif /* CVFS_ENCRYPTED */
 
 /* POSIX link count of a directory: 2 plus one per subdirectory.  Call with
  * cvfsDataMutex held, as it reads the children's type fields. */
@@ -354,9 +409,6 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 	Tcl_WideInt end = -1;
 	Tcl_WideInt size;
 	int tclGetLFO_ret;
-	Tcl_Obj *decompressed;
-	Tcl_Size decompressed_len = 0;
-	unsigned char *decompressed_bytes, *inflated;
 
 	if (objc < 3 || objc > 5) {
 		Tcl_WrongNumArgs(interp, 1, objv, "hashKey fileName ?start? ?end?");
@@ -438,46 +490,9 @@ static int getData(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
 	}
 #endif
 
-	Tcl_MutexLock(&cvfsDataMutex);
-
-	if ((finfo->type & CVFS_FILETYPE_FILE) == 0) {
-		Tcl_MutexUnlock(&cvfsDataMutex);
-		Tcl_SetResult(interp, "Not a file", TCL_STATIC);
-
+	if (cvfs_decode_cached(interp, finfo) != TCL_OK) {
 		return(TCL_ERROR);
 	}
-
-	if ((finfo->type & CVFS_FILETYPE_COMPRESSED_FILE) == CVFS_FILETYPE_COMPRESSED_FILE) {
-		decompressed = Tcl_NewByteArrayObj(finfo->data, finfo->size);
-		Tcl_IncrRefCount(decompressed);
-
-		if (Tcl_ZlibInflate(interp, TCL_ZLIB_FORMAT_AUTO,
-				    decompressed, finfo->size_inflated, NULL) != TCL_OK) {
-			Tcl_MutexUnlock(&cvfsDataMutex);
-			Tcl_SetResult(interp, "Could not decompress file", TCL_STATIC);
-			Tcl_DecrRefCount(decompressed);
-
-			return(TCL_ERROR);
-		}
-		Tcl_DecrRefCount(decompressed);
-
-		decompressed = Tcl_GetObjResult(interp);
-		Tcl_IncrRefCount(decompressed);
-
-		decompressed_bytes = Tcl_GetByteArrayFromObj(decompressed, &decompressed_len);
-		inflated = (unsigned char *) Tcl_Alloc(decompressed_len ? decompressed_len : 1);
-		memcpy(inflated, decompressed_bytes, (size_t) decompressed_len);
-		Tcl_DecrRefCount(decompressed);
-
-		/* data pointed at the compressed bytes in the generated table */
-		finfo->data = inflated;
-		finfo->free = 1;
-		finfo->size = decompressed_len;
-		finfo->type &= ~CVFS_FILETYPE_COMPRESSED_FILE;
-	}
-
-	/* Once decoded, a file's data and size never change again */
-	Tcl_MutexUnlock(&cvfsDataMutex);
 
 	size = (Tcl_WideInt) finfo->size;
 	data = finfo->data;
@@ -614,19 +629,20 @@ static int getChildren(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *con
 	return(TCL_OK);
 }
 
-#ifdef CVFS_ENCRYPTED
-/* open hashKey fileName: a read-only channel on the file's plaintext, which
- * is wiped when the channel closes.  Each VFS has its own counter, so the
- * name includes the hash key: Tcl panics on a duplicate channel name */
+/* open hashKey fileName: a read-only channel on the file.  An encrypted
+ * file is decrypted into a byte array the channel wipes when it closes.  Each
+ * VFS has its own counter, so the name includes the hash key: Tcl panics on
+ * a duplicate channel name */
 static int openFile(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 	static unsigned long channel_count = 0;
 	struct cvfs_channel *chan;
 	struct cvfs_data *finfo;
 	cmd_getData_t *cmd_getData;
-	const unsigned char *key;
 	const char *hashkey;
 	const char *file;
-	Tcl_Obj *plain, *name;
+	Tcl_Obj *owned = NULL, *name;
+	const unsigned char *bytes;
+	Tcl_Size size;
 
 	if (objc != 3) {
 		Tcl_WrongNumArgs(interp, 1, objv, "hashKey fileName");
@@ -638,9 +654,8 @@ static int openFile(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
 	file = Tcl_GetString(objv[2]);
 
 	cmd_getData = getCmdData(hashkey);
-	key = getCmdKey(hashkey);
 
-	if (cmd_getData == NULL || key == NULL) {
+	if (cmd_getData == NULL) {
 		Tcl_SetResult(interp, "No such hashkey", TCL_STATIC);
 
 		return(TCL_ERROR);
@@ -654,21 +669,30 @@ static int openFile(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
 		return(TCL_ERROR);
 	}
 
-	if ((finfo->type & CVFS_FILETYPE_FILE) == 0 || (finfo->type & CVFS_FILETYPE_ENCRYPTED_FILE) == 0) {
-		Tcl_SetResult(interp, "Not a file", TCL_STATIC);
+#ifdef CVFS_ENCRYPTED
+	/* An encrypted file's type never changes, so it needs no lock */
+	if ((finfo->type & CVFS_FILETYPE_ENCRYPTED_FILE) != 0) {
+		owned = cvfs_decode_encrypted(interp, file, finfo, getCmdKey(hashkey));
+		if (owned == NULL) {
+			return(TCL_ERROR);
+		}
 
-		return(TCL_ERROR);
-	}
+		bytes = Tcl_GetByteArrayFromObj(owned, &size);
+	} else
+#endif
+	{
+		if (cvfs_decode_cached(interp, finfo) != TCL_OK) {
+			return(TCL_ERROR);
+		}
 
-	plain = cvfs_decode_encrypted(interp, file, finfo, key);
-	if (plain == NULL) {
-		return(TCL_ERROR);
+		bytes = finfo->data;
+		size = finfo->size;
 	}
 
 	chan = (struct cvfs_channel *) Tcl_Alloc(sizeof(*chan));
-	chan->data = plain;
-	chan->bytes = Tcl_GetByteArrayFromObj(plain, NULL);
-	chan->size = (Tcl_WideInt) finfo->size_inflated;
+	chan->owned = owned;
+	chan->bytes = bytes;
+	chan->size = (Tcl_WideInt) size;
 	chan->position = 0;
 	chan->timer = NULL;
 
@@ -682,4 +706,3 @@ static int openFile(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const 
 
 	return(TCL_OK);
 }
-#endif

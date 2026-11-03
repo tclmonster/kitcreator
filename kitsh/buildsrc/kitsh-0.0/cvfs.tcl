@@ -46,8 +46,8 @@ proc ::vfs::cvfs::data::getData args {
 	eval $cmd
 }
 
-## VFS and Chan I/O
-### Dispatchers
+## VFS I/O
+### Dispatcher
 proc ::vfs::cvfs::vfshandler {hashkey subcmd args} {
 	set cmd $args
 	set cmd [linsert $cmd 0 "::vfs::cvfs::vfsop_${subcmd}" $hashkey]
@@ -55,103 +55,7 @@ proc ::vfs::cvfs::vfshandler {hashkey subcmd args} {
 	return [eval $cmd]
 }
 
-proc ::vfs::cvfs::chanhandler {hashkey subcmd args} {
-	set cmd $args
-	set cmd [linsert $cmd 0 "::vfs::cvfs::chanop_${subcmd}" $hashkey]
-
-	return [eval $cmd]
-}
-
-### Actual handlers
-#### Channel operation handlers
-proc ::vfs::cvfs::chanop_initialize {hashkey chanId mode} {
-	return [list initialize finalize watch read seek]
-}
-
-proc ::vfs::cvfs::chanop_finalize {hashkey chanId} {
-	unset -nocomplain ::vfs::cvfs::chandata([list $hashkey $chanId])
-
-	return
-}
-
-proc ::vfs::cvfs::chanop_watch {hashkey chanId eventSpec} {
-	array set chaninfo $::vfs::cvfs::chandata([list $hashkey $chanId])
-
-	set chaninfo(watching) $eventSpec
-
-	set ::vfs::cvfs::chandata([list $hashkey $chanId]) [array get chaninfo]
-
-	if {[lsearch -exact $chaninfo(watching) "read"] != -1} {
-		after 0 [list catch "chan postevent $chanId [list {read}]"]
-	}
-
-	return
-}
-
-proc ::vfs::cvfs::chanop_read {hashkey chanId bytes} {
-	array set chaninfo $::vfs::cvfs::chandata([list $hashkey $chanId])
-
-	set pos $chaninfo(pos)
-	set len $chaninfo(len)
-
-	if {[lsearch -exact $chaninfo(watching) "read"] != -1} {
-		after 0 [list catch "chan postevent $chanId [list {read}]"]
-	}
-
-	if {$pos == $len} {
-		return ""
-	}
-
-	set end [expr {$pos + $bytes}]
-	if {$end > $len} {
-		set end $len
-	}
-
-	set data [::vfs::cvfs::data::getData $hashkey $chaninfo(file) $pos $end]
-
-	set dataLen [string length $data]
-	incr pos $dataLen
-
-	set chaninfo(pos) $pos
-
-	set ::vfs::cvfs::chandata([list $hashkey $chanId]) [array get chaninfo]
-
-	return $data
-}
-
-proc ::vfs::cvfs::chanop_seek {hashkey chanId offset origin} {
-	array set chaninfo $::vfs::cvfs::chandata([list $hashkey $chanId])
-
-	set pos $chaninfo(pos)
-	set len $chaninfo(len)
-
-	switch -- $origin {
-		"start" - "0" {
-			set pos $offset
-		}
-		"current" - "1" {
-			set pos [expr {$pos + $offset}]
-		}
-		"end" - "2" {
-			set pos [expr {$len + $offset}]
-		}
-	}
-
-	if {$pos < 0} {
-		set pos 0
-	}
-
-	if {$pos > $len} {
-		set pos $len
-	}
-
-	set chaninfo(pos) $pos
-	set ::vfs::cvfs::chandata([list $hashkey $chanId]) [array get chaninfo]
-
-	return $pos
-}
-
-#### VFS operation handlers
+### Handlers
 proc ::vfs::cvfs::vfsop_stat {hashkey root relative actualpath} {
 	if {[catch {::vfs::cvfs::data::getMetadata $hashkey $relative} ret]} {
 		vfs::filesystem posixerror $::vfs::posix(ENOENT)
@@ -300,20 +204,11 @@ proc ::vfs::cvfs::vfsop_open {hashkey root relative actualpath mode permissions}
 		vfs::filesystem posixerror $::vfs::posix(EISDIR)
 	}
 
-	# An encrypted VFS opens files in C, into a buffer wiped on close; a file
-	# that does not decrypt (changed or damaged) is an I/O error
-	set open "::vfs::cvfs::data::${hashkey}::open"
-	if {[info commands $open] ne ""} {
-		if {[catch {$open $hashkey $relative} chan]} {
-			vfs::filesystem posixerror $::vfs::posix(EIO)
-		}
-
-		return [list $chan]
+	# A channel in C; a file that does not decrypt or inflate (changed or
+	# damaged) is an I/O error
+	if {[catch {::vfs::cvfs::data::${hashkey}::open $hashkey $relative} chan]} {
+		vfs::filesystem posixerror $::vfs::posix(EIO)
 	}
-
-	set chan [chan create [list "read"] [list ::vfs::cvfs::chanhandler $hashkey]]
-
-	set ::vfs::cvfs::chandata([list $hashkey $chan]) [list file $relative pos 0 len $metadata(size) watching ""]
 
 	return [list $chan]
 }
