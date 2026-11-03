@@ -33,20 +33,24 @@ proc ::cvfs_test::test_files {} {
 }
 
 # runAllTests also finds test files with glob, so it runs them from a native
-# copy, made by name
+# copy, made by name.  In one process, as only then does tcltest source the
+# test files as UTF-8 (Tcl 8.6 would read a separate process's script in the
+# system encoding); the copy is made with file mkdir, as the first test file's
+# cleanupTests deletes what makeDirectory made
 proc ::cvfs_test::run {args} {
 	variable dir
 
-	::tcltest::configure {*}$args
+	::tcltest::configure -singleproc 1 {*}$args
 
-	set testdir [::tcltest::makeDirectory cvfs_test_files]
+	set testdir [file join [::tcltest::temporaryDirectory] cvfs_test_files]
+	file mkdir $testdir
 	foreach file [test_files] {
 		file copy -force [file join $dir tests $file] $testdir
 	}
 	::tcltest::configure -testdir $testdir
 
 	set failed [::tcltest::runAllTests]
-	::tcltest::removeDirectory cvfs_test_files
+	file delete -force $testdir
 
 	exit $failed
 }
