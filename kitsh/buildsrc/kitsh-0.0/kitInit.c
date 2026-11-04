@@ -69,8 +69,8 @@ Tcl_AppInitProc Vfs_Init;
 #ifdef KIT_STORAGE_CVFS
 Tcl_AppInitProc Cvfs_data_tcl_Init;
 #endif
-#if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
-Tcl_AppInitProc	Thread_Init;
+#ifdef KIT_INCLUDES_MONOCYPHER
+Tcl_AppInitProc Monocypher_Init;
 #endif
 #ifdef _WIN32
 Tcl_AppInitProc	Dde_Init, Registry_Init;
@@ -183,6 +183,9 @@ static char *preInitCmd =
 		"load {} Tk\n"
 		"catch {rename send {}}\n"
 	"}\n"
+#endif
+#ifdef KIT_INCLUDES_MONOCYPHER
+	"package ifneeded monocypher " KIT_MONOCYPHER_VERSION " {load {} Monocypher}\n"
 #endif
 #ifdef _WIN32
 	"catch {load {} Dde}\n"
@@ -325,8 +328,8 @@ static void _Tclkit_Generic_Init(void) {
 #ifdef KIT_STORAGE_CVFS
 	Tcl_StaticPackage(0, "Cvfs_data_tcl", Cvfs_data_tcl_Init, NULL);
 #endif
-#if defined(TCL_THREADS) && TCL_MAJOR_VERSION < 9
-	Tcl_StaticPackage(0, "Thread", Thread_Init, NULL);
+#ifdef KIT_INCLUDES_MONOCYPHER
+	Tcl_StaticPackage(0, "Monocypher", Monocypher_Init, NULL);
 #endif
 #ifdef _WIN32
 	Tcl_StaticPackage(0, "Dde", Dde_Init, NULL);

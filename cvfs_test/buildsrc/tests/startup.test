@@ -1,0 +1,83 @@
+# Kit startup: Tcl modules come only from inside the kit.  tm.tcl adds
+# TCLx.y_TM_PATH directories and lib/tclX next to the executable when it
+# loads; a module planted there must not replace a bundled package.  Each test
+# runs a new kit process with TCLx.y_TM_PATH pointing at a planted
+# tcltest-99.0.tm.  Only when testing the running kit's own tree.
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	variable exe [file normalize [info nameofexecutable]]
+	testConstraint inKit [string match "$exe/*" [file normalize $::cvfs_test::root]]
+
+	regexp {^(\d+)\.(\d+)} [info patchlevel] -> major minor
+	variable tmvar TCL${major}.${minor}_TM_PATH
+
+	# Prefixed to each test's script: "outside" lists the given paths that are
+	# not inside the kit
+	variable report {
+		set exe [file normalize [info nameofexecutable]]
+		proc outside {paths} {
+			set ret [list]
+			foreach p $paths {
+				if {![string match "$::exe/*" [file normalize $p]]} {
+					lappend ret $p
+				}
+			}
+
+			return $ret
+		}
+	}
+
+	variable setup {
+		variable planted [makeDirectory cvfs_test_planted]
+		makeFile {package provide tcltest 99.0} tcltest-99.0.tm $planted
+		set ::env($tmvar) $planted
+	}
+	variable cleanup {
+		unset -nocomplain ::env($tmvar)
+		removeDirectory cvfs_test_planted
+	}
+
+	proc run_kit {script} {
+		variable exe
+		variable report
+
+		set file [makeFile "$report\n$script" cvfs_test_startup.tcl]
+		try {
+			return [exec $exe $file 2>@1]
+		} finally {
+			removeFile cvfs_test_startup.tcl
+		}
+	}
+
+	test startup-1.1 {module paths are all inside the kit} -constraints inKit -setup $setup -body {
+		run_kit {puts [outside [tcl::tm::path list]]}
+	} -cleanup $cleanup -result ""
+
+	test startup-1.2 {a module planted through TCLx.y_TM_PATH is not loaded} -constraints inKit -setup $setup -body {
+		run_kit {puts [package require tcltest]}
+	} -cleanup $cleanup -match regexp -result {^2\.}
+
+	test startup-1.3 {module paths in a Thread worker are all inside the kit} -constraints inKit -setup $setup -body {
+		run_kit {
+			package require Thread
+			set id [thread::create]
+			puts [outside [thread::send $id {tcl::tm::path list}]]
+		}
+	} -cleanup $cleanup -result ""
+
+	test startup-1.4 {module paths in a child interpreter are all inside the kit} -constraints inKit -setup $setup -body {
+		run_kit {
+			interp create child
+			puts [outside [child eval {tcl::tm::path list}]]
+		}
+	} -cleanup $cleanup -result ""
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test

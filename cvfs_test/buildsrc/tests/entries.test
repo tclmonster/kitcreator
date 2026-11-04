@@ -1,0 +1,54 @@
+# Every path in the manifest: type, mtime, size, contents and directory listing
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	test storage-1.1 {the tree is on CVFS} -body {
+		file system $::cvfs_test::root
+	} -match glob -result {tclvfs {::vfs::cvfs::vfshandler *}}
+
+	test storage-1.2 {the manifest was built on this platform} -body {
+		set ::tcl_platform(platform)
+	} -result [dict get $::cvfs_test::manifest platform]
+
+	variable entries [dict get $::cvfs_test::manifest entries]
+	variable idx 0
+	dict for {rel info} $entries {
+		incr idx
+		set path [::cvfs_test::path $rel]
+
+		test exists-1.$idx "\"$rel\" exists" -body [list file exists $path] -result 1
+		test type-1.$idx "type of \"$rel\"" -body [list file type $path] -result [dict get $info type]
+		test mtime-1.$idx "mtime of \"$rel\"" -body [list file mtime $path] -result [dict get $info mtime]
+
+		# POSIX: 1 for a file; 2 for a directory, plus one per subdirectory
+		set nlink 1
+		if {[dict get $info type] eq "directory"} {
+			set nlink 2
+			foreach child [dict get $info children] {
+				if {[dict get $entries [expr {$rel eq "" ? $child : "$rel/$child"}] type] eq "directory"} {
+					incr nlink
+				}
+			}
+		}
+		test nlink-1.$idx "link count of \"$rel\"" -body [list ::cvfs_test::nlink $path] -result $nlink
+
+		if {[dict get $info type] eq "directory"} {
+			test children-1.$idx "children of \"$rel\"" -body [list ::cvfs_test::children $path] \
+				-result [dict get $info children]
+
+			continue
+		}
+
+		test size-1.$idx "size of \"$rel\"" -body [list file size $path] -result [dict get $info size]
+		test contents-1.$idx "contents of \"$rel\"" -body "zlib crc32 \[[list ::cvfs_test::read_file $path]\]" \
+			-result [dict get $info crc]
+	}
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test

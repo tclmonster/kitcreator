@@ -323,6 +323,55 @@ AS_CASE([$storage_mech],
 	]
 )
 
+dnl Determine whether to statically link the monocypher extension
+AC_MSG_CHECKING([whether to link in the monocypher extension])
+AC_ARG_ENABLE(monocypher, AS_HELP_STRING([--enable-monocypher],[Link in the monocypher extension, built statically from Monocypher (default: disabled)]), [
+	AS_CASE([$enableval],
+		[yes], [
+			enable_monocypher='yes'
+		],
+		[no], [
+			enable_monocypher='no'
+		], [
+			AC_MSG_RESULT([unknown])
+
+			AC_MSG_ERROR([Invalid option: $enableval])
+		]
+	)
+], [
+	enable_monocypher='default'
+])
+
+dnl An encrypted CVFS decrypts with it
+AS_IF([test "$encrypt_cvfs" = 'yes'], [
+	AS_IF([test "$enable_monocypher" = 'no'], [
+		AC_MSG_RESULT([no])
+		AC_MSG_ERROR([--with-encrypted-cvfs needs the monocypher extension; remove --disable-monocypher])
+	])
+	enable_monocypher='yes'
+])
+AS_IF([test "$enable_monocypher" = 'default'], [
+	enable_monocypher='no'
+])
+AC_MSG_RESULT([$enable_monocypher])
+AS_IF([test "$enable_monocypher" = 'yes'], [
+	AC_DEFINE([KIT_INCLUDES_MONOCYPHER], [1], [Define if the monocypher extension is linked in])
+	AC_DEFINE([KIT_MONOCYPHER_VERSION], ["1.0"], [Tcl package version of the monocypher extension])
+
+	dnl Like cvfs_data_tcl.o: in the kit or KitDLL, not in the KitDLL's test programs
+	EXTRA_VFS_OBJS="${EXTRA_VFS_OBJS} monocypher/monocypher.o monocypher/monocypher-ed25519.o tclmonocypher.o"
+
+	dnl Random bytes: BCryptGenRandom on Windows, else getentropy() or /dev/urandom
+	AS_CASE([$host_os],
+		[mingw*], [
+			LIBS="${LIBS} -lbcrypt"
+		], [
+			AC_CHECK_HEADERS(sys/random.h)
+			AC_CHECK_FUNCS(getentropy)
+		]
+	)
+])
+
 AC_SUBST(EXTRA_KIT_DEPS)
 AC_SUBST(LDFLAGS_ADD)
 

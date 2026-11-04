@@ -172,7 +172,13 @@ proc tclKitPostInit {} {
 		package forget vfs
 	}
 
-	# Update Tcl Module system as well
+	# Update Tcl Module system as well.  tm.tcl is auto-loaded on first use,
+	# and loading it adds directories outside the kit (TCLx.y_TM_PATH and
+	# lib/tclX next to the executable), from which a planted module could
+	# replace a bundled package; load it now so they are removed here
+	if {[info command ::tcl::tm::path] eq ""} {
+		catch {auto_load ::tcl::tm::path}
+	}
 	if {[info command ::tcl::tm::path] ne ""} {
 		tcl::tm::path remove {*}[tcl::tm::path list]
 		tcl::tm::roots [file join $::starkit::tclkitroot lib]

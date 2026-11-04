@@ -195,11 +195,17 @@ Kitsh Configure Options:
 		default is to auto-detect.  Auto-detection uses Mk4 if
 		available and built statically, otherwise it falls back to Zip.
 
-	2. --with-obsfucated-cvfs
-		Specify that CVFS should be obsfucated.  The contents of the
-		CVFS are encrypted on disk and the encryption key is included
-		in the executable.  Files are then transparently decrypted on
-		access.
+	2. --with-encrypted-cvfs (or the older name --with-obsfucated-cvfs)
+		Encrypt the CVFS: file names and contents are stored with
+		XChaCha20-Poly1305 (Monocypher), and a changed or damaged file
+		fails to open.  The number of files and directories, which
+		entries share a directory, and each file's size and
+		modification time stay readable.  The key is in the
+		executable, so this keeps the contents from casual
+		extraction, not from someone willing to take the executable
+		apart.  Links in the monocypher extension
+		(--enable-monocypher), and needs a TCLSH_NATIVE that has it:
+		build a kit with --enable-monocypher first and use it.
 
 	3. --with-compressed-cvfs
 		Specify that CVFS should be compressed.
@@ -208,6 +214,26 @@ Kitsh Configure Options:
 		When provided, this option ensures private Tcl/Tk headers are
 		included with a KitDLL. This is required when building some
 		extensions.
+
+	5. --enable-monocypher
+		Link in the "monocypher" extension, built statically from the
+		copy of Monocypher in kitsh.  It provides the "monocypher"
+		package: ::monocypher commands for random bytes, encryption,
+		hashing, key exchange and signatures.
+
+-------------
+Changes to Tk
+-------------
+KitCreator patches Tk so other programs cannot run code in a Tk application:
+
+	1. X11 "send" is disabled
+		It would let any client on the X display run scripts.  To keep
+		it, build with KC_TK_CFLAGS=-DTK_SEND_ENABLED_ON_UNIX
+
+	2. AppleScript "do script" is refused (macOS)
+		It would let other applications run scripts.  To allow it,
+		define ::tk::mac::DoScriptText and ::tk::mac::DoScriptFile after
+		loading Tk.
 
 --------------------
 Using the KitDLL SDK

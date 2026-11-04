@@ -1,0 +1,91 @@
+Apply glob's hidden-file rule and -types permissions to every handler's
+matches.  Handlers are passed only types->type, so "glob -types hidden" and
+the readonly, r, w and x types were ignored (e.g. "-types hidden *" returned
+the visible files).  On Unix, names starting with "." now match only a pattern
+starting with "." or -types hidden, as in native globbing (glob.n,
+unix/tclUnixFile.c); the permissions are checked with Tcl_FSAccess.
+
+diff -ruN A/generic/vfs.c B/generic/vfs.c
+--- A/generic/vfs.c
++++ B/generic/vfs.c
+@@ -1504,6 +1504,71 @@
+     ckfree((char*)channelRet);
+ }
+ 
++/*
++ * Handlers are passed only types->type, so the rules native globbing applies
++ * beyond the pattern and the file type are applied here, to every handler's
++ * matches:
++ *
++ * - On Unix, a name starting with "." matches only a pattern starting with
++ *   "." (or "\."), or -types hidden, which then keeps only such names; as
++ *   unix/tclUnixFile.c does, and glob.n describes.  On Windows only the
++ *   hidden attribute marks a file hidden, and a VFS has none.
++ * - The permissions in types->perm (readonly, r, w, x), checked with
++ *   Tcl_FSAccess, which asks the same handler.
++ */
++
++static void
++VfsAppendMatches(
++    Tcl_Obj *returnPtr,		/* Object to receive results. */
++    Tcl_Obj *matchesPtr,	/* The handler's list of matching paths. */
++    const char *pattern,	/* Pattern matched against, or NULL for a
++				 * single path. */
++    Tcl_GlobTypeData *types)	/* Acceptable types and permissions. May be
++				 * NULL. */
++{
++    Tcl_Size i, count;
++    Tcl_Obj **matches;
++    int perm = (types != NULL) ? types->perm : 0;
++#ifndef _WIN32
++    int dotsMatch = (pattern != NULL) && ((pattern[0] == '.')
++	    || ((pattern[0] == '\\') && (pattern[1] == '.')));
++#endif
++
++    if (Tcl_ListObjGetElements(NULL, matchesPtr, &count, &matches) != TCL_OK) {
++	return;
++    }
++
++    for (i = 0; i < count; i++) {
++	Tcl_Obj *pathPtr = matches[i];
++#ifndef _WIN32
++	const char *path = Tcl_GetString(pathPtr);
++	const char *tail = strrchr(path, '/');
++	int dotName = (((tail != NULL) ? tail + 1 : path)[0] == '.');
++
++	if (dotName && (pattern != NULL) && !dotsMatch
++		&& !(perm & TCL_GLOB_PERM_HIDDEN)) {
++	    continue;
++	}
++	if (!dotName && (perm & TCL_GLOB_PERM_HIDDEN)) {
++	    continue;
++	}
++#else
++	if (perm & TCL_GLOB_PERM_HIDDEN) {
++	    continue;
++	}
++#endif
++
++	if (((perm & TCL_GLOB_PERM_RONLY) && (Tcl_FSAccess(pathPtr, W_OK) == 0))
++		|| ((perm & TCL_GLOB_PERM_R) && (Tcl_FSAccess(pathPtr, R_OK) != 0))
++		|| ((perm & TCL_GLOB_PERM_W) && (Tcl_FSAccess(pathPtr, W_OK) != 0))
++		|| ((perm & TCL_GLOB_PERM_X) && (Tcl_FSAccess(pathPtr, X_OK) != 0))) {
++	    continue;
++	}
++
++	Tcl_ListObjAppendElement(NULL, returnPtr, pathPtr);
++    }
++}
++
+ static int
+ VfsMatchInDirectory(
+     Tcl_Interp *cmdInterp,	/* Interpreter to receive error msgs. */
+@@ -1582,7 +1647,7 @@
+ 	if (vfsResultPtr != NULL) {
+ 	    if (returnVal == TCL_OK) {
+ 		Tcl_IncrRefCount(vfsResultPtr);
+-		Tcl_ListObjAppendList(cmdInterp, returnPtr, vfsResultPtr);
++		VfsAppendMatches(returnPtr, vfsResultPtr, pattern, types);
+ 		Tcl_DecrRefCount(vfsResultPtr);
+ 	    } else {
+ 		if (cmdInterp != NULL) {

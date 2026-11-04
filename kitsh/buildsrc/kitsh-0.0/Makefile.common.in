@@ -29,7 +29,8 @@ GOKIT_CFLAGS = @GOKIT_CFLAGS@
 ## VFS Build
 cvfs_data_tcl.o: cvfs_data_tcl.c
 cvfs_data_tcl.c: dir2c.tcl starpack.vfs cvfs_data.c
-	"$(TCLSH_NATIVE)" dir2c.tcl tcl starpack.vfs $(DIR2C_FLAGS) > cvfs_data_tcl.c
+	"$(TCLSH_NATIVE)" dir2c.tcl tcl starpack.vfs $(DIR2C_FLAGS) > cvfs_data_tcl.c.new
+	mv cvfs_data_tcl.c.new cvfs_data_tcl.c
 
 ## Tcl scripts that need to be converted to C headers
 cvfs.tcl.h: cvfs.tcl
@@ -51,7 +52,7 @@ clean:
 	rm -f kit kit.res.o libkitsh.a
 	rm -f libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@
 	rm -f $(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
-	rm -f cvfs_data_tcl.c cvfs_data_tcl.o
+	rm -f cvfs_data_tcl.c cvfs_data_tcl.c.new cvfs_data_tcl.o
 	rm -f cvfs.tcl.h
 	rm -f tclsh.o tclsh tclsh.exe
 	rm -f wish.o wish wish.exe

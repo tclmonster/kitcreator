@@ -1,0 +1,227 @@
+# Reading through channels: chunks, seek and tell, partial reads, lines,
+# events, stacking, moving between interpreters and threads, options
+
+package require tcltest 2.5
+::tcltest::configure {*}$::argv
+source [file join [file dirname [file normalize [info script]]] common.tcl]
+
+namespace eval ::cvfs_test::test {
+	namespace import ::tcltest::*
+
+	variable big [::cvfs_test::path big.bin]
+	variable info [dict get $::cvfs_test::manifest entries big.bin]
+	variable open_big {
+		variable whole [::cvfs_test::read_file $big]
+		variable fd [open $big]
+		fconfigure $fd -translation binary
+	}
+	variable close_big {
+		close $fd
+	}
+
+	test channels-1.1 {reading in chunks gives the whole file} -setup $open_big -body {
+		variable chunks ""
+		while {![eof $fd]} {
+			append chunks [read $fd 4099]
+		}
+		zlib crc32 $chunks
+	} -cleanup $close_big -result [dict get $info crc]
+
+	test channels-1.2 {tell after seeking from the end} -setup $open_big -body {
+		seek $fd -10 end
+		tell $fd
+	} -cleanup $close_big -result [expr {[dict get $info size] - 10}]
+
+	test channels-1.3 {read after seeking from the end} -setup $open_big -body {
+		seek $fd -10 end
+		expr {[read $fd] eq [string range $whole end-9 end]}
+	} -cleanup $close_big -result 1
+
+	test channels-1.4 {partial read after seeking from the start} -setup $open_big -body {
+		seek $fd 1000 start
+		expr {[read $fd 16] eq [string range $whole 1000 1015]}
+	} -cleanup $close_big -result 1
+
+	test channels-1.5 {gets reads every line} -body {
+		variable fd [open [::cvfs_test::path lines.txt]]
+		variable count 0
+		while {[gets $fd line] >= 0} {
+			incr count
+		}
+		close $fd
+		set count
+	} -result 20000
+
+	test channels-1.6 {an empty file reads as empty} -body {
+		::cvfs_test::read_file [::cvfs_test::path empty.txt]
+	} -result ""
+
+	# Seeking as for a native file (seek.n, CrtChannel.3): past the end is
+	# allowed and reads nothing; before the start is EINVAL and does not move
+	test channels-2.1 {seeking past the end, as for a native file} -setup $open_big -body {
+		seek $fd 10 end
+		list [expr {[tell $fd] - [dict get $info size]}] [read $fd] [eof $fd]
+	} -cleanup $close_big -result {10 {} 1}
+
+	test channels-2.2 {seeking before the start is EINVAL} -setup $open_big -body {
+		seek $fd 100 start
+		list [catch {seek $fd -5 start} msg opts] [dict get $opts -errorcode] [tell $fd]
+	} -cleanup $close_big -result {1 {POSIX EINVAL {invalid argument}} 100}
+
+	test channels-2.3 {seeking from the current position before the start is EINVAL} -setup $open_big -body {
+		seek $fd 100 start
+		list [catch {seek $fd -200 current} msg opts] [dict get $opts -errorcode] [tell $fd]
+	} -cleanup $close_big -result {1 {POSIX EINVAL {invalid argument}} 100}
+
+	# Events and background copies depend on the channel's watch handling
+	variable wait_for {
+		after 5000 [list set [namespace current]::done timeout]
+		vwait [namespace current]::done
+		after cancel [list set [namespace current]::done timeout]
+	}
+
+	test channels-3.1 {readable events read the whole file} -setup $open_big -body {
+		variable done ""
+		variable got ""
+		fconfigure $fd -blocking 0
+		chan event $fd readable [namespace code {
+			append got [read $fd 65536]
+			if {[eof $fd]} {
+				set done eof
+			}
+		}]
+		eval $wait_for
+		list $done [expr {$got eq $whole}]
+	} -cleanup $close_big -result {eof 1}
+
+	test channels-3.2 {fcopy -command copies the whole file} -setup {
+		eval $open_big
+		variable out [file join [temporaryDirectory] channels-3.2.bin]
+		variable outfd [open $out w]
+		fconfigure $outfd -translation binary
+	} -body {
+		variable done ""
+		fcopy $fd $outfd -command [namespace code {apply {{count args} {
+			variable done [list $count $args]
+		} ::cvfs_test::test}}]
+		eval $wait_for
+		close $outfd
+		list $done [expr {[::cvfs_test::read_file $out] eq $whole}]
+	} -cleanup {
+		catch {close $outfd}
+		file delete $out
+		eval $close_big
+	} -result [list [list [dict get $info size] {}] 1]
+
+	# Stacking and moving a channel
+	test channels-4.1 {a transform can be stacked on a channel} -body {
+		variable fd [open [::cvfs_test::path lines.txt]]
+		chan push $fd [list apply {{cmd chan args} {
+			switch -- $cmd {
+				initialize {
+					return {initialize finalize read}
+				}
+				read {
+					return [string toupper [lindex $args 0]]
+				}
+			}
+		}}]
+		gets $fd
+	} -cleanup {
+		close $fd
+	} -result {LINE 1 OF 20000}
+
+	test channels-4.2 {a channel can move to another interpreter} -setup {
+		variable child [interp create]
+	} -body {
+		variable fd [open [::cvfs_test::path lines.txt]]
+		interp transfer {} $fd $child
+		list [$child eval [list gets $fd]] [$child eval [list close $fd]]
+	} -cleanup {
+		interp delete $child
+	} -result {{line 1 of 20000} {}}
+
+	testConstraint thread [expr {![catch {package require Thread}]}]
+
+	test channels-4.3 {a channel can move to another thread} -constraints thread -setup {
+		variable worker [thread::create]
+	} -body {
+		variable done ""
+		variable fd [open [::cvfs_test::path lines.txt]]
+		thread::transfer $worker $fd
+		thread::send -async $worker [list apply {{fd} {
+			list [gets $fd] [catch {close $fd} msg] $msg
+		}} $fd] [namespace current]::done
+		eval $wait_for
+		set done
+	} -cleanup {
+		thread::release $worker
+	} -result {{line 1 of 20000} 0 {}}
+
+	# A channel whose handlers run in the thread that opened it would hang
+	# here, as that thread is blocked in the synchronous thread::send.  A new
+	# process, with a watchdog thread that exits it after 10 seconds
+	variable sync_script [join [list [::tcltest::configure -load] \
+		[list set path [::cvfs_test::path lines.txt]] {
+		package require Thread
+		thread::create {
+			after 10000 {
+				puts "timed out"
+				exit 1
+			}
+			thread::wait
+		}
+		set worker [thread::create]
+		set fd [open $path]
+		thread::transfer $worker $fd
+		puts [thread::send $worker [list gets $fd]]
+		thread::send $worker [list close $fd]
+		exit 0
+	}] "\n"]
+
+	test channels-4.4 {a channel moved to another thread works with a synchronous send, in a new process} -constraints thread -setup {
+		variable scriptfile [makeFile $sync_script cvfs_channels.tcl]
+	} -body {
+		exec [info nameofexecutable] $scriptfile 2>@1
+	} -cleanup {
+		removeFile cvfs_channels.tcl
+	} -result {line 1 of 20000}
+
+	# Encoding, translation and options are the generic channel layer's
+	test channels-5.1 {-encoding utf-8 decodes the file} -body {
+		variable path [::cvfs_test::path café.txt]
+		variable fd [open $path]
+		fconfigure $fd -encoding utf-8
+		expr {[read $fd] eq [encoding convertfrom utf-8 [::cvfs_test::read_file $path]]}
+	} -cleanup {
+		close $fd
+	} -result 1
+
+	test channels-5.2 {-translation crlf keeps lone line feeds} -body {
+		variable path [::cvfs_test::path lines.txt]
+		variable fd [open $path]
+		fconfigure $fd -translation crlf
+		expr {[read $fd] eq [::cvfs_test::read_file $path]}
+	} -cleanup {
+		close $fd
+	} -result 1
+
+	test channels-5.3 {the options are those of a native file} -body {
+		variable fd [open [::cvfs_test::path lines.txt]]
+		variable native [open [info script]]
+		expr {[dict keys [fconfigure $fd]] eq [dict keys [fconfigure $native]]}
+	} -cleanup {
+		close $fd
+		close $native
+	} -result 1
+
+	test channels-5.4 {writing to a file opened for reading is refused} -body {
+		variable fd [open [::cvfs_test::path lines.txt]]
+		list [catch {puts $fd x} msg] [string match "*wasn't opened for writing" $msg]
+	} -cleanup {
+		close $fd
+	} -result {1 1}
+
+	cleanupTests
+}
+namespace delete ::cvfs_test::test
