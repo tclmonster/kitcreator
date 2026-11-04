@@ -221,6 +221,20 @@ Kitsh Configure Options:
 		package: ::monocypher commands for random bytes, encryption,
 		hashing, key exchange and signatures.
 
+-------------
+Changes to Tk
+-------------
+KitCreator patches Tk so other programs cannot run code in a Tk application:
+
+	1. X11 "send" is disabled
+		It would let any client on the X display run scripts.  To keep
+		it, build with KC_TK_CFLAGS=-DTK_SEND_ENABLED_ON_UNIX
+
+	2. AppleScript "do script" is refused (macOS)
+		It would let other applications run scripts.  To allow it,
+		define ::tk::mac::DoScriptText and ::tk::mac::DoScriptFile after
+		loading Tk.
+
 --------------------
 Using the KitDLL SDK
 --------------------
