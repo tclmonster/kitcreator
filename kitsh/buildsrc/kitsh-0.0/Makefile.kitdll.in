@@ -10,10 +10,15 @@ kitdll-static: libtclkit@KITDLL_LIB_VERSION@.a
 
 ## DLL Build
 ifeq ($(HAVE_GO),yes)
+# When MSYS2 invokes tclsh with mixed paths, it mistakes ':' for a path
+# delimiter. Setting MSYS2_ENV_CONV_EXCL prevents this conversion and defers
+# it to gobuild.tcl, which produces the native Windows paths cgo needs to
+# invoke clang.
 libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@: $(OBJS) $(EXTRA_KIT_DEPS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
 	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
 	GOKIT_CFLAGS="$(GOKIT_CFLAGS)" \
+	MSYS2_ENV_CONV_EXCL="CPPFLAGS;CFLAGS;GOKIT_CFLAGS;LDFLAGS" \
 	LDFLAGS="$(OBJS) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS) $(LDFLAGS) $(SHOBJLDFLAGS) @WHOLEARCHIVE@ $(ARCHS) @NOWHOLEARCHIVE@ $(ARCHS_STUBS) $(LIBS) $(LDFLAGS_ADD)" \
 	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/libtclkit@KITDLL_LIB_VERSION@.@SHOBJEXT@" \
 	GO_BUILDMODE=c-shared \

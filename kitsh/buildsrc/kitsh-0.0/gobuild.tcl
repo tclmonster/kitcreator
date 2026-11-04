@@ -113,7 +113,7 @@ for {set i 0} {$i < [llength $ldflags]} {incr i} {
         }
         "-L*" {
             set lpath [string range $flag 2 end]
-            if {[file pathtype $lpath] ne "absolute"} {
+            if {[file pathtype $lpath] eq "relative"} {
                 set lpath [file normalize $lpath]
             }
             append extldflags " -L[cvtpath $lpath]"

@@ -10,10 +10,15 @@ libkitsh.a: $(OBJS_C) $(EXTRA_OBJS) $(EXTRA_VFS_OBJS)
 	$(RANLIB) $@
 
 ifeq ($(HAVE_GO),yes)
+# When MSYS2 invokes tclsh with mixed paths, it mistakes ':' for a path
+# delimiter. Setting MSYS2_ENV_CONV_EXCL prevents this conversion and defers
+# it to gobuild.tcl, which produces the native Windows paths cgo needs to
+# invoke clang.
 kit: libkitsh.a $(EXTRA_KIT_DEPS) $(ARCHS) $(ARCHS_STUBS)
 	GO="$(GO)" CC="$(CC)" GOROOT="$(GOROOT)" \
 	CPPFLAGS="$(CPPFLAGS)" CFLAGS="$(CFLAGS)" \
 	GOKIT_CFLAGS="$(GOKIT_CFLAGS)" \
+	MSYS2_ENV_CONV_EXCL="CPPFLAGS;CFLAGS;GOKIT_CFLAGS;LDFLAGS" \
 	LDFLAGS="$(EXTRA_OBJS) libkitsh.a $(ARCHS) $(ARCHS_STUBS) $(LDFLAGS) $(LIBS) $(LDFLAGS_ADD)" \
 	GO_PKGDIR=gokit GO_OUTPUT="$(CURDIR)/kit@EXEEXT@" \
 	GO_BUILD_TAGS="$(GO_BUILD_TAGS)" \
