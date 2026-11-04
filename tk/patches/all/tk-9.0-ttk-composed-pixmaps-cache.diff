@@ -1,0 +1,2304 @@
+Back-port of Tk branch tip-754-ttk-composed-pixmaps-cache (6a45a5c3ad):
+cache ttk element renders per layout node and composite RGBA photos with
+XRender on X11 (--enable-xrender) and GDI AlphaBlend on Windows.
+
+diff -ruN A/generic/tkImgPhInstance.c B/generic/tkImgPhInstance.c
+--- A/generic/tkImgPhInstance.c
++++ B/generic/tkImgPhInstance.c
+@@ -616,6 +616,55 @@
+ /*
+  *----------------------------------------------------------------------
+  *
++ * TkPremultiplyRGBA --
++ *
++ *	Copy a w x h sub-rect of an RGBA image (4 bytes/pixel, not
++ *	premultiplied) into a buffer of the given byte stride, as
++ *	premultiplied BGRA: byte order B,G,R,A, with each color channel
++ *	multiplied by its alpha.  Used by the platform TkpPutRGBAImage
++ *	implementations.
++ *
++ * Results:
++ *	None.
++ *
++ * Side effects:
++ *	Fills in dst.
++ *
++ *----------------------------------------------------------------------
++ */
++
++void
++TkPremultiplyRGBA(
++    XImage *image,		/* Source image; RGBA, not premultiplied. */
++    int src_x, int src_y,	/* Top-left of the sub-rect within image. */
++    int w, int h,		/* Size of the sub-rect. */
++    unsigned char *dst,		/* Destination buffer, premultiplied BGRA. */
++    int dstStride)		/* Bytes per destination row. */
++{
++    int x, y;
++
++    for (y = 0; y < h; y++) {
++	unsigned char *s = (unsigned char *) image->data
++		+ (size_t) (src_y + y) * image->bytes_per_line
++		+ (size_t) src_x * 4;
++	unsigned char *o = dst + (size_t) y * dstStride;
++
++	for (x = 0; x < w; x++) {
++	    unsigned int a = s[3];
++
++	    o[0] = (unsigned char) ((s[2] * a + 127) / 255);	/* B */
++	    o[1] = (unsigned char) ((s[1] * a + 127) / 255);	/* G */
++	    o[2] = (unsigned char) ((s[0] * a + 127) / 255);	/* R */
++	    o[3] = (unsigned char) a;				/* A */
++	    s += 4;
++	    o += 4;
++	}
++    }
++}
++
++/*
++ *----------------------------------------------------------------------
++ *
+  * TkImgPhotoDisplay --
+  *
+  *	This function is invoked to draw a photo image.
+@@ -682,6 +731,40 @@
+ 	Tk_ErrorHandler handler;
+ 	XImage *bgImg = NULL;
+ 
++#ifdef HAVE_XRENDER
++	/*
++	 * Try the server-side XRender composite first (TkpPutRGBAImage); it
++	 * avoids the XGetImage read-back and the per-pixel CPU blend below.
++	 * Fall through to the software blend when the server lacks RENDER or
++	 * the drawable has no usable picture format.
++	 */
++
++	/*
++	 * Note: bitmap_pad must be 8, 16 or 32 -- Xlib's XCreateImage
++	 * returns NULL otherwise (the macOS TK_CAN_RENDER_RGBA branch
++	 * passes 0, but only its Xlib emulation accepts that).
++	 */
++
++	unsigned char *rgbaPixels = instancePtr->modelPtr->pix32;
++	XImage *photo = XCreateImage(display, NULL, 32, ZPixmap, 0,
++		(char *) rgbaPixels, (unsigned int) instancePtr->width,
++		(unsigned int) instancePtr->height, 32,
++		(unsigned int) (4 * instancePtr->width));
++
++	if (photo != NULL) {
++	    int result = TkpPutRGBAImage(display, drawable, instancePtr->gc,
++		    photo, imageX, imageY, drawableX, drawableY,
++		    (unsigned int) width, (unsigned int) height);
++
++	    photo->data = NULL;
++	    XDestroyImage(photo);
++	    if (result == Success) {
++		(void) XFlush(display);
++		return;
++	    }
++	}
++#endif /* HAVE_XRENDER */
++
+ 	/*
+ 	 * Create an error handler to suppress the case where the input was
+ 	 * not properly constrained, which can cause an X error. [Bug 979239]
+diff -ruN A/generic/tkInt.h B/generic/tkInt.h
+--- A/generic/tkInt.h
++++ B/generic/tkInt.h
+@@ -1220,6 +1220,8 @@
+ MODULE_SCOPE int	TkPostscriptImage(Tcl_Interp *interp, Tk_Window tkwin,
+ 			    Tk_PostscriptInfo psInfo, XImage *ximage,
+ 			    int x, int y, int width, int height);
++MODULE_SCOPE void	TkPremultiplyRGBA(XImage *image, int src_x, int src_y,
++			    int w, int h, unsigned char *dst, int dstStride);
+ MODULE_SCOPE void       TkMapTopFrame(Tk_Window tkwin);
+ MODULE_SCOPE XEvent *	TkpGetBindingXEvent(Tcl_Interp *interp);
+ MODULE_SCOPE void	TkCreateExitHandler(Tcl_ExitProc *proc,
+diff -ruN A/generic/tkPort.h B/generic/tkPort.h
+--- A/generic/tkPort.h
++++ B/generic/tkPort.h
+@@ -14,18 +14,15 @@
+ #ifndef _TKPORT
+ #define _TKPORT
+ 
+-#if defined(_WIN32)
+-#   include "tkWinPort.h"
+-#endif
+ #ifndef _TK
+ #   include "tk.h"
+ #endif
+-#if !defined(_WIN32)
+-#   if defined(MAC_OSX_TK)
+-#	include "tkMacOSXPort.h"
+-#   else
+-#	include "tkUnixPort.h"
+-#   endif
++#if defined(_WIN32)
++#   include "tkWinPort.h"
++#elif defined(MAC_OSX_TK)
++#   include "tkMacOSXPort.h"
++#else
++#   include "tkUnixPort.h"
+ #endif
+ 
+ #endif /* _TKPORT */
+diff -ruN A/generic/ttk/ttkElements.c B/generic/ttk/ttkElements.c
+--- A/generic/ttk/ttkElements.c
++++ B/generic/ttk/ttkElements.c
+@@ -182,6 +182,29 @@
+     BackgroundElementDraw
+ };
+ 
++#ifndef TK_NO_DOUBLE_BUFFERING
++/* BackgroundElementCacheInfo --
++ *	Cache info for the background and fill elements: a flat fill of the
++ *	resolved -background color, so fully opaque.  The resolved border is
++ *	folded into the content epoch so a changed style background still
++ *	invalidates nodes composited over it.
++ */
++static void BackgroundElementCacheInfo(
++    TCL_UNUSED(void *),
++    void *elementRecord,
++    Tk_Window tkwin,
++    TCL_UNUSED(Ttk_Box),
++    TCL_UNUSED(Ttk_State),
++    Ttk_ElementCacheInfo *info)
++{
++    BackgroundElement *bg = (BackgroundElement *)elementRecord;
++    Tk_3DBorder border = Tk_Get3DBorderFromObj(tkwin, bg->backgroundObj);
++
++    info->opaque = 1;
++    info->epoch = (unsigned) ((size_t) border >> 4);
++}
++#endif /* !TK_NO_DOUBLE_BUFFERING */
++
+ /*----------------------------------------------------------------------
+  * +++ Border element.
+  */
+@@ -2008,14 +2031,29 @@
+ TtkElements_Init(Tcl_Interp *interp)
+ {
+     Ttk_Theme theme =  Ttk_GetDefaultTheme(interp);
++    Ttk_ElementClass *eclass;
+ 
+     /*
+      * Elements:
+      */
+-    Ttk_RegisterElement(interp, theme, "background",
++    eclass = Ttk_RegisterElement(interp, theme, "background",
+ 	    &BackgroundElementSpec, NULL);
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (eclass) {
++	TtkSetElementCachePolicy(eclass, TTK_ELEMENT_STABLE,
++		BackgroundElementCacheInfo);
++    }
++#endif
+ 
+-    Ttk_RegisterElement(interp, theme, "fill", &FillElementSpec, NULL);
++    eclass = Ttk_RegisterElement(interp, theme, "fill", &FillElementSpec, NULL);
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (eclass) {
++	TtkSetElementCachePolicy(eclass, TTK_ELEMENT_STABLE,
++		BackgroundElementCacheInfo);
++    }
++#else
++    (void) eclass;
++#endif
+     Ttk_RegisterElement(interp, theme, "border", &BorderElementSpec, NULL);
+     Ttk_RegisterElement(interp, theme, "field", &FieldElementSpec, NULL);
+     Ttk_RegisterElement(interp, theme, "focus", &FocusElementSpec, NULL);
+diff -ruN A/generic/ttk/ttkImage.c B/generic/ttk/ttkImage.c
+--- A/generic/ttk/ttkImage.c
++++ B/generic/ttk/ttkImage.c
+@@ -11,38 +11,36 @@
+  */
+ 
+ #include "tkInt.h"
+-#include "ttkTheme.h"
++#include "ttkThemeInt.h"
+ 
+ #define MIN(a,b) ((a) < (b) ? (a) : (b))
+ 
++/*
++ * Batched tiling (see Ttk_Fill): available where a platform RGBA composite
++ * exists -- TK_CAN_RENDER_RGBA covers macOS and Windows, HAVE_XRENDER X11.
++ */
++
++#if defined(TK_CAN_RENDER_RGBA) || defined(HAVE_XRENDER)
++#define TTK_TILE_BATCH 1
++#define TILE_BATCH_MIN_TILES	16	/* Fewer tiles: the loop is fine. */
++#define TILE_BATCH_MIN_AREA	(64*64)	/* Match the X11 composite floor. */
++#endif
++
+ /*------------------------------------------------------------------------
+  * +++ ImageSpec management.
+  */
+ 
+ struct TtkImageSpec {
+     Tk_Image		baseImage;	/* Base image to use */
+-    int		mapCount;	/* #state-specific overrides */
++    Tcl_Obj		*baseName;	/* Name of base image */
++    Tcl_Size		mapCount;	/* #state-specific overrides */
+     Ttk_StateSpec	*states;	/* array[mapCount] of states ... */
+     Tk_Image		*images;	/* ... per-state images to use */
++    Tcl_Obj		**names;	/* array[mapCount] of image names */
+     Tk_ImageChangedProc *imageChanged;
+     void		*imageChangedClientData;
+ };
+ 
+-/* NullImageChanged --
+- *	Do-nothing Tk_ImageChangedProc.
+- */
+-static void NullImageChanged(
+-    TCL_UNUSED(void *),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int),
+-    TCL_UNUSED(int))
+-{
+-    /* No-op */
+-}
+-
+ /* ImageSpecImageChanged --
+  *     Image changes should trigger a repaint.
+  */
+@@ -85,9 +83,11 @@
+ 
+     imageSpec = (Ttk_ImageSpec *)ckalloc(sizeof(*imageSpec));
+     imageSpec->baseImage = 0;
++    imageSpec->baseName = 0;
+     imageSpec->mapCount = 0;
+     imageSpec->states = 0;
+     imageSpec->images = 0;
++    imageSpec->names = 0;
+     imageSpec->imageChanged = imageChangedProc;
+     imageSpec->imageChangedClientData = imageChangedClientData;
+ 
+@@ -106,8 +106,9 @@
+     }
+ 
+     n = (objc - 1) / 2;
+-    imageSpec->states = (Ttk_StateSpec *)ckalloc(n * sizeof(Ttk_StateSpec));
+-    imageSpec->images = (Tk_Image *)ckalloc(n * sizeof(Tk_Image));
++    imageSpec->states = (Ttk_StateSpec *)Tcl_Alloc(n * sizeof(Ttk_StateSpec));
++    imageSpec->images = (Tk_Image *)Tcl_Alloc(n * sizeof(Tk_Image));
++    imageSpec->names = (Tcl_Obj **)Tcl_Alloc(n * sizeof(Tcl_Obj *));
+ 
+     /* Get base image:
+     */
+@@ -116,6 +117,8 @@
+     if (!imageSpec->baseImage) {
+ 	goto error;
+     }
++    imageSpec->baseName = objv[0];
++    Tcl_IncrRefCount(imageSpec->baseName);
+ 
+     /* Extract state and image specifications:
+      */
+@@ -130,10 +133,12 @@
+ 	imageSpec->states[i] = state;
+ 
+ 	imageSpec->images[i] = Tk_GetImage(
+-	    interp, tkwin, imageName, NullImageChanged, NULL);
++	    interp, tkwin, imageName, ImageSpecImageChanged, imageSpec);
+ 	if (imageSpec->images[i] == NULL) {
+ 	    goto error;
+ 	}
++	imageSpec->names[i] = objv[2*i + 2];
++	Tcl_IncrRefCount(imageSpec->names[i]);
+ 	imageSpec->mapCount = i+1;
+     }
+ 
+@@ -153,11 +158,16 @@
+ 
+     for (i=0; i < imageSpec->mapCount; ++i) {
+ 	Tk_FreeImage(imageSpec->images[i]);
++	if (imageSpec->names && imageSpec->names[i]) {
++	    Tcl_DecrRefCount(imageSpec->names[i]);
++	}
+     }
+ 
+     if (imageSpec->baseImage) { Tk_FreeImage(imageSpec->baseImage); }
+-    if (imageSpec->states) { ckfree(imageSpec->states); }
+-    if (imageSpec->images) { ckfree(imageSpec->images); }
++    if (imageSpec->baseName) { Tcl_DecrRefCount(imageSpec->baseName); }
++    if (imageSpec->states) { Tcl_Free(imageSpec->states); }
++    if (imageSpec->images) { Tcl_Free(imageSpec->images); }
++    if (imageSpec->names) { Tcl_Free(imageSpec->names); }
+ 
+     ckfree(imageSpec);
+ }
+@@ -179,6 +189,24 @@
+     return imageSpec->baseImage;
+ }
+ 
++#if !defined(TK_NO_DOUBLE_BUFFERING) || defined(TTK_TILE_BATCH)
++/* TtkSelectImageName --
++ *	Name of the image TtkSelectImage would pick, for photo lookup.
++ */
++static Tcl_Obj *TtkSelectImageName(
++    Ttk_ImageSpec *imageSpec,
++    Ttk_State state)
++{
++    int i;
++    for (i = 0; i < imageSpec->mapCount; ++i) {
++	if (Ttk_StateMatches(state, imageSpec->states+i)) {
++	    return imageSpec->names[i];
++	}
++    }
++    return imageSpec->baseName;
++}
++#endif /* !TK_NO_DOUBLE_BUFFERING || TTK_TILE_BATCH */
++
+ /*------------------------------------------------------------------------
+  * +++ Drawing utilities.
+  */
+@@ -207,6 +235,205 @@
+ static Ttk_Box BPadding(Ttk_Box b, Ttk_Padding p)
+     { return Ttk_MakeBox(b.x, b.y+b.height-p.bottom, b.width, p.bottom); }
+ 
++#ifdef TTK_TILE_BATCH
++/* BlockIsPackedRGBA --
++ *	True if blk is tightly packed 4-byte pixels in R,G,B,A byte order, i.e.
++ *	offset[i] == i for every channel.  This is the one layout AssembleFill
++ *	can memcpy without reordering channels.
++ */
++static int BlockIsPackedRGBA(const Tk_PhotoImageBlock *blk)
++{
++    int i;
++
++    if (blk->pixelSize != 4) {
++	return 0;
++    }
++    for (i = 0; i < 4; i++) {
++	if (blk->offset[i] != i) {
++	    return 0;
++	}
++    }
++    return 1;
++}
++
++/* SrcWithinBlock --
++ *	True if the src sub-rectangle lies entirely within blk's pixels, so it
++ *	can be read without running past the block.
++ */
++static int SrcWithinBlock(Ttk_Box src, const Tk_PhotoImageBlock *blk)
++{
++    return src.x >= 0 && src.y >= 0
++	    && src.x + src.width <= blk->width
++	    && src.y + src.height <= blk->height;
++}
++
++/* NineSlice --
++ *	Split a box into the nine regions Ttk_Tile/Ttk_Stripe would draw:
++ *	three rows (top/middle/bottom), each cut into three columns
++ *	(left/center/right), stored row-major.
++ */
++static void NineSlice(Ttk_Box b, Ttk_Padding p, Ttk_Box out[9])
++{
++    Ttk_Box row[3];
++    int r;
++
++    row[0] = TPadding(b, p);		/* top */
++    row[1] = MPadding(b, p);		/* middle */
++    row[2] = BPadding(b, p);		/* bottom */
++    for (r = 0; r < 3; r++) {
++	out[3*r + 0] = LPadding(row[r], p);	/* left */
++	out[3*r + 1] = CPadding(row[r], p);	/* center */
++	out[3*r + 2] = RPadding(row[r], p);	/* right */
++    }
++}
++
++/* AssembleFill --
++ *	Client-side analogue of Ttk_Fill: tile the photo's src sub-rectangle
++ *	over the dst sub-rectangle of an RGBA buffer that is bufW x bufH
++ *	pixels, dst relative to the buffer origin.  Degenerate or
++ *	out-of-bounds regions are skipped, like the drawing path skips them.
++ */
++static void AssembleFill(
++    Tk_PhotoImageBlock *blk,
++    unsigned char *buf, int bufW, int bufH,
++    Ttk_Box src, Ttk_Box dst)
++{
++    int x, y;
++
++    if (src.width <= 0 || src.height <= 0
++	    || dst.width <= 0 || dst.height <= 0
++	    || !SrcWithinBlock(src, blk)
++	    || dst.x < 0 || dst.y < 0
++	    || dst.x + dst.width > bufW
++	    || dst.y + dst.height > bufH) {
++	return;
++    }
++
++    /*
++     * Assemble the first band (src.height rows) by horizontal tiling, then
++     * replicate whole rows for the remaining bands.
++     */
++
++    for (y = 0; y < dst.height; y++) {
++	unsigned char *o = buf + ((size_t) (dst.y + y) * bufW + dst.x) * 4;
++
++	if (y < src.height) {
++	    unsigned char *s = blk->pixelPtr
++		    + (size_t) (src.y + y) * blk->pitch
++		    + (size_t) src.x * 4;
++
++	    for (x = 0; x < dst.width; x += src.width) {
++		int cw = MIN(src.width, dst.width - x);
++		memcpy(o + (size_t) x * 4, s, (size_t) cw * 4);
++	    }
++	} else {
++	    memcpy(o, buf + ((size_t) (dst.y + y % src.height) * bufW
++		    + dst.x) * 4, (size_t) dst.width * 4);
++	}
++    }
++}
++
++/* RegionTiles --
++ *	Number of tiles Ttk_Fill would draw for one region.
++ */
++static int RegionTiles(Ttk_Box src, Ttk_Box dst)
++{
++    if (src.width <= 0 || src.height <= 0
++	    || dst.width <= 0 || dst.height <= 0) {
++	return 0;
++    }
++    return ((dst.width + src.width - 1) / src.width)
++	    * ((dst.height + src.height - 1) / src.height);
++}
++
++/* TileBatchElement --
++ *	Draw a whole 9-slice element in one operation: assemble all nine
++ *	regions client-side into a single RGBA buffer and composite it with
++ *	one TkpPutRGBAImage call, instead of one Tk_RedrawImage per tile.
++ *	Returns 1 on success, 0 to fall back to the per-tile loop.
++ *
++ *	Note: composites the photo's raw pix32, like the partial-alpha
++ *	display path does; a non-default -gamma/-palette is not applied.
++ */
++static int TileBatchElement(
++    Tk_Window tkwin,
++    Drawable d,
++    Tk_PhotoHandle photo,
++    Ttk_Box src,
++    Ttk_Box dst,
++    Ttk_Padding p)
++{
++    Tk_PhotoImageBlock blk;
++    Display *display = Tk_Display(tkwin);
++    Ttk_Box src9[9], dst9[9];
++    XImage *ximg;
++    unsigned char *buf;
++    GC gc;
++    XGCValues gcv;
++    int i, tiles, result;
++
++    if (dst.width <= 0 || dst.height <= 0
++	    || dst.width * dst.height < TILE_BATCH_MIN_AREA) {
++	return 0;
++    }
++
++    Tk_PhotoGetImage(photo, &blk);
++    if (!BlockIsPackedRGBA(&blk) || !SrcWithinBlock(src, &blk)) {
++	return 0;
++    }
++
++    /*
++     * Decompose source and destination into the same nine regions
++     * Ttk_Tile/Ttk_Stripe would draw.  The destination is taken relative to
++     * the buffer origin (0,0) so each region indexes straight into buf.
++     */
++
++    NineSlice(src, p, src9);
++    NineSlice(Ttk_MakeBox(0, 0, dst.width, dst.height), p, dst9);
++
++    tiles = 0;
++    for (i = 0; i < 9; i++) {
++	tiles += RegionTiles(src9[i], dst9[i]);
++    }
++    if (tiles < TILE_BATCH_MIN_TILES) {
++	return 0;
++    }
++
++    /*
++     * Zeroed (fully transparent) so any pixels no region covers composite
++     * as a no-op, matching the drawing path leaving them untouched.
++     */
++
++    buf = (unsigned char *)
++	    Tcl_AttemptAlloc((size_t) dst.width * dst.height * 4);
++    if (buf == NULL) {
++	return 0;
++    }
++    memset(buf, 0, (size_t) dst.width * dst.height * 4);
++
++    for (i = 0; i < 9; i++) {
++	AssembleFill(&blk, buf, dst.width, dst.height, src9[i], dst9[i]);
++    }
++
++    ximg = XCreateImage(display, NULL, 32, ZPixmap, 0, (char *) buf,
++	    (unsigned) dst.width, (unsigned) dst.height, 32, 4 * dst.width);
++    if (ximg == NULL) {
++	Tcl_Free(buf);
++	return 0;
++    }
++
++    gcv.graphics_exposures = False;
++    gc = Tk_GetGC(tkwin, GCGraphicsExposures, &gcv);
++    result = TkpPutRGBAImage(display, d, gc, ximg, 0, 0, dst.x, dst.y,
++	    (unsigned) dst.width, (unsigned) dst.height);
++    Tk_FreeGC(display, gc);
++    ximg->data = NULL;
++    XDestroyImage(ximg);
++    Tcl_Free(buf);
++    return result == Success;
++}
++#endif /* TTK_TILE_BATCH */
++
+ /* Ttk_Fill --
+  *	Fill the destination area of the drawable by replicating
+  *	the source area of the image.
+@@ -228,7 +455,7 @@
+ 
+     for (x = dst.x; x < dr; x += src.width) {
+ 	int cw = MIN(src.width, dr - x);
+-	for (y = dst.y; y <= db; y += src.height) {
++	for (y = dst.y; y < db; y += src.height) {
+ 	    int ch = MIN(src.height, db - y);
+ 	    Tk_RedrawImage(image, src.x, src.y, cw, ch, d, x, y);
+ 	}
+@@ -251,9 +478,16 @@
+  *	Fill successive horizontal stripes of the destination drawable.
+  */
+ static void Ttk_Tile(
+-    Tk_Window tkwin, Drawable d, Tk_Image image,
++    Tk_Window tkwin, Drawable d, Tk_Image image, Tk_PhotoHandle photo,
+     Ttk_Box src, Ttk_Box dst, Ttk_Padding p)
+ {
++#ifdef TTK_TILE_BATCH
++    if (photo != NULL && TileBatchElement(tkwin, d, photo, src, dst, p)) {
++	return;
++    }
++#else
++    (void) photo;
++#endif
+     Ttk_Stripe(tkwin, d, image, TPadding(src,p), TPadding(dst,p), p);
+     Ttk_Stripe(tkwin, d, image, MPadding(src,p), MPadding(dst,p), p);
+     Ttk_Stripe(tkwin, d, image, BPadding(src,p), BPadding(dst,p), p);
+@@ -261,6 +495,11 @@
+ 
+ /*------------------------------------------------------------------------
+  * +++ Image element definition.
++ *
++ * The image element is a pure renderer (ImageElementDraw tiles into the given
++ * drawable); the per-node cache owns the composited result.  This element only
++ * advertises that it is cacheable and reports opacity + epoch via
++ * ImageElementCacheInfo.
+  */
+ 
+ typedef struct {		/* ClientData for image elements */
+@@ -270,6 +509,7 @@
+     Ttk_Sticky sticky;		/* -stickiness specification */
+     Ttk_Padding border;		/* Fixed border region */
+     Ttk_Padding padding;	/* Internal padding */
++    unsigned epoch;		/* Bumps when a source image's pixels change */
+ 
+ #ifdef TILE_07_COMPAT
+     Ttk_ResourceCache cache;	/* Resource cache for images */
+@@ -277,6 +517,22 @@
+ #endif
+ } ImageData;
+ 
++/* ImageElementImageChanged --
++ *	A source image's pixels changed; bump the content epoch.
++ */
++static void ImageElementImageChanged(
++    void *clientData,
++    TCL_UNUSED(int),
++    TCL_UNUSED(int),
++    TCL_UNUSED(int),
++    TCL_UNUSED(int),
++    TCL_UNUSED(int),
++    TCL_UNUSED(int))
++{
++    ImageData *imageData = (ImageData *)clientData;
++    imageData->epoch++;
++}
++
+ static void FreeImageData(void *clientData)
+ {
+     ImageData *imageData = (ImageData *)clientData;
+@@ -287,6 +543,74 @@
+     ckfree(clientData);
+ }
+ 
++#ifndef TK_NO_DOUBLE_BUFFERING
++/* ImageIsOpaque --
++ *	Return 1 if the named photo is fully opaque (every pixel alpha 255).
++ *	Anything not a readable photo is treated as translucent.
++ */
++static int ImageIsOpaque(Tcl_Interp *interp, Tcl_Obj *imageName)
++{
++    Tk_PhotoHandle photo;
++    Tk_PhotoImageBlock block;
++    int x, y, alphaOff;
++
++    if (interp == NULL || imageName == NULL) {
++	return 0;
++    }
++    photo = Tk_FindPhoto(interp, Tcl_GetString(imageName));
++    if (photo == NULL || !Tk_PhotoGetImage(photo, &block)) {
++	return 0;
++    }
++    if (block.pixelSize < 4) {
++	return 1;		/* No alpha channel: opaque. */
++    }
++    alphaOff = block.offset[3];
++    for (y = 0; y < block.height; y++) {
++	unsigned char *pixPtr = block.pixelPtr + y * block.pitch + alphaOff;
++	for (x = 0; x < block.width; x++) {
++	    if (*pixPtr != 255) {
++		return 0;
++	    }
++	    pixPtr += block.pixelSize;
++	}
++    }
++    return 1;
++}
++
++/* ImageElementCacheInfo --
++ *	Report the element's content epoch and whether it opaquely covers the
++ *	parcel -- the selected image is opaque AND -sticky fills the box.  A
++ *	non-filling -sticky leaves margins, so it counts as translucent.
++ */
++static void ImageElementCacheInfo(
++    void *clientData,
++    TCL_UNUSED(void *), /* elementRecord */
++    Tk_Window tkwin,
++    Ttk_Box b,
++    Ttk_State state,
++    Ttk_ElementCacheInfo *info)
++{
++    ImageData *imageData = (ImageData *)clientData;
++    Tk_Image image = TtkSelectImage(imageData->imageSpec, tkwin, state);
++    int imgWidth, imgHeight;
++    Ttk_Box dst;
++
++    info->epoch = imageData->epoch;
++    info->opaque = 0;
++
++    if (image == NULL) {
++	return;
++    }
++    Tk_SizeOfImage(image, &imgWidth, &imgHeight);
++    dst = Ttk_StickBox(b, imgWidth, imgHeight, imageData->sticky);
++    if (dst.x == b.x && dst.y == b.y
++	    && dst.width == b.width && dst.height == b.height) {
++	info->opaque = ImageIsOpaque(Tk_Interp(tkwin),
++		TtkSelectImageName(imageData->imageSpec, state));
++    }
++}
++#endif /* !TK_NO_DOUBLE_BUFFERING */
++
+ static void ImageElementSize(
+     void *clientData,
+     TCL_UNUSED(void *), /* elementRecord */
+@@ -321,6 +645,7 @@
+ {
+     ImageData *imageData = (ImageData *)clientData;
+     Tk_Image image = 0;
++    Tk_PhotoHandle photo = NULL;
+     int imgWidth, imgHeight;
+     Ttk_Box src, dst;
+ 
+@@ -342,11 +667,29 @@
+ 	return;
+     }
+ 
++#ifdef TTK_TILE_BATCH
++    /*
++     * Resolve the photo behind the spec-selected image for batched tiling.
++     * NULL (non-photo image, or a TILE_07_COMPAT map image whose name is
++     * not in the spec) keeps the per-tile loop.
++     */
++#ifdef TILE_07_COMPAT
++    if (!imageData->imageMap)
++#endif
++    {
++	Tcl_Obj *nameObj = TtkSelectImageName(imageData->imageSpec, state);
++
++	if (nameObj != NULL) {
++	    photo = Tk_FindPhoto(Tk_Interp(tkwin), Tcl_GetString(nameObj));
++	}
++    }
++#endif /* TTK_TILE_BATCH */
++
+     Tk_SizeOfImage(image, &imgWidth, &imgHeight);
+     src = Ttk_MakeBox(0, 0, imgWidth, imgHeight);
+     dst = Ttk_StickBox(b, imgWidth, imgHeight, imageData->sticky);
+ 
+-    Ttk_Tile(tkwin, d, image, src, dst, imageData->border);
++    Ttk_Tile(tkwin, d, image, photo, src, dst, imageData->border);
+ }
+ 
+ static const Ttk_ElementSpec ImageElementSpec =
+@@ -375,6 +718,7 @@
+ 
+     Ttk_ImageSpec *imageSpec = 0;
+     ImageData *imageData = 0;
++    Ttk_ElementClass *elementClass;
+     int padding_specified = 0;
+     Tcl_Size i;
+ 
+@@ -385,12 +729,16 @@
+ 	return TCL_ERROR;
+     }
+ 
+-    imageSpec = TtkGetImageSpec(interp, Tk_MainWindow(interp), objv[0]);
++    imageData = (ImageData *)Tcl_Alloc(sizeof(*imageData));
++    memset(imageData, 0, sizeof(*imageData));
++
++    imageSpec = TtkGetImageSpecEx(interp, Tk_MainWindow(interp), objv[0],
++	    ImageElementImageChanged, imageData);
+     if (!imageSpec) {
++	Tcl_Free(imageData);
+ 	return TCL_ERROR;
+     }
+ 
+-    imageData = (ImageData *)ckalloc(sizeof(*imageData));
+     imageData->imageSpec = imageSpec;
+     imageData->minWidth = imageData->minHeight = -1;
+     imageData->sticky = TTK_FILL_BOTH;
+@@ -452,11 +800,15 @@
+ 	}
+     }
+ 
+-    if (!Ttk_RegisterElement(interp, theme, elementName, &ImageElementSpec,
+-		imageData))
+-    {
++    elementClass = Ttk_RegisterElement(interp, theme, elementName,
++	    &ImageElementSpec, imageData);
++    if (!elementClass) {
+ 	goto error;
+     }
++#ifndef TK_NO_DOUBLE_BUFFERING
++    TtkSetElementCachePolicy(elementClass, TTK_ELEMENT_CACHEABLE,
++	    ImageElementCacheInfo);
++#endif
+ 
+     Ttk_RegisterCleanup(interp, imageData, FreeImageData);
+     Tcl_SetObjResult(interp, Tcl_NewStringObj(elementName, -1));
+diff -ruN A/generic/ttk/ttkLayout.c B/generic/ttk/ttkLayout.c
+--- A/generic/ttk/ttkLayout.c
++++ B/generic/ttk/ttkLayout.c
+@@ -528,6 +528,7 @@
+     Ttk_State		state;		/* Current state */
+     Ttk_Box		parcel;		/* allocated parcel */
+     Ttk_LayoutNode	*next, *child;
++    NodeDrawCache	*drawCache;	/* Per-node render cache (ttkNodeCache.c) */
+ };
+ 
+ static Ttk_LayoutNode *Ttk_NewLayoutNode(
+@@ -540,6 +541,7 @@
+     node->state = 0u;
+     node->next = node->child = 0;
+     node->parcel = Ttk_MakeBox(0,0,0,0);
++    node->drawCache = NULL;
+ 
+     return node;
+ }
+@@ -549,6 +551,7 @@
+     while (node) {
+ 	Ttk_LayoutNode *next = node->next;
+ 	Ttk_FreeLayoutNode(node->child);
++	TtkFreeNodeDrawCache(node->drawCache);
+ 	ckfree(node);
+ 	node = next;
+     }
+@@ -1120,9 +1123,13 @@
+ /*
+  * Ttk_DrawLayout --
+  *	Draw a layout tree.
++ *
++ * Each node's element is drawn through TtkDrawCachedElement (ttkNodeCache.c),
++ * which owns the per-node render cache.  This file only walks the tree.
+  */
++
+ static void Ttk_DrawNodeList(
+-    Ttk_Layout layout, Ttk_State state, Ttk_LayoutNode *node, Drawable d)
++    NodeDrawContext *ctx, Ttk_State state, Ttk_LayoutNode *node)
+ {
+     for (; node; node = node->next)
+     {
+@@ -1134,23 +1141,27 @@
+ 	}
+ 
+ 	if (node->child && border) {
+-	    Ttk_DrawNodeList(layout, substate, node->child, d);
++	    Ttk_DrawNodeList(ctx, substate, node->child);
+ 	}
+ 
+-	Ttk_DrawElement(
+-	    node->eclass,
+-	    layout->style,layout->recordPtr,layout->optionTable,layout->tkwin,
+-	    d, node->parcel, state | node->state);
++	TtkDrawCachedElement(ctx, node->eclass, &node->drawCache,
++		node->parcel, state | node->state);
+ 
+ 	if (node->child && !border) {
+-	    Ttk_DrawNodeList(layout, substate, node->child, d);
++	    Ttk_DrawNodeList(ctx, substate, node->child);
+ 	}
+     }
+ }
+ 
+ void Ttk_DrawLayout(Ttk_Layout layout, Ttk_State state, Drawable d)
+ {
+-    Ttk_DrawNodeList(layout, state, layout->root, d);
++    NodeDrawContext *ctx = TtkNodeDrawBegin(
++	    layout->style, layout->recordPtr, layout->optionTable,
++	    layout->tkwin, d);
++
++    Ttk_DrawNodeList(ctx, state, layout->root);
++
++    TtkNodeDrawEnd(ctx);
+ }
+ 
+ /*------------------------------------------------------------------------
+diff -ruN A/generic/ttk/ttkNodeCache.c B/generic/ttk/ttkNodeCache.c
+--- A/generic/ttk/ttkNodeCache.c
++++ B/generic/ttk/ttkNodeCache.c
+@@ -0,0 +1,304 @@
++/*
++ * ttkNodeCache.c --
++ *
++ *	Per-node element *render* cache for the Ttk layout-draw traversal.
++ *	ttkLayout.c walks a widget's node tree in z-order and draws each element
++ *	through this module, which caches the composited result on the layout
++ *	node -- so it is per-widget-instance -- replacing the per-tile redraw
++ *	with a single copy on a hit.  A node is reused while its size, position,
++ *	state and content epoch hold; a translucent node also rebuilds when a
++ *	lower node drawn this pass overlaps it, so a changed background shows
++ *	through.  Invalidation needs no help from widgets or elements.
++ *
++ *	STABLE elements (e.g. the implicit per-widget background node) are
++ *	always drawn directly, but an unchanged draw does not dirty its
++ *	parcel -- without that, the background node would force every
++ *	translucent node above it to rebuild on every pass.
++ *
++ *	Compiled in only where XCopyArea accepts a Pixmap; without double
++ *	buffering every entry point degrades to a direct element draw.
++ *
++ * Copyright © 2026 Tk contributors.  Freely redistributable.
++ */
++
++#include "tkInt.h"
++#include "ttkThemeInt.h"
++
++/*
++ * NodeDrawContext --
++ *	Per-draw-pass state (TtkNodeDrawBegin/End): element-draw parameters, the
++ *	destination, a lazy GXcopy GC, and the parcels drawn this pass.
++ */
++struct NodeDrawContext {
++    Ttk_Style		style;
++    void		*recordPtr;
++    Tk_OptionTable	optionTable;
++    Tk_Window		tkwin;
++    Drawable		d;
++#ifndef TK_NO_DOUBLE_BUFFERING
++    Display		*display;
++    GC			copyGC;		/* Lazily allocated GXcopy GC, or NULL */
++    Ttk_Box		*dirty;		/* Parcels (re)drawn fresh this pass */
++    int			ndirty, dirtycap;
++#endif
++};
++
++#ifndef TK_NO_DOUBLE_BUFFERING
++
++/*
++ * NodeDrawCache --
++ *	One cached composited element, hung off a layout node.
++ */
++struct NodeDrawCache {
++    Pixmap	pixmap;		/* Cached composited element, or None */
++    Display	*display;	/* Display owning pixmap (for Tk_FreePixmap) */
++    int		x, y, w, h;	/* Parcel the pixmap was built for */
++    Ttk_State	state;		/* State the pixmap was built for */
++    int		opaque;		/* 1: background-independent; 0: bg baked in */
++    unsigned	epoch;		/* Element content epoch when built */
++    int		valid;		/* Nonzero when the cache holds the key */
++};
++
++static int BoxesIntersect(Ttk_Box a, Ttk_Box b)
++{
++    return a.x < b.x + b.width  && b.x < a.x + a.width
++	&& a.y < b.y + b.height && b.y < a.y + a.height;
++}
++
++/* DirtyOverlaps, DirtyAdd --
++ *	The parcels drawn this pass; a translucent node rebuilds when one
++ *	overlaps its parcel.
++ */
++static int DirtyOverlaps(NodeDrawContext *ctx, Ttk_Box b)
++{
++    int i;
++    for (i = 0; i < ctx->ndirty; ++i) {
++	if (BoxesIntersect(ctx->dirty[i], b)) {
++	    return 1;
++	}
++    }
++    return 0;
++}
++
++static void DirtyAdd(NodeDrawContext *ctx, Ttk_Box b)
++{
++    if (ctx->ndirty >= ctx->dirtycap) {
++	ctx->dirtycap = ctx->dirtycap ? 2 * ctx->dirtycap : 8;
++	ctx->dirty = (Ttk_Box *)Tcl_Realloc(ctx->dirty,
++		ctx->dirtycap * sizeof(Ttk_Box));
++    }
++    ctx->dirty[ctx->ndirty++] = b;
++}
++
++static GC NodeCopyGC(NodeDrawContext *ctx)
++{
++    if (ctx->copyGC == NULL) {
++	XGCValues gcv;
++	gcv.function = GXcopy;
++	gcv.graphics_exposures = False;
++	ctx->copyGC = Tk_GetGC(ctx->tkwin,
++		GCFunction | GCGraphicsExposures, &gcv);
++    }
++    return ctx->copyGC;
++}
++
++#endif /* !TK_NO_DOUBLE_BUFFERING */
++
++/* TtkNodeDrawBegin --
++ *	Open a draw pass; graphics state is allocated lazily.
++ */
++NodeDrawContext *TtkNodeDrawBegin(
++    Ttk_Style style,
++    void *recordPtr,
++    Tk_OptionTable optionTable,
++    Tk_Window tkwin,
++    Drawable d)
++{
++    NodeDrawContext *ctx = (NodeDrawContext *)Tcl_Alloc(sizeof(*ctx));
++
++    ctx->style = style;
++    ctx->recordPtr = recordPtr;
++    ctx->optionTable = optionTable;
++    ctx->tkwin = tkwin;
++    ctx->d = d;
++#ifndef TK_NO_DOUBLE_BUFFERING
++    ctx->display = Tk_Display(tkwin);
++    ctx->copyGC = NULL;
++    ctx->dirty = NULL;
++    ctx->ndirty = ctx->dirtycap = 0;
++#endif
++    return ctx;
++}
++
++/* TtkNodeDrawEnd --
++ *	Close a draw pass: free the shared GC and dirty set.  Node pixmaps
++ *	persist; they are freed by TtkFreeNodeDrawCache.
++ */
++void TtkNodeDrawEnd(NodeDrawContext *ctx)
++{
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (ctx->copyGC != NULL) {
++	Tk_FreeGC(ctx->display, ctx->copyGC);
++    }
++    if (ctx->dirty != NULL) {
++	Tcl_Free(ctx->dirty);
++    }
++#endif
++    Tcl_Free(ctx);
++}
++
++/* TtkFreeNodeDrawCache --
++ *	Free a node's cached pixmap and record; NULL-tolerant.
++ */
++void TtkFreeNodeDrawCache(NodeDrawCache *cache)
++{
++    if (cache == NULL) {
++	return;
++    }
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (cache->pixmap != None) {
++	Tk_FreePixmap(cache->display, cache->pixmap);
++    }
++    Tcl_Free(cache);
++#endif
++}
++
++/* TtkDrawCachedElement --
++ *	Draw one node's element through its per-node cache: copy the cached
++ *	pixmap on a hit, else (re)render and store it.  Falls back to a direct
++ *	draw for non-cacheable elements, an unrealized window, or alloc failure.
++ */
++void TtkDrawCachedElement(
++    NodeDrawContext *ctx,
++    Ttk_ElementClass *eclass,
++    NodeDrawCache **cacheSlot,
++    Ttk_Box b,
++    Ttk_State state)
++{
++    if (b.width <= 0 || b.height <= 0) {
++	return;
++    }
++
++#ifndef TK_NO_DOUBLE_BUFFERING
++    if (Ttk_ElementClassCacheable(eclass)
++	    && Tk_WindowId(ctx->tkwin) != None) {
++	Ttk_ElementCacheInfo info;
++	NodeDrawCache *cache = *cacheSlot;
++	GC gc = NULL;
++
++	Ttk_ElementGetCacheInfo(eclass, ctx->style, ctx->recordPtr,
++		ctx->optionTable, ctx->tkwin, b, state, &info);
++
++	/* Hit: size, position, state and epoch match, and -- if translucent
++	 * -- nothing beneath changed this pass. */
++	if (cache && cache->valid
++		&& cache->x == b.x && cache->y == b.y
++		&& cache->w == b.width && cache->h == b.height
++		&& cache->state == state
++		&& cache->opaque == info.opaque
++		&& cache->epoch == info.epoch
++		&& (info.opaque || !DirtyOverlaps(ctx, b))
++		&& (gc = NodeCopyGC(ctx)) != NULL) {
++	    XCopyArea(ctx->display, cache->pixmap, ctx->d, gc,
++		    0, 0, (unsigned)b.width, (unsigned)b.height, b.x, b.y);
++	    return;			/* clean: parcel not marked dirty */
++	}
++
++	/* Miss: (re)build the node pixmap. */
++	if (cache == NULL) {
++	    cache = *cacheSlot = (NodeDrawCache *)Tcl_Alloc(sizeof(*cache));
++	    memset(cache, 0, sizeof(*cache));
++	}
++	if (cache->pixmap != None
++		&& (cache->w != b.width || cache->h != b.height)) {
++	    Tk_FreePixmap(cache->display, cache->pixmap);
++	    cache->pixmap = None;
++	}
++	if (cache->pixmap == None) {
++	    cache->pixmap = Tk_GetPixmap(ctx->display, Tk_WindowId(ctx->tkwin),
++		    b.width, b.height, Tk_Depth(ctx->tkwin));
++	    cache->display = ctx->display;
++	}
++	gc = NodeCopyGC(ctx);
++	if (cache->pixmap != None && gc != NULL) {
++	    if (!info.opaque) {
++		/* Seed the live background for translucent pixels and
++		 * non-filling -sticky margins. */
++		XCopyArea(ctx->display, ctx->d, cache->pixmap, gc,
++			b.x, b.y, (unsigned)b.width, (unsigned)b.height, 0, 0);
++	    }
++	    Ttk_DrawElement(eclass, ctx->style, ctx->recordPtr,
++		    ctx->optionTable, ctx->tkwin, cache->pixmap,
++		    Ttk_MakeBox(0, 0, b.width, b.height), state);
++	    XCopyArea(ctx->display, cache->pixmap, ctx->d, gc,
++		    0, 0, (unsigned)b.width, (unsigned)b.height, b.x, b.y);
++
++	    cache->x = b.x;	cache->y = b.y;
++	    cache->w = b.width;	cache->h = b.height;
++	    cache->state = state;
++	    cache->opaque = info.opaque;
++	    cache->epoch = info.epoch;
++	    cache->valid = 1;
++	    DirtyAdd(ctx, b);
++	    return;
++	}
++
++	/* Pixmap or GC allocation failed: fall through to a direct draw. */
++	if (cache) {
++	    cache->valid = 0;
++	}
++    }
++
++    if (Ttk_ElementClassStable(eclass)) {
++	/* Stable element: same (parcel, state, epoch) means same pixels.
++	 * Always drawn directly -- no pixmap; the record only keeps the key
++	 * -- but an unchanged draw does not dirty its parcel, so translucent
++	 * cached nodes above it keep hitting.  The implicit per-widget
++	 * background node is the important case: without this, it would
++	 * dirty the whole widget on every pass. */
++	Ttk_ElementCacheInfo info;
++	NodeDrawCache *cache = *cacheSlot;
++	int unchanged;
++
++	Ttk_ElementGetCacheInfo(eclass, ctx->style, ctx->recordPtr,
++		ctx->optionTable, ctx->tkwin, b, state, &info);
++
++	unchanged = cache && cache->valid
++		&& cache->x == b.x && cache->y == b.y
++		&& cache->w == b.width && cache->h == b.height
++		&& cache->state == state
++		&& cache->opaque == info.opaque
++		&& cache->epoch == info.epoch
++		&& (info.opaque || !DirtyOverlaps(ctx, b));
++
++	Ttk_DrawElement(eclass, ctx->style, ctx->recordPtr,
++		ctx->optionTable, ctx->tkwin, ctx->d, b, state);
++
++	if (!unchanged) {
++	    if (cache == NULL) {
++		cache = *cacheSlot = (NodeDrawCache *)Tcl_Alloc(sizeof(*cache));
++		memset(cache, 0, sizeof(*cache));
++	    }
++	    cache->x = b.x;	cache->y = b.y;
++	    cache->w = b.width;	cache->h = b.height;
++	    cache->state = state;
++	    cache->opaque = info.opaque;
++	    cache->epoch = info.epoch;
++	    cache->valid = 1;
++	    DirtyAdd(ctx, b);
++	}
++	return;
++    }
++
++    /* Direct draw: non-cacheable element, unrealized window, or alloc fail. */
++    Ttk_DrawElement(eclass, ctx->style, ctx->recordPtr, ctx->optionTable,
++	    ctx->tkwin, ctx->d, b, state);
++    DirtyAdd(ctx, b);
++#else
++    (void)cacheSlot;
++    Ttk_DrawElement(eclass, ctx->style, ctx->recordPtr, ctx->optionTable,
++	    ctx->tkwin, ctx->d, b, state);
++#endif /* !TK_NO_DOUBLE_BUFFERING */
++}
++
++/*EOF*/
+diff -ruN A/generic/ttk/ttkTheme.c B/generic/ttk/ttkTheme.c
+--- A/generic/ttk/ttkTheme.c
++++ B/generic/ttk/ttkTheme.c
+@@ -124,6 +124,8 @@
+     int nResources;		/* #Element options */
+     Tcl_Obj **defaultValues;	/* Array of option default values */
+     Tcl_HashTable optMapCache;	/* Map: Tk_OptionTable * -> OptionMap */
++    unsigned cacheFlags;	/* Render-cache policy (TTK_ELEMENT_* flags) */
++    Ttk_ElementCacheProc *cacheProc;	/* Cache-info query, or NULL */
+ };
+ 
+ /* TTKGetOptionSpec --
+@@ -252,9 +254,43 @@
+      */
+     Tcl_InitHashTable(&elementClass->optMapCache, TCL_ONE_WORD_KEYS);
+ 
++    /* Render-cache policy: off until the element opts in. */
++    elementClass->cacheFlags = 0;
++    elementClass->cacheProc = NULL;
++
+     return elementClass;
+ }
+ 
++/* TtkSetElementCachePolicy --
++ *	Record an element class's render-cache policy and optional cache-info
++ *	query.  Called once by an element after registration.
++ */
++void TtkSetElementCachePolicy(
++    Ttk_ElementClass *eclass,
++    unsigned cacheFlags,
++    Ttk_ElementCacheProc *cacheProc)
++{
++    eclass->cacheFlags = cacheFlags;
++    eclass->cacheProc = cacheProc;
++}
++
++/* Ttk_ElementClassCacheable --
++ *	Return nonzero if the element class opted into per-node render caching.
++ */
++int Ttk_ElementClassCacheable(Ttk_ElementClass *eclass)
++{
++    return (eclass->cacheFlags & TTK_ELEMENT_CACHEABLE) != 0;
++}
++
++/* Ttk_ElementClassStable --
++ *	Return nonzero if the element class declared its draw deterministic
++ *	for an unchanged (parcel, state, content epoch).
++ */
++int Ttk_ElementClassStable(Ttk_ElementClass *eclass)
++{
++    return (eclass->cacheFlags & TTK_ELEMENT_STABLE) != 0;
++}
++
+ /*
+  * FreeElementClass --
+  *	Release resources associated with an element class record.
+@@ -1138,6 +1174,34 @@
+ 	tkwin, d, b, state);
+ }
+ 
++/* Ttk_ElementGetCacheInfo --
++ *	Query a cacheable element's opacity and content epoch for (tkwin, state).
++ *	Defaults to {not opaque, epoch 0} when no cache proc is registered.
++ */
++void
++Ttk_ElementGetCacheInfo(
++    Ttk_ElementClass *eclass,
++    Ttk_Style style,
++    void *recordPtr,
++    Tk_OptionTable optionTable,
++    Tk_Window tkwin,
++    Ttk_Box b,
++    Ttk_State state,
++    Ttk_ElementCacheInfo *info)
++{
++    info->opaque = 0;
++    info->epoch = 0;
++    if (eclass->cacheProc == NULL) {
++	return;
++    }
++    if (!InitializeElementRecord(
++	    eclass, style, recordPtr, optionTable, tkwin, state)) {
++	return;
++    }
++    eclass->cacheProc(
++	eclass->clientData, eclass->elementRecord, tkwin, b, state, info);
++}
++
+ /*------------------------------------------------------------------------
+  * +++ 'style' command ensemble procedures.
+  */
+diff -ruN A/generic/ttk/ttkThemeInt.h B/generic/ttk/ttkThemeInt.h
+--- A/generic/ttk/ttkThemeInt.h
++++ B/generic/ttk/ttkThemeInt.h
+@@ -31,6 +31,57 @@
+ 	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
+ 	Tk_Window tkwin, Drawable d, Ttk_Box b, Ttk_State state);
+ 
++/*
++ * Element render-cache policy.  An element class may opt into per-node caching
++ * of its composited output and supply a query reporting its opacity and content
++ * epoch.  Off by default.
++ *
++ * A STABLE element draws the same pixels whenever its parcel, state and
++ * content epoch are unchanged (and, if translucent, nothing beneath it was
++ * redrawn this pass).  It is always drawn directly -- never through a node
++ * pixmap -- but an unchanged draw does not dirty its parcel, so translucent
++ * cached nodes above it can keep hitting.  The implicit per-widget background
++ * node (Ttk_CreateLayout) is the important case.
++ */
++#define TTK_ELEMENT_CACHEABLE	0x1	/* opts into per-node render caching */
++#define TTK_ELEMENT_STABLE	0x2	/* deterministic draw; see above */
++
++/*
++ * Cache info an element reports for the current (tkwin, state): whether it is
++ * fully opaque, and a content epoch that bumps when its own pixels change.
++ */
++typedef struct Ttk_ElementCacheInfo {
++    int		opaque;		/* element fully opaque (bg-independent) */
++    unsigned	epoch;		/* bumps when the element's own content changes */
++} Ttk_ElementCacheInfo;
++
++typedef void Ttk_ElementCacheProc(void *clientData, void *elementRecord,
++	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *info);
++
++MODULE_SCOPE void TtkSetElementCachePolicy(
++	Ttk_ElementClass *, unsigned cacheFlags, Ttk_ElementCacheProc *);
++MODULE_SCOPE int Ttk_ElementClassCacheable(Ttk_ElementClass *);
++MODULE_SCOPE int Ttk_ElementClassStable(Ttk_ElementClass *);
++MODULE_SCOPE void Ttk_ElementGetCacheInfo(
++	Ttk_ElementClass *, Ttk_Style, void *recordPtr, Tk_OptionTable,
++	Tk_Window tkwin, Ttk_Box b, Ttk_State state, Ttk_ElementCacheInfo *);
++
++/*
++ * Per-node element render cache (ttkNodeCache.c).  The layout-draw traversal
++ * opens a context, draws each node's element through it, and closes it.  Both
++ * types are opaque; a layout node stores a NodeDrawCache* slot.
++ */
++typedef struct NodeDrawCache NodeDrawCache;
++typedef struct NodeDrawContext NodeDrawContext;
++
++MODULE_SCOPE NodeDrawContext *TtkNodeDrawBegin(
++	Ttk_Style style, void *recordPtr, Tk_OptionTable optionTable,
++	Tk_Window tkwin, Drawable d);
++MODULE_SCOPE void TtkDrawCachedElement(NodeDrawContext *,
++	Ttk_ElementClass *, NodeDrawCache **cacheSlot, Ttk_Box b, Ttk_State);
++MODULE_SCOPE void TtkNodeDrawEnd(NodeDrawContext *);
++MODULE_SCOPE void TtkFreeNodeDrawCache(NodeDrawCache *);
++
+ MODULE_SCOPE Tcl_Obj *Ttk_QueryStyle(
+     Ttk_Style, void *, Tk_OptionTable, const char *, Ttk_State state);
+ 
+diff -ruN A/macosx/configure B/macosx/configure
+--- A/macosx/configure
++++ B/macosx/configure
+@@ -682,6 +682,8 @@
+ CC_FOR_BUILD
+ CUPS_LIBS
+ CUPS_CFLAGS
++XRENDER_LIBS
++XRENDER_CFLAGS
+ UNIX_FONT_OBJS
+ XFT_LIBS
+ XFT_CFLAGS
+@@ -797,6 +799,7 @@
+ enable_aqua
+ with_x
+ enable_xft
++enable_xrender
+ enable_libcups
+ enable_xss
+ enable_framework
+@@ -1451,6 +1454,8 @@
+   --enable-symbols        build with debugging symbols (default: off)
+   --enable-aqua=yes|no    use Aqua windowingsystem on Mac OS X (default: no)
+   --enable-xft            use freetype/fontconfig/xft (default: on)
++  --enable-xrender        use Xrender to composite photo images with alpha
++                          (default: yes)
+   --enable-libcups        use libcups (default: on)
+   --enable-xss            use XScreenSaver for activity timer (default: on)
+   --enable-framework      package shared libraries in MacOSX frameworks
+@@ -8665,6 +8670,127 @@
+ fi
+ 
+ #--------------------------------------------------------------------
++#	Check for the X RENDER extension client library (Xrender), used
++#	to composite RGBA photo images server-side (TkpPutRGBAImage).
++#--------------------------------------------------------------------
++
++XRENDER_CFLAGS=""
++XRENDER_LIBS=""
++if test $tk_aqua = no; then
++    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking whether to use xrender" >&5
++printf %s "checking whether to use xrender... " >&6; }
++    # Check whether --enable-xrender was given.
++if test ${enable_xrender+y}
++then :
++  enableval=$enable_xrender; enable_xrender=$enableval
++else case e in #(
++  e) enable_xrender="yes" ;;
++esac
++fi
++
++    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $enable_xrender" >&5
++printf '%s\n' "$enable_xrender" >&6; }
++
++    if test "$enable_xrender" = "yes" ; then
++	found_xrender="yes"
++	XRENDER_CFLAGS=`pkg-config --cflags xrender 2>/dev/null` || found_xrender="no"
++	XRENDER_LIBS=`pkg-config --libs xrender 2>/dev/null` || found_xrender="no"
++	if test "$found_xrender" = "no" ; then
++	    found_xrender="yes"
++	    XRENDER_CFLAGS=""
++	    XRENDER_LIBS="-lXrender"
++	fi
++
++	tk_oldCFlags=$CFLAGS
++	CFLAGS="$CFLAGS $XINCLUDES $XRENDER_CFLAGS"
++	tk_oldLibs=$LIBS
++	LIBS="$tk_oldLibs $XRENDER_LIBS $XLIBSW"
++
++	ac_fn_c_check_header_compile "$LINENO" "X11/extensions/Xrender.h" "ac_cv_header_X11_extensions_Xrender_h" "#include <X11/Xlib.h>
++"
++if test "x$ac_cv_header_X11_extensions_Xrender_h" = xyes
++then :
++
++else case e in #(
++  e) found_xrender=no ;;
++esac
++fi
++
++	if test "$found_xrender" = "yes" ; then
++	    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking for XRenderQueryExtension in -lXrender" >&5
++printf %s "checking for XRenderQueryExtension in -lXrender... " >&6; }
++if test ${ac_cv_lib_Xrender_XRenderQueryExtension+y}
++then :
++  printf %s "(cached) " >&6
++else case e in #(
++  e) ac_check_lib_save_LIBS=$LIBS
++LIBS="-lXrender  $LIBS"
++cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++/* Override any GCC internal prototype to avoid an error.
++   Use char because int might match the return type of a GCC
++   builtin and then its argument prototype would still apply.
++   The 'extern "C"' is for builds by C++ compilers;
++   although this is not generally supported in C code supporting it here
++   has little cost and some practical benefit (sr 110532).  */
++#ifdef __cplusplus
++extern "C"
++#endif
++char XRenderQueryExtension (void);
++int
++main (void)
++{
++return XRenderQueryExtension ();
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++  ac_cv_lib_Xrender_XRenderQueryExtension=yes
++else case e in #(
++  e) ac_cv_lib_Xrender_XRenderQueryExtension=no ;;
++esac
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++LIBS=$ac_check_lib_save_LIBS ;;
++esac
++fi
++{ printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_Xrender_XRenderQueryExtension" >&5
++printf '%s\n' "$ac_cv_lib_Xrender_XRenderQueryExtension" >&6; }
++if test "x$ac_cv_lib_Xrender_XRenderQueryExtension" = xyes
++then :
++  printf '%s\n' "#define HAVE_LIBXRENDER 1" >>confdefs.h
++
++  LIBS="-lXrender $LIBS"
++
++else case e in #(
++  e) found_xrender=no ;;
++esac
++fi
++
++	fi
++
++	CFLAGS=$tk_oldCFlags
++	LIBS=$tk_oldLibs
++
++	if test "$found_xrender" = "yes" ; then
++
++printf '%s\n' "#define HAVE_XRENDER 1" >>confdefs.h
++
++	else
++	    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: WARNING: Can't find xrender configuration -- photo images will composite in software" >&5
++printf '%s\n' "$as_me: WARNING: Can't find xrender configuration -- photo images will composite in software" >&2;}
++	    enable_xrender=no
++	    XRENDER_CFLAGS=""
++	    XRENDER_LIBS=""
++	fi
++    fi
++fi
++
++#--------------------------------------------------------------------
+ #	Check for libcups support
+ #--------------------------------------------------------------------
+ 
+diff -ruN A/unix/Makefile.in B/unix/Makefile.in
+--- A/unix/Makefile.in
++++ B/unix/Makefile.in
+@@ -157,7 +157,7 @@
+ # Linker switch(es) to use to link with the X11 library archive (the
+ # configure script will try to set this value automatically, but you
+ # can override it).
+-X11_LIB_SWITCHES	= $(XFT_LIBS) @XLIBSW@
++X11_LIB_SWITCHES	= $(XFT_LIBS) $(XRENDER_LIBS) @XLIBSW@
+ 
+ 
+ # To turn off the security checks that disallow incoming sends when
+@@ -299,6 +299,10 @@
+ XFT_CFLAGS		= @XFT_CFLAGS@
+ XFT_LIBS		= @XFT_LIBS@
+ 
++# support for Xrender (server-side photo image compositing)
++XRENDER_CFLAGS		= @XRENDER_CFLAGS@
++XRENDER_LIBS		= @XRENDER_LIBS@
++
+ # support for libcups
+ CUPS_CFLAGS		= @CUPS_CFLAGS@
+ CUPS_LIBS		= @CUPS_LIBS@
+@@ -339,7 +343,8 @@
+ ${@TK_WINDOWINGSYSTEM@_INCLUDES} ${CFLAGS} ${CFLAGS_WARNING} \
+ ${SHLIB_CFLAGS} -I${TCL_GENERIC_DIR} -I${TCL_PLATFORM_DIR} ${AC_FLAGS} \
+ ${PROTO_FLAGS} ${SECURITY_FLAGS} ${MEM_DEBUG_FLAGS} ${KEYSYM_FLAGS} \
+-${NO_DEPRECATED_FLAGS} -DTCL_UTF_MAX=4 @EXTRA_CC_SWITCHES@
++${NO_DEPRECATED_FLAGS} -DTCL_UTF_MAX=4 @EXTRA_CC_SWITCHES@ \
++$(XRENDER_CFLAGS)
+ 
+ CC_SWITCHES = $(CC_SWITCHES_NO_STUBS) @TCL_STUB_FLAGS@
+ 
+@@ -348,7 +353,8 @@
+ DEPEND_SWITCHES = -I${UNIX_DIR} -I${GENERIC_DIR} -I${BMAP_DIR} \
+ ${@TK_WINDOWINGSYSTEM@_INCLUDES} ${CFLAGS} -I${TCL_GENERIC_DIR} \
+ -I${TCL_PLATFORM_DIR} ${AC_FLAGS} ${PROTO_FLAGS} ${SECURITY_FLAGS} \
+-${MEM_DEBUG_FLAGS} ${KEYSYM_FLAGS} @EXTRA_CC_SWITCHES@
++${MEM_DEBUG_FLAGS} ${KEYSYM_FLAGS} @EXTRA_CC_SWITCHES@ \
++$(XRENDER_CFLAGS)
+ 
+ WISH_OBJS = tkAppInit.o
+ 
+@@ -384,7 +390,8 @@
+ TTK_OBJS = \
+ 	ttkBlink.o ttkButton.o ttkCache.o ttkClamTheme.o ttkClassicTheme.o \
+ 	ttkDefaultTheme.o ttkElements.o ttkEntry.o ttkFrame.o ttkImage.o \
+-	ttkInit.o ttkLabel.o ttkLayout.o ttkManager.o ttkNotebook.o \
++	ttkInit.o ttkLabel.o ttkLayout.o ttkManager.o ttkNodeCache.o \
++	ttkNotebook.o \
+ 	ttkPanedwindow.o ttkProgress.o ttkScale.o ttkScrollbar.o ttkScroll.o \
+ 	ttkSeparator.o ttkSquare.o ttkState.o \
+ 	ttkTagSet.o ttkTheme.o ttkTrace.o ttkTrack.o ttkTreeview.o \
+@@ -486,6 +493,7 @@
+ 	$(TTK_DIR)/ttkLabel.c \
+ 	$(TTK_DIR)/ttkLayout.c \
+ 	$(TTK_DIR)/ttkManager.c \
++	$(TTK_DIR)/ttkNodeCache.c \
+ 	$(TTK_DIR)/ttkNotebook.c \
+ 	$(TTK_DIR)/ttkPanedwindow.c \
+ 	$(TTK_DIR)/ttkProgress.c \
+@@ -1514,6 +1522,9 @@
+ ttkLayout.o: $(TTK_DIR)/ttkLayout.c
+ 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkLayout.c
+ 
++ttkNodeCache.o: $(TTK_DIR)/ttkNodeCache.c
++	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkNodeCache.c
++
+ ttkManager.o: $(TTK_DIR)/ttkManager.c
+ 	$(CC) -c $(CC_SWITCHES) $(TTK_DIR)/ttkManager.c
+ 
+diff -ruN A/unix/README B/unix/README
+--- A/unix/README
++++ B/unix/README
+@@ -73,6 +73,12 @@
+ 				Freetype/xft library. By default, this is
+ 				switched on whenever the configure script can
+ 				detect the required libraries.
++	--disable-xrender	Disable use of the X Render extension to
++				composite photo images with alpha server-side.
++				By default, this is switched on whenever the
++				configure script can detect the Xrender
++				library; otherwise photo images composite in
++				software.
+ 	--enable-man-symlinks	Use symlinks for linking the manpages that
+ 				should be reachable under several names.
+ 	--enable-man-compression=PROG
+diff -ruN A/unix/configure B/unix/configure
+--- A/unix/configure
++++ B/unix/configure
+@@ -682,6 +682,8 @@
+ CC_FOR_BUILD
+ CUPS_LIBS
+ CUPS_CFLAGS
++XRENDER_LIBS
++XRENDER_CFLAGS
+ UNIX_FONT_OBJS
+ XFT_LIBS
+ XFT_CFLAGS
+@@ -797,6 +799,7 @@
+ enable_aqua
+ with_x
+ enable_xft
++enable_xrender
+ enable_libcups
+ enable_xss
+ enable_framework
+@@ -1451,6 +1454,8 @@
+   --enable-symbols        build with debugging symbols (default: off)
+   --enable-aqua=yes|no    use Aqua windowingsystem on Mac OS X (default: no)
+   --enable-xft            use freetype/fontconfig/xft (default: on)
++  --enable-xrender        use Xrender to composite photo images with alpha
++                          (default: yes)
+   --enable-libcups        use libcups (default: on)
+   --enable-xss            use XScreenSaver for activity timer (default: on)
+   --enable-framework      package shared libraries in MacOSX frameworks
+@@ -8659,6 +8664,127 @@
+ fi
+ 
+ #--------------------------------------------------------------------
++#	Check for the X RENDER extension client library (Xrender), used
++#	to composite RGBA photo images server-side (TkpPutRGBAImage).
++#--------------------------------------------------------------------
++
++XRENDER_CFLAGS=""
++XRENDER_LIBS=""
++if test $tk_aqua = no; then
++    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking whether to use xrender" >&5
++printf %s "checking whether to use xrender... " >&6; }
++    # Check whether --enable-xrender was given.
++if test ${enable_xrender+y}
++then :
++  enableval=$enable_xrender; enable_xrender=$enableval
++else case e in #(
++  e) enable_xrender="yes" ;;
++esac
++fi
++
++    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $enable_xrender" >&5
++printf '%s\n' "$enable_xrender" >&6; }
++
++    if test "$enable_xrender" = "yes" ; then
++	found_xrender="yes"
++	XRENDER_CFLAGS=`pkg-config --cflags xrender 2>/dev/null` || found_xrender="no"
++	XRENDER_LIBS=`pkg-config --libs xrender 2>/dev/null` || found_xrender="no"
++	if test "$found_xrender" = "no" ; then
++	    found_xrender="yes"
++	    XRENDER_CFLAGS=""
++	    XRENDER_LIBS="-lXrender"
++	fi
++
++	tk_oldCFlags=$CFLAGS
++	CFLAGS="$CFLAGS $XINCLUDES $XRENDER_CFLAGS"
++	tk_oldLibs=$LIBS
++	LIBS="$tk_oldLibs $XRENDER_LIBS $XLIBSW"
++
++	ac_fn_c_check_header_compile "$LINENO" "X11/extensions/Xrender.h" "ac_cv_header_X11_extensions_Xrender_h" "#include <X11/Xlib.h>
++"
++if test "x$ac_cv_header_X11_extensions_Xrender_h" = xyes
++then :
++
++else case e in #(
++  e) found_xrender=no ;;
++esac
++fi
++
++	if test "$found_xrender" = "yes" ; then
++	    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking for XRenderQueryExtension in -lXrender" >&5
++printf %s "checking for XRenderQueryExtension in -lXrender... " >&6; }
++if test ${ac_cv_lib_Xrender_XRenderQueryExtension+y}
++then :
++  printf %s "(cached) " >&6
++else case e in #(
++  e) ac_check_lib_save_LIBS=$LIBS
++LIBS="-lXrender  $LIBS"
++cat confdefs.h - <<_ACEOF >conftest.$ac_ext
++/* end confdefs.h.  */
++
++/* Override any GCC internal prototype to avoid an error.
++   Use char because int might match the return type of a GCC
++   builtin and then its argument prototype would still apply.
++   The 'extern "C"' is for builds by C++ compilers;
++   although this is not generally supported in C code supporting it here
++   has little cost and some practical benefit (sr 110532).  */
++#ifdef __cplusplus
++extern "C"
++#endif
++char XRenderQueryExtension (void);
++int
++main (void)
++{
++return XRenderQueryExtension ();
++  ;
++  return 0;
++}
++_ACEOF
++if ac_fn_c_try_link "$LINENO"
++then :
++  ac_cv_lib_Xrender_XRenderQueryExtension=yes
++else case e in #(
++  e) ac_cv_lib_Xrender_XRenderQueryExtension=no ;;
++esac
++fi
++rm -f core conftest.err conftest.$ac_objext conftest.beam \
++    conftest$ac_exeext conftest.$ac_ext
++LIBS=$ac_check_lib_save_LIBS ;;
++esac
++fi
++{ printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_Xrender_XRenderQueryExtension" >&5
++printf '%s\n' "$ac_cv_lib_Xrender_XRenderQueryExtension" >&6; }
++if test "x$ac_cv_lib_Xrender_XRenderQueryExtension" = xyes
++then :
++  printf '%s\n' "#define HAVE_LIBXRENDER 1" >>confdefs.h
++
++  LIBS="-lXrender $LIBS"
++
++else case e in #(
++  e) found_xrender=no ;;
++esac
++fi
++
++	fi
++
++	CFLAGS=$tk_oldCFlags
++	LIBS=$tk_oldLibs
++
++	if test "$found_xrender" = "yes" ; then
++
++printf '%s\n' "#define HAVE_XRENDER 1" >>confdefs.h
++
++	else
++	    { printf '%s\n' "$as_me:${as_lineno-$LINENO}: WARNING: Can't find xrender configuration -- photo images will composite in software" >&5
++printf '%s\n' "$as_me: WARNING: Can't find xrender configuration -- photo images will composite in software" >&2;}
++	    enable_xrender=no
++	    XRENDER_CFLAGS=""
++	    XRENDER_LIBS=""
++	fi
++    fi
++fi
++
++#--------------------------------------------------------------------
+ #	Check for libcups support
+ #--------------------------------------------------------------------
+ 
+diff -ruN A/unix/configure.ac B/unix/configure.ac
+--- A/unix/configure.ac
++++ B/unix/configure.ac
+@@ -424,6 +424,58 @@
+ fi
+ 
+ #--------------------------------------------------------------------
++#	Check for the X RENDER extension client library (Xrender), used
++#	to composite RGBA photo images server-side (TkpPutRGBAImage).
++#--------------------------------------------------------------------
++
++XRENDER_CFLAGS=""
++XRENDER_LIBS=""
++if test $tk_aqua = no; then
++    AC_MSG_CHECKING([whether to use xrender])
++    AC_ARG_ENABLE(xrender,
++	AS_HELP_STRING([--enable-xrender],
++	    [use Xrender to composite photo images with alpha (default: yes)]),
++	[enable_xrender=$enableval], [enable_xrender="yes"])
++    AC_MSG_RESULT([$enable_xrender])
++
++    if test "$enable_xrender" = "yes" ; then
++	found_xrender="yes"
++	XRENDER_CFLAGS=`pkg-config --cflags xrender 2>/dev/null` || found_xrender="no"
++	XRENDER_LIBS=`pkg-config --libs xrender 2>/dev/null` || found_xrender="no"
++	if test "$found_xrender" = "no" ; then
++	    found_xrender="yes"
++	    XRENDER_CFLAGS=""
++	    XRENDER_LIBS="-lXrender"
++	fi
++
++	tk_oldCFlags=$CFLAGS
++	CFLAGS="$CFLAGS $XINCLUDES $XRENDER_CFLAGS"
++	tk_oldLibs=$LIBS
++	LIBS="$tk_oldLibs $XRENDER_LIBS $XLIBSW"
++
++	AC_CHECK_HEADER(X11/extensions/Xrender.h, [], [found_xrender=no],
++	    [#include <X11/Xlib.h>])
++	if test "$found_xrender" = "yes" ; then
++	    AC_CHECK_LIB(Xrender, XRenderQueryExtension, [], [found_xrender=no])
++	fi
++
++	CFLAGS=$tk_oldCFlags
++	LIBS=$tk_oldLibs
++
++	if test "$found_xrender" = "yes" ; then
++	    AC_DEFINE(HAVE_XRENDER, 1, [Have we turned on XRender (photo image compositing)?])
++	else
++	    AC_MSG_WARN([Can't find xrender configuration -- photo images will composite in software])
++	    enable_xrender=no
++	    XRENDER_CFLAGS=""
++	    XRENDER_LIBS=""
++	fi
++    fi
++fi
++AC_SUBST(XRENDER_CFLAGS)
++AC_SUBST(XRENDER_LIBS)
++
++#--------------------------------------------------------------------
+ #	Check for libcups support
+ #--------------------------------------------------------------------
+ 
+diff -ruN A/unix/tk.pc.in B/unix/tk.pc.in
+--- A/unix/tk.pc.in
++++ B/unix/tk.pc.in
+@@ -12,5 +12,5 @@
+ Version: @TK_VERSION@@TK_PATCH_LEVEL@
+ Requires: tcl >= 9.0
+ Libs: -L${libdir} @TK_LIB_FLAG@ @TK_STUB_LIB_FLAG@
+-Libs.private: @XFT_LIBS@ @XLIBSW@
++Libs.private: @XFT_LIBS@ @XRENDER_LIBS@ @XLIBSW@
+ Cflags: -I${includedir}
+diff -ruN A/unix/tkConfig.h.in B/unix/tkConfig.h.in
+--- A/unix/tkConfig.h.in
++++ B/unix/tkConfig.h.in
+@@ -91,6 +91,9 @@
+ /* Have we turned on XFT (antialiased fonts)? */
+ #undef HAVE_XFT
+ 
++/* Have we turned on XRender (photo image compositing)? */
++#undef HAVE_XRENDER
++
+ /* Is XScreenSaver available? */
+ #undef HAVE_XSS
+ 
+diff -ruN A/unix/tkConfig.sh.in B/unix/tkConfig.sh.in
+--- A/unix/tkConfig.sh.in
++++ B/unix/tkConfig.sh.in
+@@ -31,7 +31,7 @@
+ TK_LIB_FILE='@TK_LIB_FILE@'
+ 
+ # Additional libraries to use when linking Tk.
+-TK_LIBS='@XLIBSW@ @XFT_LIBS@ @LIBS@ @TCL_LIBS@'
++TK_LIBS='@XLIBSW@ @XFT_LIBS@ @XRENDER_LIBS@ @LIBS@ @TCL_LIBS@'
+ 
+ # Top-level directory in which Tk's platform-independent files are
+ # installed.
+diff -ruN A/unix/tkUnixDraw.c B/unix/tkUnixDraw.c
+--- A/unix/tkUnixDraw.c
++++ B/unix/tkUnixDraw.c
+@@ -15,6 +15,15 @@
+ #include "tkUnixInt.h"
+ #endif
+ 
++#ifdef HAVE_XRENDER
++#include <X11/extensions/Xrender.h>
++
++#define TK_XRENDER_MIN_AREA (64 * 64)
++				/* Use XRender only at or above this many
++				 * pixels; below it the software blend is
++				 * faster (see TkpPutRGBAImage). */
++#endif
++
+ /*
+  * The following structure is used to pass information to ScrollRestrictProc
+  * from TkScrollWindow.
+@@ -237,6 +246,142 @@
+ 	    Tk_Height(tkwin) - 2*highlightWidth, borderWidth, relief);
+ }
+ 
++#ifdef HAVE_XRENDER
++
++/*
++ *----------------------------------------------------------------------
++ *
++ * TkpPutRGBAImage --
++ *
++ *	Composite an RGBA image (4 bytes/pixel, NOT premultiplied) onto a
++ *	drawable with XRenderComposite (Porter-Duff
++ *	source-over).  Called by TkImgPhotoDisplay for partial-alpha photos
++ *	in place of the software BlendComplexAlpha path, which reads the
++ *	destination back with XGetImage and blends per pixel on the CPU.
++ *	Works for both window and pixmap drawables.
++ *
++ * Results:
++ *	Success, or BadDrawable when the composite could not be performed
++ *	(no RENDER extension, or no picture format for the drawable's
++ *	depth); the caller then falls back to the software blend.
++ *
++ * Side effects:
++ *	Draws onto the drawable.
++ *
++ *----------------------------------------------------------------------
++ */
++
++int
++TkpPutRGBAImage(
++    Display *display,
++    Drawable drawable,
++    GC gc,			/* Unused: the composite is unclipped, like
++				 * the macOS and Windows implementations. */
++    XImage *image,		/* Source image; RGBA, not premultiplied. */
++    int src_x, int src_y,	/* Top-left of the sub-rect within image. */
++    int dest_x, int dest_y,	/* Top-left within drawable. */
++    unsigned int width, unsigned int height)
++{
++    Window root;
++    int x, y, eventBase, errorBase, screen = -1, i;
++    unsigned int gw, gh, bw, depth;
++    XRenderPictFormat *srcFmt, *dstFmt = NULL;
++    Pixmap srcPix;
++    GC srcGC;
++    Picture srcPic, dstPic;
++    XImage *argb;
++    char *buf;
++    int w = (int) width, h = (int) height;
++    (void) gc;
++
++    if (w <= 0 || h <= 0) {
++	return Success;
++    }
++
++    /*
++     * Below this area the fixed per-call cost (XGetGeometry round trip,
++     * scratch pixmap/picture churn) outweighs the read-back and CPU blend
++     * it replaces, so small composites are better off on the caller's
++     * software path.  Measured crossover on a software-RENDER server
++     * (Xwayland/pixman) is ~100x100; accelerated servers cross lower.
++     */
++
++    if ((unsigned long) w * h < TK_XRENDER_MIN_AREA) {
++	return BadDrawable;
++    }
++    if (!XRenderQueryExtension(display, &eventBase, &errorBase)) {
++	return BadDrawable;
++    }
++
++    /*
++     * One round trip: only a Drawable is passed in, so ask the server for
++     * its depth (and its root window, to identify the screen).
++     */
++
++    if (!XGetGeometry(display, drawable, &root, &x, &y, &gw, &gh, &bw,
++	    &depth)) {
++	return BadDrawable;
++    }
++    for (i = 0; i < ScreenCount(display); i++) {
++	if (RootWindow(display, i) == root) {
++	    screen = i;
++	    break;
++	}
++    }
++
++    if (depth == 32) {
++	dstFmt = XRenderFindStandardFormat(display, PictStandardARGB32);
++    } else if (depth == 24) {
++	dstFmt = XRenderFindStandardFormat(display, PictStandardRGB24);
++    } else if (screen >= 0
++	    && depth == (unsigned) DefaultDepth(display, screen)) {
++	dstFmt = XRenderFindVisualFormat(display,
++		DefaultVisual(display, screen));
++    }
++    srcFmt = XRenderFindStandardFormat(display, PictStandardARGB32);
++    if (dstFmt == NULL || srcFmt == NULL) {
++	return BadDrawable;
++    }
++
++    /*
++     * Stage the premultiplied sub-rect in a depth-32 scratch pixmap.
++     * TkPremultiplyRGBA writes B,G,R,A bytes; declared LSBFirst, the pixel
++     * value is 0xAARRGGBB = PictStandardARGB32 regardless of client
++     * endianness, and Xlib re-swaps for MSBFirst servers in XPutImage.  The
++     * buffer is Tcl_Alloc'ed, so detach it before XDestroyImage and free it
++     * ourselves.
++     */
++
++    buf = (char *) Tcl_Alloc((size_t) w * h * 4);
++    TkPremultiplyRGBA(image, src_x, src_y, w, h, (unsigned char *) buf, w * 4);
++
++    argb = XCreateImage(display, NULL, 32, ZPixmap, 0, buf,
++	    width, height, 32, 4 * w);
++    if (argb == NULL) {
++	Tcl_Free(buf);
++	return BadDrawable;
++    }
++    argb->byte_order = LSBFirst;	/* Bytes were written B,G,R,A. */
++
++    srcPix = XCreatePixmap(display, drawable, width, height, 32);
++    srcGC = XCreateGC(display, srcPix, 0, NULL);
++    XPutImage(display, srcPix, srcGC, argb, 0, 0, 0, 0, width, height);
++    XFreeGC(display, srcGC);
++    argb->data = NULL;
++    XDestroyImage(argb);
++    Tcl_Free(buf);
++
++    srcPic = XRenderCreatePicture(display, srcPix, srcFmt, 0, NULL);
++    dstPic = XRenderCreatePicture(display, drawable, dstFmt, 0, NULL);
++    XRenderComposite(display, PictOpOver, srcPic, None, dstPic,
++	    0, 0, 0, 0, dest_x, dest_y, width, height);
++    XRenderFreePicture(display, dstPic);
++    XRenderFreePicture(display, srcPic);
++    XFreePixmap(display, srcPix);
++    return Success;
++}
++#endif /* HAVE_XRENDER */
++
+ /*
+  * Local Variables:
+  * mode: c
+diff -ruN A/unix/tkUnixPort.h B/unix/tkUnixPort.h
+--- A/unix/tkUnixPort.h
++++ B/unix/tkUnixPort.h
+@@ -155,4 +155,20 @@
+ 	snprintf((buf), TCL_INTEGER_SPACE, "0x%lx", (unsigned long) (w))
+ #endif
+ 
++/*
++ * Defined by configure when the Xrender client library is available.
++ * TkImgPhotoDisplay then composites partial-alpha photo images server-side
++ * with TkpPutRGBAImage instead of the XGetImage read-back + CPU blend.
++ * Unlike macOS/Windows, TK_CAN_RENDER_RGBA is deliberately NOT defined:
++ * opaque and binary-alpha photos keep the zero-transfer XCopyArea path, and
++ * the software blend remains the runtime fallback.
++ */
++
++#ifdef HAVE_XRENDER
++MODULE_SCOPE int TkpPutRGBAImage(
++	Display *display, Drawable drawable, GC gc, XImage *image,
++	int src_x, int src_y, int dest_x, int dest_y,
++	unsigned int width, unsigned int height);
++#endif
++
+ #endif /* _UNIXPORT */
+diff -ruN A/win/Makefile.in B/win/Makefile.in
+--- A/win/Makefile.in
++++ B/win/Makefile.in
+@@ -423,6 +423,7 @@
+ 	ttkLabel.$(OBJEXT) \
+ 	ttkLayout.$(OBJEXT) \
+ 	ttkManager.$(OBJEXT) \
++	ttkNodeCache.$(OBJEXT) \
+ 	ttkNotebook.$(OBJEXT) \
+ 	ttkPanedwindow.$(OBJEXT) \
+ 	ttkProgress.$(OBJEXT) \
+diff -ruN A/win/configure B/win/configure
+--- A/win/configure
++++ B/win/configure
+@@ -4746,7 +4746,7 @@
+ 	SHLIB_LD_LIBS='${LIBS}'
+ 	LIBS="-lnetapi32 -lkernel32 -luser32 -ladvapi32 -luserenv -lws2_32"
+ 	# mingw needs to link ole32 and oleaut32 for [send], but MSVC doesn't
+-	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool"
++	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool -lmsimg32"
+ 	STLIB_LD='${AR} cr'
+ 	RC_OUT=-o
+ 	RC_TYPE=
+@@ -4960,7 +4960,7 @@
+ 	    LINKBIN="link"
+ 	fi
+ 
+-	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib"
++	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib msimg32.lib"
+ 
+ 	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
+ 	SHLIB_LD_LIBS='${LIBS}'
+diff -ruN A/win/tcl.m4 B/win/tcl.m4
+--- A/win/tcl.m4
++++ B/win/tcl.m4
+@@ -648,7 +648,7 @@
+ 	SHLIB_LD_LIBS='${LIBS}'
+ 	LIBS="-lnetapi32 -lkernel32 -luser32 -ladvapi32 -luserenv -lws2_32"
+ 	# mingw needs to link ole32 and oleaut32 for [send], but MSVC doesn't
+-	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool"
++	LIBS_GUI="-lgdi32 -lcomdlg32 -limm32 -lcomctl32 -lshell32 -luuid -lole32 -loleaut32 -lwinspool -lmsimg32"
+ 	STLIB_LD='${AR} cr'
+ 	RC_OUT=-o
+ 	RC_TYPE=
+@@ -837,7 +837,7 @@
+ 	    LINKBIN="link"
+ 	fi
+ 
+-	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib"
++	LIBS_GUI="gdi32.lib comdlg32.lib imm32.lib comctl32.lib shell32.lib uuid.lib winspool.lib msimg32.lib"
+ 
+ 	SHLIB_LD="${LINKBIN} -dll -incremental:no ${lflags}"
+ 	SHLIB_LD_LIBS='${LIBS}'
+diff -ruN A/win/tkWinImage.c B/win/tkWinImage.c
+--- A/win/tkWinImage.c
++++ B/win/tkWinImage.c
+@@ -688,6 +688,212 @@
+ 
+     return imagePtr;
+ }
++
++/*
++ *----------------------------------------------------------------------
++ *
++ * RGBA compositing support (TkpPutRGBAImage) --
++ *
++ *	TkpPutRGBAImage composites an RGBA image onto a drawable with GDI
++ *	AlphaBlend.  It is called once per 9-slice tile, so creating and
++ *	destroying a DIB section and memory DC on each call dominated the cost.
++ *	A small per-thread source DIB + memory DC is therefore cached and
++ *	reused, grown on demand up to TK_RGBA_DIB_CACHE_MAX per side; larger
++ *	one-off draws bypass the cache and allocate transiently.
++ *
++ *----------------------------------------------------------------------
++ */
++
++#define TK_RGBA_DIB_CACHE_MAX 256	/* Cache DIBs up to this size per side. */
++
++typedef struct {
++    HDC		memDC;		/* Cached memory DC, or NULL. */
++    HBITMAP	dib;		/* DIB section selected into memDC, or NULL. */
++    HBITMAP	oldBmp;		/* memDC's original bitmap, restored on free. */
++    void	*bits;		/* Pixel pointer of dib. */
++    int		w, h;		/* Size dib was allocated at. */
++} RGBACache;
++
++static Tcl_ThreadDataKey rgbaCacheKey;
++
++/* RGBACacheExitHandler -- free this thread's cached DIB and memory DC. */
++static void
++RGBACacheExitHandler(
++    TCL_UNUSED(void *))
++{
++    RGBACache *cache = (RGBACache *)
++	    Tcl_GetThreadData(&rgbaCacheKey, sizeof(RGBACache));
++
++    if (cache->memDC != NULL) {
++	if (cache->oldBmp != NULL) {
++	    SelectObject(cache->memDC, cache->oldBmp);
++	}
++	DeleteDC(cache->memDC);
++    }
++    if (cache->dib != NULL) {
++	DeleteObject(cache->dib);
++    }
++    memset(cache, 0, sizeof(*cache));
++}
++
++/* CreateRGBADib -- a top-down 32-bit BGRA DIB section; returns it and bits. */
++static HBITMAP
++CreateRGBADib(
++    HDC refDC,
++    int w, int h,
++    void **bitsPtr)
++{
++    BITMAPINFO bmi;
++
++    memset(&bmi, 0, sizeof(bmi));
++    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
++    bmi.bmiHeader.biWidth = w;
++    bmi.bmiHeader.biHeight = -h;		/* negative = top-down */
++    bmi.bmiHeader.biPlanes = 1;
++    bmi.bmiHeader.biBitCount = 32;
++    bmi.bmiHeader.biCompression = BI_RGB;
++    return CreateDIBSection(refDC, &bmi, DIB_RGB_COLORS, bitsPtr, NULL, 0);
++}
++
++/* GetRGBACache -- this thread's cached DIB + memory DC, grown to >= w x h. */
++static RGBACache *
++GetRGBACache(
++    HDC refDC,
++    int w, int h)
++{
++    RGBACache *cache = (RGBACache *)
++	    Tcl_GetThreadData(&rgbaCacheKey, sizeof(RGBACache));
++
++    if (cache->memDC == NULL) {
++	cache->memDC = CreateCompatibleDC(refDC);
++	if (cache->memDC == NULL) {
++	    return NULL;
++	}
++	Tcl_CreateThreadExitHandler(RGBACacheExitHandler, NULL);
++    }
++    if (cache->dib != NULL && (cache->w < w || cache->h < h)) {
++	SelectObject(cache->memDC, cache->oldBmp);
++	DeleteObject(cache->dib);
++	cache->dib = NULL;
++    }
++    if (cache->dib == NULL) {
++	int newW = (w > cache->w) ? w : cache->w;
++	int newH = (h > cache->h) ? h : cache->h;
++
++	cache->dib = CreateRGBADib(refDC, newW, newH, &cache->bits);
++	if (cache->dib == NULL) {
++	    return NULL;
++	}
++	cache->oldBmp = (HBITMAP) SelectObject(cache->memDC, cache->dib);
++	cache->w = newW;
++	cache->h = newH;
++    }
++    return cache;
++}
++
++/*
++ *----------------------------------------------------------------------
++ *
++ * TkpPutRGBAImage --
++ *
++ *	Composite an RGBA image (4 bytes/pixel, NOT premultiplied) onto a
++ *	drawable using GDI AlphaBlend (Porter-Duff
++ *	source-over).  Enabled by TK_CAN_RENDER_RGBA in tkWinPort.h; called by
++ *	TkImgPhotoDisplay in place of the software BlendComplexAlpha path, which
++ *	reads the destination back with XGetImage and blends per pixel on the
++ *	CPU.  Works for both window and pixmap drawables.
++ *
++ * Results:
++ *	Success, or BadDrawable if a device context or DIB could not be
++ *	obtained.
++ *
++ * Side effects:
++ *	Draws onto the drawable.
++ *
++ *----------------------------------------------------------------------
++ */
++
++int
++TkpPutRGBAImage(
++    Display *display,
++    Drawable drawable,
++    GC gc,
++    XImage *image,		/* Source image; RGBA, not premultiplied. */
++    int src_x, int src_y,	/* Top-left of the sub-rect within image. */
++    int dest_x, int dest_y,	/* Top-left within drawable. */
++    unsigned int width, unsigned int height)
++{
++    TkWinDCState state;
++    HDC dstDC;
++    BLENDFUNCTION bf = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
++				/* AC_SRC_ALPHA wants the premultiplied BGRA
++				 * that TkPremultiplyRGBA produces, matching
++				 * the 32-bit DIB pixel layout. */
++    int w = (int) width, h = (int) height;
++    (void) gc;
++
++    if (w <= 0 || h <= 0) {
++	return Success;
++    }
++
++    dstDC = TkWinGetDrawableDC(display, drawable, &state);
++    if (dstDC == NULL) {
++	return BadDrawable;
++    }
++
++    if (w <= TK_RGBA_DIB_CACHE_MAX && h <= TK_RGBA_DIB_CACHE_MAX) {
++	/*
++	 * Common case: composite through the per-thread cached DIB + memory
++	 * DC, so repeated small draws (e.g. 9-slice tiles) don't churn GDI
++	 * objects.  The DIB may be wider than w, so premultiply with its
++	 * stride and AlphaBlend just the (0,0,w,h) sub-rect.
++	 */
++
++	RGBACache *cache = GetRGBACache(dstDC, w, h);
++
++	if (cache != NULL) {
++	    TkPremultiplyRGBA(image, src_x, src_y, w, h,
++		    (unsigned char *) cache->bits, cache->w * 4);
++	    if (!AlphaBlend(dstDC, dest_x, dest_y, w, h,
++		    cache->memDC, 0, 0, w, h, bf)) {
++		BitBlt(dstDC, dest_x, dest_y, w, h, cache->memDC, 0, 0, SRCCOPY);
++	    }
++	    TkWinReleaseDrawableDC(drawable, dstDC, &state);
++	    return Success;
++	}
++
++	/* Cache setup failed; fall through to a one-off allocation. */
++    }
++
++    /*
++     * Oversized draw (or cache allocation failed): one-off DIB + memory DC.
++     */
++
++    {
++	HDC memDC;
++	HBITMAP dib, oldBmp;
++	void *bits = NULL;
++
++	dib = CreateRGBADib(dstDC, w, h, &bits);
++	if (dib == NULL) {
++	    TkWinReleaseDrawableDC(drawable, dstDC, &state);
++	    return BadDrawable;
++	}
++	TkPremultiplyRGBA(image, src_x, src_y, w, h, (unsigned char *) bits, w * 4);
++
++	memDC = CreateCompatibleDC(dstDC);
++	oldBmp = (HBITMAP) SelectObject(memDC, dib);
++	if (!AlphaBlend(dstDC, dest_x, dest_y, w, h, memDC, 0, 0, w, h, bf)) {
++	    BitBlt(dstDC, dest_x, dest_y, w, h, memDC, 0, 0, SRCCOPY);
++	}
++	SelectObject(memDC, oldBmp);
++	DeleteDC(memDC);
++	DeleteObject(dib);
++    }
++
++    TkWinReleaseDrawableDC(drawable, dstDC, &state);
++    return Success;
++}
+ 
+ /*
+  * Local Variables:
+diff -ruN A/win/tkWinPort.h B/win/tkWinPort.h
+--- A/win/tkWinPort.h
++++ B/win/tkWinPort.h
+@@ -125,4 +125,17 @@
+ #define TkpGetPixel(p) (((((p)->red >> 8) & 0xff) \
+ 	| ((p)->green & 0xff00) | (((p)->blue << 8) & 0xff0000)) | 0x20000000)
+ 
++/*
++ * Inform tkImgPhInstance.c that we implement TkpPutRGBAImage to composite RGBA
++ * images directly (via GDI AlphaBlend), so it uses that instead of the software
++ * BlendComplexAlpha path and its XGetImage read-back.
++ */
++
++#define TK_CAN_RENDER_RGBA
++
++MODULE_SCOPE int TkpPutRGBAImage(
++	Display *display, Drawable drawable, GC gc, XImage *image,
++	int src_x, int src_y, int dest_x, int dest_y,
++	unsigned int width, unsigned int height);
++
+ #endif /* _WINPORT */
