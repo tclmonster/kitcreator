@@ -19,40 +19,22 @@ proc ::vfs::cvfs::Unmount {local} {
 # Implementation
 ## I/O Handlers (pass to appropriate hashkey)
 namespace eval ::vfs::cvfs::data {}
-proc ::vfs::cvfs::data::getChildren args {
-	set hashkey [lindex $args 0]
-
-	set cmd "::vfs::cvfs::data::${hashkey}::getChildren"
-	set cmd [linsert $args 0 $cmd]
-
-	eval $cmd
+proc ::vfs::cvfs::data::getChildren {hashkey args} {
+	tailcall ::vfs::cvfs::data::${hashkey}::getChildren $hashkey {*}$args
 }
 
-proc ::vfs::cvfs::data::getMetadata args {
-	set hashkey [lindex $args 0]
-
-	set cmd "::vfs::cvfs::data::${hashkey}::getMetadata"
-	set cmd [linsert $args 0 $cmd]
-
-	eval $cmd
+proc ::vfs::cvfs::data::getMetadata {hashkey args} {
+	tailcall ::vfs::cvfs::data::${hashkey}::getMetadata $hashkey {*}$args
 }
 
-proc ::vfs::cvfs::data::getData args {
-	set hashkey [lindex $args 0]
-
-	set cmd "::vfs::cvfs::data::${hashkey}::getData"
-	set cmd [linsert $args 0 $cmd]
-
-	eval $cmd
+proc ::vfs::cvfs::data::getData {hashkey args} {
+	tailcall ::vfs::cvfs::data::${hashkey}::getData $hashkey {*}$args
 }
 
 ## VFS I/O
 ### Dispatcher
 proc ::vfs::cvfs::vfshandler {hashkey subcmd args} {
-	set cmd $args
-	set cmd [linsert $cmd 0 "::vfs::cvfs::vfsop_${subcmd}" $hashkey]
-
-	return [eval $cmd]
+	tailcall ::vfs::cvfs::vfsop_${subcmd} $hashkey {*}$args
 }
 
 ### Handlers

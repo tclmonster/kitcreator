@@ -105,25 +105,27 @@ proc cname {name} {
 	return $ret
 }
 
-# Convert a string into a C-style binary string
-## XXX: This function needs to be optimized
+# How C writes each byte value in a string literal: "\x" and two hex
+# digits (byte 65, "A", is \x41), for string map
+set byte_to_hex {}
+for {set byte 0} {$byte < 256} {incr byte} {
+	lappend byte_to_hex [format %c $byte] [format {\x%02x} $byte]
+}
+
+# A byte string as a C string literal, every byte as a hex code, 20 bytes to a
+# line
 proc stringify {data} {
-	set ret "\""
-	for {set idx 0} {$idx < [string length $data]} {incr idx} {
-		binary scan [string index $data $idx] H* char
+	set bytes_per_line 20
+	set total_bytes [string length $data]
 
-		append ret "\\x${char}"
-
-		if {($idx % 20) == 0 && $idx != 0} {
-			append ret "\"\n\""
-		}
+	set lines [list]
+	for {set line_first_byte 0} {$line_first_byte < $total_bytes} {incr line_first_byte $bytes_per_line} {
+		set line_last_byte [expr {$line_first_byte + $bytes_per_line - 1}]
+		set line_bytes [string range $data $line_first_byte $line_last_byte]
+		lappend lines [string map $::byte_to_hex $line_bytes]
 	}
 
-	set ret [string trim $ret "\n\""]
-
-	set ret "\"$ret\""
-
-	return $ret
+	return "\"[join $lines "\"\n\""]\""
 }
 
 # A byte string as a C array initializer
