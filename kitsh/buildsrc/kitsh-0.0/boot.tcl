@@ -181,7 +181,7 @@ proc tclKitPostInit {} {
 	}
 	if {[info command ::tcl::tm::path] ne ""} {
 		tcl::tm::path remove {*}[tcl::tm::path list]
-		tcl::tm::roots [file join $::starkit::tclkitroot lib]
+		tcl::tm::roots [list [file join $::starkit::tclkitroot lib]]
 	}
 
 	if {$::TCLKIT_TYPE == "kitdll"} {
